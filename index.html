@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FSRS Vocabulary OCR</title>
+    <title>FSRS 单词本 (Pro Fixed)</title>
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <style>
         :root {
@@ -31,13 +31,13 @@
             min-height: 100vh;
             padding: 20px;
             box-sizing: border-box;
-            /* 防止 iOS 点击高亮 */
             -webkit-tap-highlight-color: transparent;
         }
 
         .container {
             width: 100%;
             max-width: 500px;
+            padding-bottom: 40px;
         }
 
         h1 {
@@ -69,7 +69,6 @@
             outline: none;
             border-radius: 8px;
             background: var(--bg);
-            /* iOS Input 优化 */
             -webkit-appearance: none;
         }
 
@@ -82,9 +81,11 @@
             font-weight: 600;
             cursor: pointer;
             transition: opacity 0.2s;
+            white-space: nowrap;
         }
         
         button.add-btn:active { opacity: 0.8; }
+        button.add-btn:disabled { background: var(--subtext); cursor: not-allowed; }
 
         /* OCR Specific */
         .divider {
@@ -108,10 +109,7 @@
             gap: 10px;
         }
 
-        /* 隐藏原生 File Input，用按钮触发 */
-        input[type="file"] {
-            display: none;
-        }
+        input[type="file"] { display: none; }
 
         .upload-btn {
             background: #e5e5ea;
@@ -122,7 +120,10 @@
             font-weight: 600;
             cursor: pointer;
             display: block;
+            transition: background 0.2s;
         }
+        
+        .upload-btn:active { background: #d1d1d6; }
         
         .loading-container {
             margin-top: 15px;
@@ -148,6 +149,7 @@
         .loading-text {
             color: var(--subtext);
             font-size: 12px;
+            margin-top: 5px;
         }
 
         .word-chips-container {
@@ -157,6 +159,8 @@
             margin-top: 15px;
             max-height: 200px;
             overflow-y: auto;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
         }
 
         .ocr-chip {
@@ -168,6 +172,7 @@
             cursor: pointer;
             border: 2px solid transparent;
             user-select: none;
+            transition: all 0.2s;
         }
 
         .ocr-chip.selected {
@@ -224,8 +229,10 @@
             font-weight: 600;
             font-size: 13px;
             cursor: pointer;
+            transition: transform 0.1s;
         }
         
+        .action-btn:active { transform: scale(0.98); }
         .btn-again { background-color: var(--danger); }
         .btn-hard { background-color: var(--warning); }
         .btn-good { background-color: var(--success); }
@@ -239,19 +246,30 @@
             margin-top: 50px;
         }
 
-        .debug-info {
+        .footer-info {
             margin-top: 40px;
             font-size: 12px;
             color: var(--subtext);
             text-align: center;
-            padding-bottom: 40px; /* iPhone 底部安全区 */
+        }
+
+        .data-tools {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        .text-link {
+            color: var(--accent);
+            cursor: pointer;
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>FSRS Vocabulary</h1>
+    <h1>FSRS Vocabulary Pro</h1>
 
     <div class="input-section">
         <div class="input-group">
@@ -262,7 +280,7 @@
         <div class="divider"><span>OR IMPORT</span></div>
 
         <div class="ocr-controls">
-            <label for="ocrFileInput" class="upload-btn">
+            <label for="ocrFileInput" class="upload-btn" id="uploadBtnLabel">
                 📷 Camera / Photo Library
             </label>
             <input type="file" id="ocrFileInput" accept="image/*" onchange="handleImageUpload(event)">
@@ -277,6 +295,7 @@
             <div id="ocrResults" class="hidden">
                 <div class="word-chips-container" id="chipContainer"></div>
                 <button class="add-btn full-width-btn" onclick="confirmOCRSelection()">Add Selected to Deck</button>
+                <button class="text-link" style="background:none; border:none; width:100%; margin-top:10px;" onclick="cancelOCR()">Cancel</button>
             </div>
         </div>
     </div>
@@ -287,10 +306,10 @@
             <div class="stats-text" id="currentStats">S: 0 | D: 0</div>
         </div>
         <div class="actions">
-            <button class="action-btn btn-again" onclick="rate(1)">Again</button>
-            <button class="action-btn btn-hard" onclick="rate(2)">Hard</button>
-            <button class="action-btn btn-good" onclick="rate(3)">Good</button>
-            <button class="action-btn btn-easy" onclick="rate(4)">Easy</button>
+            <button class="action-btn btn-again" onclick="rate(1)">Again<br><small>1m</small></button>
+            <button class="action-btn btn-hard" onclick="rate(2)">Hard<br><small id="ivl-hard">-</small></button>
+            <button class="action-btn btn-good" onclick="rate(3)">Good<br><small id="ivl-good">-</small></button>
+            <button class="action-btn btn-easy" onclick="rate(4)">Easy<br><small id="ivl-easy">-</small></button>
         </div>
     </div>
 
@@ -298,32 +317,54 @@
         <p>🎉 All caught up!</p>
     </div>
 
-    <div class="debug-info" id="deckInfo">Cards: 0 | Due: 0</div>
+    <div class="footer-info">
+        <div id="deckInfo">Cards: 0 | Due: 0</div>
+        <div class="data-tools">
+            <span class="text-link" onclick="exportData()">Export JSON</span>
+            <span class="text-link" style="color: var(--danger);" onclick="clearData()">Reset All</span>
+        </div>
+    </div>
 </div>
 
 <script>
-    // --- FSRS Core Parameters ---
+    // --- 1. Global State & FSRS Parameters ---
+    // 修复：使用单例模式存储 worker
+    let ocrWorker = null;
+    let deck = [];
+    let currentCard = null;
+
     const p = {
         w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
         requestRetention: 0.9
     };
 
-    let deck = [];
-    let currentCard = null;
-
-    // --- Persistence ---
+    // --- 2. Persistence Layer (修复：异常处理) ---
     function loadDeck() {
-        const stored = localStorage.getItem('fsrs_deck');
-        if (stored) deck = JSON.parse(stored);
+        try {
+            const stored = localStorage.getItem('fsrs_deck_v2');
+            if (stored) deck = JSON.parse(stored);
+        } catch (e) {
+            console.error("Load failed", e);
+            alert("Error loading data.");
+        }
         render();
     }
 
     function saveDeck() {
-        localStorage.setItem('fsrs_deck', JSON.stringify(deck));
+        try {
+            localStorage.setItem('fsrs_deck_v2', JSON.stringify(deck));
+        } catch (e) {
+            // 修复：捕获 QuotaExceededError
+            if (e.name === 'QuotaExceededError' || e.code === 22) {
+                alert("⚠️ Storage Full! Please export and clear old data.");
+            } else {
+                alert("Save failed: " + e.message);
+            }
+        }
         render();
     }
 
-    // --- FSRS Math (Condensed) ---
+    // --- 3. FSRS Math (保持核心逻辑，优化调用) ---
     function initStability(g) { return p.w[g - 1]; }
     function initDifficulty(g) { return Math.min(Math.max(p.w[4] - (g - 3) * p.w[5], 1), 10); }
     function nextDifficulty(d, g) { 
@@ -338,15 +379,36 @@
     }
     function getInterval(s) { return Math.max(1, Math.round(s * 9 * (1 / p.requestRetention - 1))); }
 
-    // --- Core Logic ---
+    // --- 4. Card Logic (修复：ID生成) ---
+    function generateID() {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
+
     function createCardObject(word) {
-        return { id: Date.now() + Math.random(), word: word, due: Date.now(), state: 0, stability: 0, difficulty: 0, reps: 0, lastReview: 0 };
+        return { 
+            id: generateID(), 
+            word: word, 
+            due: Date.now(), 
+            state: 0, // 0:New, 1:Learning, 2:Review, 3:Relearning
+            stability: 0, 
+            difficulty: 0, 
+            reps: 0, 
+            lastReview: 0 
+        };
     }
 
     function addWord() {
         const input = document.getElementById('newWordInput');
         const word = input.value.trim();
         if (!word) return;
+        
+        // 简单查重
+        if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
+            alert("Word already exists!");
+            return;
+        }
+
         deck.push(createCardObject(word));
         input.value = '';
         saveDeck();
@@ -355,8 +417,8 @@
     function render() {
         const now = Date.now();
         const dueCards = deck.filter(c => c.due <= now).sort((a, b) => a.due - b.due);
+        
         document.getElementById('deckInfo').innerText = `Total: ${deck.length} | Due: ${dueCards.length}`;
-
         const revContainer = document.getElementById('reviewContainer');
         const empty = document.getElementById('emptyState');
 
@@ -365,7 +427,15 @@
             revContainer.classList.remove('hidden');
             empty.classList.add('hidden');
             document.getElementById('currentWord').innerText = currentCard.word;
-            document.getElementById('currentStats').innerText = currentCard.reps === 0 ? "New" : `S: ${currentCard.stability.toFixed(1)} | D: ${currentCard.difficulty.toFixed(1)}`;
+            
+            const isNew = currentCard.reps === 0;
+            document.getElementById('currentStats').innerText = isNew 
+                ? "New Card" 
+                : `S: ${currentCard.stability.toFixed(1)} | D: ${currentCard.difficulty.toFixed(1)}`;
+
+            // 更新按钮上的预估时间 (Simplified UI update)
+            updateButtonLabels(currentCard);
+
         } else {
             currentCard = null;
             revContainer.classList.add('hidden');
@@ -373,30 +443,79 @@
         }
     }
 
+    function updateButtonLabels(card) {
+        // 简单的预估展示，实际 FSRS 预测需要更复杂计算，这里仅做简略展示
+        // Hard(2), Good(3), Easy(4)
+        if(card.reps === 0) {
+            document.getElementById('ivl-hard').innerText = '1d';
+            document.getElementById('ivl-good').innerText = '3d';
+            document.getElementById('ivl-easy').innerText = '4d';
+        } else {
+            // 此处省略实时计算 S_next 的逻辑以保持代码精简，仅显示占位符或基于当前 S 的估算
+            const ivl = getInterval(card.stability);
+            document.getElementById('ivl-hard').innerText = Math.max(1, Math.floor(ivl * 0.5)) + 'd';
+            document.getElementById('ivl-good').innerText = ivl + 'd';
+            document.getElementById('ivl-easy').innerText = Math.floor(ivl * 1.5) + 'd';
+        }
+    }
+
     function rate(g) {
         if (!currentCard) return;
         const now = Date.now();
+        
+        // 修复：新卡片的 elapsed 计算问题
+        let elapsed = 0;
+        if (currentCard.reps > 0) {
+            elapsed = (now - currentCard.lastReview) / 86400000;
+        }
+
         let s = currentCard.stability, d = currentCard.difficulty;
-        let elapsed = currentCard.lastReview ? (now - currentCard.lastReview) / 86400000 : 0;
-        let r = currentCard.reps === 0 ? 0 : Math.exp(Math.log(0.9) * elapsed / s);
+        
+        // 修复：Retention 计算防止除以零
+        let r = currentCard.reps === 0 ? 0 : Math.exp(Math.log(0.9) * elapsed / (s || 1)); 
 
-        if (currentCard.reps === 0) { s = initStability(g); d = initDifficulty(g); }
-        else { d = nextDifficulty(d, g); s = nextStability(s, d, g, r); }
+        if (currentCard.reps === 0) {
+            s = initStability(g);
+            d = initDifficulty(g);
+        } else {
+            d = nextDifficulty(d, g);
+            s = nextStability(s, d, g, r);
+        }
 
-        currentCard.stability = s; currentCard.difficulty = d; currentCard.reps++; currentCard.lastReview = now;
-        currentCard.due = g === 1 ? now + 60000 : now + (getInterval(s) * 86400000);
+        currentCard.stability = s;
+        currentCard.difficulty = d;
+        currentCard.reps++;
+        currentCard.lastReview = now;
+
+        // 调度逻辑：Again(1) 设为1分钟后，其他按算法
+        if (g === 1) {
+            currentCard.due = now + 60000; // 1 min
+        } else {
+            const days = getInterval(s);
+            currentCard.due = now + (days * 86400000);
+        }
+
         saveDeck();
     }
     
     function handleEnter(e) { if (e.key === 'Enter') addWord(); }
 
-    // --- REAL OCR LOGIC WITH TESSERACT.JS ---
+    // --- 5. Robust OCR Logic (修复：Worker 复用与正则) ---
 
+    async function getOCRWorker(statusCallback) {
+        if (ocrWorker) return ocrWorker;
+        
+        statusCallback("Loading OCR Engine (First Run)...");
+        // V5 写法，自动加载语言包
+        ocrWorker = await Tesseract.createWorker('eng'); 
+        return ocrWorker;
+    }
+
+    // === 开始复制 ===
     async function handleImageUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
 
-        // UI Updates
         const loadingEl = document.getElementById('ocrLoading');
         const statusEl = document.getElementById('loadingStatus');
         const fillEl = document.getElementById('progressFill');
@@ -406,60 +525,95 @@
         chipContainer.innerHTML = '';
         resultsEl.classList.add('hidden');
         loadingEl.classList.remove('hidden');
-        fillEl.style.width = '0%';
-        statusEl.innerText = "Initializing Engine...";
+        fillEl.style.width = '10%';
 
         try {
-            // Tesseract.js Worker Logic
-            const worker = await Tesseract.createWorker('eng', 1, {
-                logger: m => {
-                    if (m.status === 'recognizing text') {
-                        statusEl.innerText = `Scanning: ${(m.progress * 100).toFixed(0)}%`;
-                        fillEl.style.width = `${m.progress * 100}%`;
-                    } else {
-                        statusEl.innerText = m.status;
-                    }
-                }
+            // 1. 压缩图片，防止手机浏览器崩溃
+            statusEl.innerText = "Compressing Image...";
+            const compressedFile = await compressImage(file); 
+
+            // 2. 加载 OCR 引擎
+            const worker = await getOCRWorker((msg) => {
+                statusEl.innerText = msg;
             });
-
             statusEl.innerText = "Processing Image...";
-            const { data: { text } } = await worker.recognize(file);
-            await worker.terminate();
+            fillEl.style.width = '40%';
 
-            // Clean Text Data
-            const words = processOCRText(text);
+            // 3. 识别压缩后的图片
+            const ret = await worker.recognize(compressedFile);
+            fillEl.style.width = '100%';
+            
+            const words = processOCRText(ret.data.text);
             
             if (words.length === 0) {
                 alert("No readable English words found.");
+                cancelOCR();
             } else {
                 renderOCRResults(words);
             }
         } catch (error) {
             console.error(error);
             alert("OCR Error: " + error.message);
+            cancelOCR();
         } finally {
             loadingEl.classList.add('hidden');
+            event.target.value = '';
         }
     }
 
-    // Helper: Clean raw OCR text into vocabulary list
+    // 辅助工具：图片压缩函数
+    function compressImage(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    // 限制最大宽度为 1024px，既能看清单词，又不会撑爆内存
+                    const maxWidth = 1024; 
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    canvas.toBlob((blob) => {
+                        resolve(blob);
+                    }, 'image/jpeg', 0.7);
+                };
+                img.onerror = (err) => reject(err);
+            };
+            reader.onerror = (err) => reject(err);
+        });
+    }
+    // === 复制结束 ===
+
+    // 修复：改进的正则逻辑
     function processOCRText(text) {
-        // 1. Remove non-alphabet chars (keep spaces)
-        const clean = text.replace(/[^a-zA-Z\s]/g, " ");
-        // 2. Split by whitespace
+        // 1. 将非字母、非空格、非连字符的字符替换为空格
+        const clean = text.replace(/[^a-zA-Z\s-]/g, " ");
+        
         const tokens = clean.split(/\s+/);
-        // 3. Filter and Deduplicate
         const uniqueWords = new Set();
         
         tokens.forEach(t => {
-            const word = t.toLowerCase().trim();
-            // Filter: Length > 2 to avoid garbage like 'a', 's', 't'
-            // Unless it is 'a' or 'I' (optional, here we filter < 3 for vocab focus)
-            if (word.length > 2) {
+            // 去除首尾连字符
+            const word = t.toLowerCase().trim().replace(/^-+|-+$/g, '');
+            
+            // 逻辑修正：允许长度 > 1 的词 (go, to, in)，且不是纯数字（虽然正则已经排除了数字，双重保险）
+            if (word.length > 1) { 
                 uniqueWords.add(word);
             }
         });
-        
         return Array.from(uniqueWords);
     }
 
@@ -475,6 +629,19 @@
             chipContainer.appendChild(chip);
         });
         resultsEl.classList.remove('hidden');
+        // 隐藏 Input section 的一部分以专注选择
+        document.querySelector('.input-group').classList.add('hidden');
+        document.querySelector('.divider').classList.add('hidden');
+        document.getElementById('uploadBtnLabel').classList.add('hidden');
+    }
+
+    function cancelOCR() {
+        document.getElementById('ocrResults').classList.add('hidden');
+        document.getElementById('ocrLoading').classList.add('hidden');
+        // 恢复 UI
+        document.querySelector('.input-group').classList.remove('hidden');
+        document.querySelector('.divider').classList.remove('hidden');
+        document.getElementById('uploadBtnLabel').classList.remove('hidden');
     }
 
     function confirmOCRSelection() {
@@ -482,17 +649,46 @@
         if (selected.length === 0) return alert("Select at least one word.");
         
         let count = 0;
+        let dups = 0;
         selected.forEach(chip => {
-            deck.push(createCardObject(chip.innerText));
-            count++;
+            const word = chip.innerText;
+            // 防止重复添加
+            if (!deck.some(c => c.word.toLowerCase() === word)) {
+                deck.push(createCardObject(word));
+                count++;
+            } else {
+                dups++;
+            }
         });
-        saveDeck();
         
-        document.getElementById('ocrResults').classList.add('hidden');
-        document.getElementById('ocrFileInput').value = '';
-        alert(`Added ${count} words!`);
+        saveDeck();
+        cancelOCR();
+        
+        let msg = `Added ${count} words!`;
+        if (dups > 0) msg += ` (${dups} duplicates skipped)`;
+        alert(msg);
     }
 
+    // --- 6. Data Management Tools ---
+    function exportData() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(deck));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "fsrs_deck_backup.json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
+    function clearData() {
+        if(confirm("Are you sure? This will delete ALL words.")) {
+            localStorage.removeItem('fsrs_deck_v2');
+            deck = [];
+            render();
+        }
+    }
+
+    // Start
     loadDeck();
 </script>
 </body>
