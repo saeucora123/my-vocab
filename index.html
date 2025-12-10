@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Minimal FSRS</title>
+    <title>FSRS Vocabulary OCR</title>
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <style>
         :root {
             --bg: #f5f5f7;
@@ -30,6 +31,8 @@
             min-height: 100vh;
             padding: 20px;
             box-sizing: border-box;
+            /* 防止 iOS 点击高亮 */
+            -webkit-tap-highlight-color: transparent;
         }
 
         .container {
@@ -45,22 +48,29 @@
         }
 
         /* Input Section */
-        .input-group {
+        .input-section {
             background: var(--card);
-            padding: 8px;
             border-radius: var(--radius);
             box-shadow: var(--shadow);
-            display: flex;
+            padding: 20px;
             margin-bottom: 30px;
         }
 
-        input {
-            border: none;
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            border: 1px solid #e5e5ea;
             flex: 1;
             padding: 12px;
             font-size: 16px;
             outline: none;
             border-radius: 8px;
+            background: var(--bg);
+            /* iOS Input 优化 */
+            -webkit-appearance: none;
         }
 
         button.add-btn {
@@ -68,9 +78,110 @@
             color: white;
             border: none;
             padding: 10px 20px;
-            border-radius: 12px;
+            border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        button.add-btn:active { opacity: 0.8; }
+
+        /* OCR Specific */
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 20px 0;
+            color: var(--subtext);
+            font-size: 12px;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #e5e5ea;
+        }
+        .divider span { padding: 0 10px; }
+
+        .ocr-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* 隐藏原生 File Input，用按钮触发 */
+        input[type="file"] {
+            display: none;
+        }
+
+        .upload-btn {
+            background: #e5e5ea;
+            color: var(--text);
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 600;
+            cursor: pointer;
+            display: block;
+        }
+        
+        .loading-container {
+            margin-top: 15px;
+            text-align: center;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e5e5ea;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .loading-text {
+            color: var(--subtext);
+            font-size: 12px;
+        }
+
+        .word-chips-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .ocr-chip {
+            padding: 6px 12px;
+            background: #f0f0f5;
+            border-radius: 16px;
+            font-size: 14px;
+            color: var(--text);
+            cursor: pointer;
+            border: 2px solid transparent;
+            user-select: none;
+        }
+
+        .ocr-chip.selected {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .full-width-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            margin-top: 15px;
+            font-size: 16px;
         }
 
         /* Review Section */
@@ -85,13 +196,13 @@
             flex-direction: column;
             justify-content: center;
             margin-bottom: 20px;
-            position: relative;
         }
 
         .word-text {
             font-size: 32px;
             font-weight: 600;
             margin-bottom: 10px;
+            word-break: break-all;
         }
 
         .stats-text {
@@ -102,28 +213,25 @@
         .actions {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-top: 10px;
+            gap: 8px;
         }
 
         .action-btn {
             border: none;
-            padding: 15px 5px;
+            padding: 15px 0;
             border-radius: 12px;
             color: white;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 13px;
             cursor: pointer;
-            transition: opacity 0.2s;
         }
         
-        .action-btn:active { opacity: 0.7; }
         .btn-again { background-color: var(--danger); }
         .btn-hard { background-color: var(--warning); }
         .btn-good { background-color: var(--success); }
         .btn-easy { background-color: var(--easy); }
 
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         
         .empty-state {
             text-align: center;
@@ -131,12 +239,12 @@
             margin-top: 50px;
         }
 
-        /* Stats */
         .debug-info {
             margin-top: 40px;
             font-size: 12px;
             color: var(--subtext);
             text-align: center;
+            padding-bottom: 40px; /* iPhone 底部安全区 */
         }
     </style>
 </head>
@@ -145,9 +253,32 @@
 <div class="container">
     <h1>FSRS Vocabulary</h1>
 
-    <div class="input-group">
-        <input type="text" id="newWordInput" placeholder="Enter new word..." onkeypress="handleEnter(event)">
-        <button class="add-btn" onclick="addWord()">Add</button>
+    <div class="input-section">
+        <div class="input-group">
+            <input type="text" id="newWordInput" placeholder="Type a word..." onkeypress="handleEnter(event)">
+            <button class="add-btn" onclick="addWord()">Add</button>
+        </div>
+
+        <div class="divider"><span>OR IMPORT</span></div>
+
+        <div class="ocr-controls">
+            <label for="ocrFileInput" class="upload-btn">
+                📷 Camera / Photo Library
+            </label>
+            <input type="file" id="ocrFileInput" accept="image/*" onchange="handleImageUpload(event)">
+            
+            <div id="ocrLoading" class="loading-container hidden">
+                <div class="loading-text" id="loadingStatus">Initializing Engine...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+
+            <div id="ocrResults" class="hidden">
+                <div class="word-chips-container" id="chipContainer"></div>
+                <button class="add-btn full-width-btn" onclick="confirmOCRSelection()">Add Selected to Deck</button>
+            </div>
+        </div>
     </div>
 
     <div id="reviewContainer" class="hidden">
@@ -165,33 +296,25 @@
 
     <div id="emptyState" class="empty-state">
         <p>🎉 All caught up!</p>
-        <p>Add words or come back later.</p>
     </div>
 
     <div class="debug-info" id="deckInfo">Cards: 0 | Due: 0</div>
 </div>
 
 <script>
-    /**
-     * FSRS v4.5 Minimal Implementation
-     * * Core Parameters (Default)
-     * w = [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61]
-     */
+    // --- FSRS Core Parameters ---
     const p = {
         w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
         requestRetention: 0.9
     };
 
-    // State
     let deck = [];
     let currentCard = null;
 
     // --- Persistence ---
     function loadDeck() {
         const stored = localStorage.getItem('fsrs_deck');
-        if (stored) {
-            deck = JSON.parse(stored);
-        }
+        if (stored) deck = JSON.parse(stored);
         render();
     }
 
@@ -200,162 +323,177 @@
         render();
     }
 
-    // --- FSRS Math ---
-    
-    // Calculate initial stability for new cards
-    function initStability(grade) {
-        // grade: 1=Again, 2=Hard, 3=Good, 4=Easy. Indexes in w are 0..3
-        return p.w[grade - 1];
-    }
-
-    // Calculate initial difficulty
-    function initDifficulty(grade) {
-        // w[4] is base D, w[5] is subtraction factor
-        let d = p.w[4] - (grade - 3) * p.w[5];
-        return Math.min(Math.max(d, 1), 10);
-    }
-
-    // Calculate next Difficulty
-    function nextDifficulty(d, grade) {
-        let nextD = d - p.w[6] * (grade - 3);
-        // Mean Reversion (w[7])
-        nextD = p.w[7] * p.w[4] + (1 - p.w[7]) * nextD;
+    // --- FSRS Math (Condensed) ---
+    function initStability(g) { return p.w[g - 1]; }
+    function initDifficulty(g) { return Math.min(Math.max(p.w[4] - (g - 3) * p.w[5], 1), 10); }
+    function nextDifficulty(d, g) { 
+        let nextD = p.w[7] * p.w[4] + (1 - p.w[7]) * (d - p.w[6] * (g - 3));
         return Math.min(Math.max(nextD, 1), 10);
     }
-
-    // Calculate next Stability
-    function nextStability(s, d, grade, r) {
-        if (grade === 1) { 
-            // Forgot (Again)
-            return p.w[11] * Math.pow(d, -p.w[12]) * (Math.pow(s + 1, p.w[13]) - 1) * Math.exp(p.w[14] * (1 - r));
-        }
-        // Recall (Hard/Good/Easy)
-        // Hard penalty w[15], Easy bonus w[16]
-        let hardPenalty = grade === 2 ? p.w[15] : 1;
-        let easyBonus = grade === 4 ? p.w[16] : 1;
-        
-        let newS = s * (1 + Math.exp(p.w[8]) * (11 - d) * Math.pow(s, -p.w[9]) * (Math.exp((1 - r) * p.w[10]) - 1) * hardPenalty * easyBonus);
-        return newS;
+    function nextStability(s, d, g, r) {
+        if (g === 1) return p.w[11] * Math.pow(d, -p.w[12]) * (Math.pow(s + 1, p.w[13]) - 1) * Math.exp(p.w[14] * (1 - r));
+        let hp = g === 2 ? p.w[15] : 1;
+        let eb = g === 4 ? p.w[16] : 1;
+        return s * (1 + Math.exp(p.w[8]) * (11 - d) * Math.pow(s, -p.w[9]) * (Math.exp((1 - r) * p.w[10]) - 1) * hp * eb);
     }
+    function getInterval(s) { return Math.max(1, Math.round(s * 9 * (1 / p.requestRetention - 1))); }
 
-    // Calculate Interval (Days) based on desired retention
-    function nextInterval(s) {
-        return (s / factor()) * (Math.pow(p.requestRetention, 1 / -1) - 1);
-        
-        function factor() { return 9 * (1/0.9 - 1); } // Constant approximation
+    // --- Core Logic ---
+    function createCardObject(word) {
+        return { id: Date.now() + Math.random(), word: word, due: Date.now(), state: 0, stability: 0, difficulty: 0, reps: 0, lastReview: 0 };
     }
-    
-    // Simplified Interval logic for JS implementation to match standard FSRS formula
-    function getInterval(stability) {
-        const newInterval = stability * 9 * (1 / p.requestRetention - 1);
-        return Math.max(1, Math.round(newInterval));
-    }
-
-    // --- Logic ---
 
     function addWord() {
         const input = document.getElementById('newWordInput');
         const word = input.value.trim();
         if (!word) return;
-
-        const newCard = {
-            id: Date.now(),
-            word: word,
-            due: Date.now(), // Due immediately
-            state: 0, // 0: New, 1: Learning, 2: Review, 3: Relearning
-            stability: 0,
-            difficulty: 0,
-            reps: 0,
-            lastReview: 0
-        };
-
-        deck.push(newCard);
+        deck.push(createCardObject(word));
         input.value = '';
         saveDeck();
     }
 
-    function getDueCards() {
-        const now = Date.now();
-        return deck.filter(card => card.due <= now).sort((a, b) => a.due - b.due);
-    }
-
     function render() {
-        const dueCards = getDueCards();
-        const reviewContainer = document.getElementById('reviewContainer');
-        const emptyState = document.getElementById('emptyState');
-        const deckInfo = document.getElementById('deckInfo');
+        const now = Date.now();
+        const dueCards = deck.filter(c => c.due <= now).sort((a, b) => a.due - b.due);
+        document.getElementById('deckInfo').innerText = `Total: ${deck.length} | Due: ${dueCards.length}`;
 
-        deckInfo.innerText = `Total Cards: ${deck.length} | Due Now: ${dueCards.length}`;
+        const revContainer = document.getElementById('reviewContainer');
+        const empty = document.getElementById('emptyState');
 
         if (dueCards.length > 0) {
             currentCard = dueCards[0];
-            reviewContainer.classList.remove('hidden');
-            emptyState.classList.add('hidden');
-            
+            revContainer.classList.remove('hidden');
+            empty.classList.add('hidden');
             document.getElementById('currentWord').innerText = currentCard.word;
-            document.getElementById('currentStats').innerText = 
-                currentCard.reps === 0 ? "New Word" : 
-                `S: ${currentCard.stability.toFixed(2)} days | D: ${currentCard.difficulty.toFixed(2)}`;
+            document.getElementById('currentStats').innerText = currentCard.reps === 0 ? "New" : `S: ${currentCard.stability.toFixed(1)} | D: ${currentCard.difficulty.toFixed(1)}`;
         } else {
             currentCard = null;
-            reviewContainer.classList.add('hidden');
-            emptyState.classList.remove('hidden');
+            revContainer.classList.add('hidden');
+            empty.classList.remove('hidden');
         }
     }
 
-    function handleEnter(e) {
-        if (e.key === 'Enter') addWord();
-    }
-
-    function rate(grade) {
+    function rate(g) {
         if (!currentCard) return;
-
         const now = Date.now();
-        let s = currentCard.stability;
-        let d = currentCard.difficulty;
-        
-        // Calculate days since last review (Retrievability calculation needs this)
-        // For new cards, elapsed is 0
-        let elapsedDays = currentCard.lastReview ? (now - currentCard.lastReview) / (1000 * 60 * 60 * 24) : 0;
-        let r = currentCard.reps === 0 ? 0 : Math.exp(Math.log(0.9) * elapsedDays / s);
+        let s = currentCard.stability, d = currentCard.difficulty;
+        let elapsed = currentCard.lastReview ? (now - currentCard.lastReview) / 86400000 : 0;
+        let r = currentCard.reps === 0 ? 0 : Math.exp(Math.log(0.9) * elapsed / s);
 
-        // Update FSRS parameters
-        if (currentCard.reps === 0) {
-            // Initializing new card
-            s = initStability(grade);
-            d = initDifficulty(grade);
-        } else {
-            // Reviewing existing
-            d = nextDifficulty(d, grade);
-            s = nextStability(s, d, grade, r);
-        }
+        if (currentCard.reps === 0) { s = initStability(g); d = initDifficulty(g); }
+        else { d = nextDifficulty(d, g); s = nextStability(s, d, g, r); }
 
-        // Calculate next interval
-        let ivl = 0;
-        if (grade === 1) {
-            ivl = 0; // Again = due immediately (or 1 min, but simplified to now)
-            s = p.w[11]; // simplified reset for forgetting
-        } else {
-            ivl = getInterval(s);
-        }
-
-        // Apply updates
-        currentCard.stability = s;
-        currentCard.difficulty = d;
-        currentCard.reps += 1;
-        currentCard.lastReview = now;
-        
-        // Set next due date
-        // If ivl is 0 (Again), add 1 minute to prevent instant loop overlap visually
-        const nextDueTime = grade === 1 ? now + 60000 : now + (ivl * 24 * 60 * 60 * 1000);
-        currentCard.due = nextDueTime;
-
+        currentCard.stability = s; currentCard.difficulty = d; currentCard.reps++; currentCard.lastReview = now;
+        currentCard.due = g === 1 ? now + 60000 : now + (getInterval(s) * 86400000);
         saveDeck();
     }
+    
+    function handleEnter(e) { if (e.key === 'Enter') addWord(); }
 
-    // Initialize
+    // --- REAL OCR LOGIC WITH TESSERACT.JS ---
+
+    async function handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // UI Updates
+        const loadingEl = document.getElementById('ocrLoading');
+        const statusEl = document.getElementById('loadingStatus');
+        const fillEl = document.getElementById('progressFill');
+        const resultsEl = document.getElementById('ocrResults');
+        const chipContainer = document.getElementById('chipContainer');
+
+        chipContainer.innerHTML = '';
+        resultsEl.classList.add('hidden');
+        loadingEl.classList.remove('hidden');
+        fillEl.style.width = '0%';
+        statusEl.innerText = "Initializing Engine...";
+
+        try {
+            // Tesseract.js Worker Logic
+            const worker = await Tesseract.createWorker('eng', 1, {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        statusEl.innerText = `Scanning: ${(m.progress * 100).toFixed(0)}%`;
+                        fillEl.style.width = `${m.progress * 100}%`;
+                    } else {
+                        statusEl.innerText = m.status;
+                    }
+                }
+            });
+
+            statusEl.innerText = "Processing Image...";
+            const { data: { text } } = await worker.recognize(file);
+            await worker.terminate();
+
+            // Clean Text Data
+            const words = processOCRText(text);
+            
+            if (words.length === 0) {
+                alert("No readable English words found.");
+            } else {
+                renderOCRResults(words);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("OCR Error: " + error.message);
+        } finally {
+            loadingEl.classList.add('hidden');
+        }
+    }
+
+    // Helper: Clean raw OCR text into vocabulary list
+    function processOCRText(text) {
+        // 1. Remove non-alphabet chars (keep spaces)
+        const clean = text.replace(/[^a-zA-Z\s]/g, " ");
+        // 2. Split by whitespace
+        const tokens = clean.split(/\s+/);
+        // 3. Filter and Deduplicate
+        const uniqueWords = new Set();
+        
+        tokens.forEach(t => {
+            const word = t.toLowerCase().trim();
+            // Filter: Length > 2 to avoid garbage like 'a', 's', 't'
+            // Unless it is 'a' or 'I' (optional, here we filter < 3 for vocab focus)
+            if (word.length > 2) {
+                uniqueWords.add(word);
+            }
+        });
+        
+        return Array.from(uniqueWords);
+    }
+
+    function renderOCRResults(words) {
+        const resultsEl = document.getElementById('ocrResults');
+        const chipContainer = document.getElementById('chipContainer');
+        
+        words.forEach(word => {
+            const chip = document.createElement('div');
+            chip.className = 'ocr-chip';
+            chip.innerText = word;
+            chip.onclick = () => chip.classList.toggle('selected');
+            chipContainer.appendChild(chip);
+        });
+        resultsEl.classList.remove('hidden');
+    }
+
+    function confirmOCRSelection() {
+        const selected = document.querySelectorAll('.ocr-chip.selected');
+        if (selected.length === 0) return alert("Select at least one word.");
+        
+        let count = 0;
+        selected.forEach(chip => {
+            deck.push(createCardObject(chip.innerText));
+            count++;
+        });
+        saveDeck();
+        
+        document.getElementById('ocrResults').classList.add('hidden');
+        document.getElementById('ocrFileInput').value = '';
+        alert(`Added ${count} words!`);
+    }
+
     loadDeck();
-
 </script>
 </body>
 </html>
