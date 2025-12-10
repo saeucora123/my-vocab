@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FSRS 单词本 (Pro Fixed + Plus)</title>
+    <title>FSRS 单词本 (Pro Fixed + Watermark)</title>
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <style>
         :root {
@@ -38,6 +38,8 @@
             width: 100%;
             max-width: 500px;
             padding-bottom: 40px;
+            /* 稍微增加底部留白，防止内容被水印遮挡太严实 */
+            margin-bottom: 20px; 
         }
 
         h1 {
@@ -208,6 +210,12 @@
             font-weight: 600;
             margin-bottom: 10px;
             word-break: break-all;
+            cursor: pointer; /* 提示可点击 */
+        }
+        /* 点击时的反馈效果 */
+        .word-text:active {
+            transform: scale(0.98);
+            color: var(--accent);
         }
 
         .stats-text {
@@ -266,7 +274,7 @@
             text-decoration: underline;
         }
 
-        /* --- 新增：列表模态框样式 --- */
+        /* --- 列表模态框样式 --- */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -274,7 +282,7 @@
             z-index: 1000;
             display: flex;
             justify-content: center;
-            align-items: flex-end; /* Mobile friendly: slides from bottom or sits at bottom */
+            align-items: flex-end; 
         }
         
         .modal-content {
@@ -352,6 +360,19 @@
             cursor: pointer;
             font-size: 14px;
         }
+
+        /* --- 新增：水印样式 --- */
+        .watermark {
+            position: fixed;
+            bottom: 10px;
+            right: 15px;
+            font-size: 11px;
+            color: #b0b0b5; /* 非常浅的灰色，不干扰视觉 */
+            pointer-events: none; /* 关键：允许点击穿透 */
+            z-index: 9999;
+            font-family: monospace; /* 代码风格字体，显得技术感强 */
+            user-select: none; /* 不允许用户选中文字 */
+        }
     </style>
 </head>
 <body>
@@ -391,7 +412,7 @@
 
     <div id="reviewContainer" class="hidden">
         <div class="card-display">
-	  <div class="word-text" id="currentWord" onclick="speakWord()">Word</div>
+            <div class="word-text" id="currentWord" onclick="speakWord()">Word</div>
             <div class="stats-text" id="currentStats">S: 0 | D: 0</div>
         </div>
         <div class="actions">
@@ -418,6 +439,8 @@
         <input type="file" id="importJsonInput" accept=".json" onchange="handleFileImport(event)" style="display:none;">
     </div>
 </div>
+
+<div class="watermark">该软件制作者微信 Saeuco</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -858,13 +881,16 @@
             renderListContent(); // 重新渲染列表
         }
     }
-function speakWord() {
-    const word = document.getElementById('currentWord').innerText;
-    if (!word) return;
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = 'en-US'; // 设置为美式英语
-    speechSynthesis.speak(utterance);
-}
+    
+    // --- 新增：朗读功能 ---
+    function speakWord() {
+        const word = document.getElementById('currentWord').innerText;
+        if (!word) return;
+        const utterance = new SpeechSynthesisUtterance(word);
+        utterance.lang = 'en-US'; // 设置为美式英语
+        speechSynthesis.speak(utterance);
+    }
+
     // Start
     loadDeck();
 </script>
