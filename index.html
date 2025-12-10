@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minimal FSRS</title>
+    <style>
+        :root {
+            --bg: #f5f5f7;
+            --card: #ffffff;
+            --text: #1d1d1f;
+            --subtext: #86868b;
+            --accent: #007aff;
+            --danger: #ff3b30;
+            --warning: #ff9500;
+            --success: #34c759;
+            --easy: #30b0c7;
+            --shadow: 0 4px 12px rgba(0,0,0,0.08);
+            --radius: 16px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        /* Input Section */
+        .input-group {
+            background: var(--card);
+            padding: 8px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            margin-bottom: 30px;
+        }
+
+        input {
+            border: none;
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            outline: none;
+            border-radius: 8px;
+        }
+
+        button.add-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* Review Section */
+        .card-display {
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 40px 20px;
+            text-align: center;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .word-text {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .stats-text {
+            font-size: 14px;
+            color: var(--subtext);
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .action-btn {
+            border: none;
+            padding: 15px 5px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        .action-btn:active { opacity: 0.7; }
+        .btn-again { background-color: var(--danger); }
+        .btn-hard { background-color: var(--warning); }
+        .btn-good { background-color: var(--success); }
+        .btn-easy { background-color: var(--easy); }
+
+        .hidden { display: none; }
+        
+        .empty-state {
+            text-align: center;
+            color: var(--subtext);
+            margin-top: 50px;
+        }
+
+        /* Stats */
+        .debug-info {
+            margin-top: 40px;
+            font-size: 12px;
+            color: var(--subtext);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>FSRS Vocabulary</h1>
+
+    <div class="input-group">
+        <input type="text" id="newWordInput" placeholder="Enter new word..." onkeypress="handleEnter(event)">
+        <button class="add-btn" onclick="addWord()">Add</button>
+    </div>
+
+    <div id="reviewContainer" class="hidden">
+        <div class="card-display">
+            <div class="word-text" id="currentWord">Word</div>
+            <div class="stats-text" id="currentStats">S: 0 | D: 0</div>
+        </div>
+        <div class="actions">
+            <button class="action-btn btn-again" onclick="rate(1)">Again</button>
+            <button class="action-btn btn-hard" onclick="rate(2)">Hard</button>
+            <button class="action-btn btn-good" onclick="rate(3)">Good</button>
+            <button class="action-btn btn-easy" onclick="rate(4)">Easy</button>
+        </div>
+    </div>
+
+    <div id="emptyState" class="empty-state">
+        <p>🎉 All caught up!</p>
+        <p>Add words or come back later.</p>
+    </div>
+
+    <div class="debug-info" id="deckInfo">Cards: 0 | Due: 0</div>
+</div>
+
+<script>
+    /**
+     * FSRS v4.5 Minimal Implementation
+     * * Core Parameters (Default)
+     * w = [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61]
+     */
+    const p = {
+        w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
+        requestRetention: 0.9
+    };
+
+    // State
+    let deck = [];
+    let currentCard = null;
+
+    // --- Persistence ---
+    function loadDeck() {
+        const stored = localStorage.getItem('fsrs_deck');
+        if (stored) {
+            deck = JSON.parse(stored);
+        }
+        render();
+    }
+
+    function saveDeck() {
+        localStorage.setItem('fsrs_deck', JSON.stringify(deck));
+        render();
+    }
+
+    // --- FSRS Math ---
+    
+    // Calculate initial stability for new cards
+    function initStability(grade) {
+        // grade: 1=Again, 2=Hard, 3=Good, 4=Easy. Indexes in w are 0..3
+        return p.w[grade - 1];
+    }
+
+    // Calculate initial difficulty
+    function initDifficulty(grade) {
+        // w[4] is base D, w[5] is subtraction factor
+        let d = p.w[4] - (grade - 3) * p.w[5];
+        return Math.min(Math.max(d, 1), 10);
+    }
+
+    // Calculate next Difficulty
+    function nextDifficulty(d, grade) {
+        let nextD = d - p.w[6] * (grade - 3);
+        // Mean Reversion (w[7])
+        nextD = p.w[7] * p.w[4] + (1 - p.w[7]) * nextD;
+        return Math.min(Math.max(nextD, 1), 10);
+    }
+
+    // Calculate next Stability
+    function nextStability(s, d, grade, r) {
+        if (grade === 1) { 
+            // Forgot (Again)
+            return p.w[11] * Math.pow(d, -p.w[12]) * (Math.pow(s + 1, p.w[13]) - 1) * Math.exp(p.w[14] * (1 - r));
+        }
+        // Recall (Hard/Good/Easy)
+        // Hard penalty w[15], Easy bonus w[16]
+        let hardPenalty = grade === 2 ? p.w[15] : 1;
+        let easyBonus = grade === 4 ? p.w[16] : 1;
+        
+        let newS = s * (1 + Math.exp(p.w[8]) * (11 - d) * Math.pow(s, -p.w[9]) * (Math.exp((1 - r) * p.w[10]) - 1) * hardPenalty * easyBonus);
+        return newS;
+    }
+
+    // Calculate Interval (Days) based on desired retention
+    function nextInterval(s) {
+        return (s / factor()) * (Math.pow(p.requestRetention, 1 / -1) - 1);
+        
+        function factor() { return 9 * (1/0.9 - 1); } // Constant approximation
+    }
+    
+    // Simplified Interval logic for JS implementation to match standard FSRS formula
+    function getInterval(stability) {
+        const newInterval = stability * 9 * (1 / p.requestRetention - 1);
+        return Math.max(1, Math.round(newInterval));
+    }
+
+    // --- Logic ---
+
+    function addWord() {
+        const input = document.getElementById('newWordInput');
+        const word = input.value.trim();
+        if (!word) return;
+
+        const newCard = {
+            id: Date.now(),
+            word: word,
+            due: Date.now(), // Due immediately
+            state: 0, // 0: New, 1: Learning, 2: Review, 3: Relearning
+            stability: 0,
+            difficulty: 0,
+            reps: 0,
+            lastReview: 0
+        };
+
+        deck.push(newCard);
+        input.value = '';
+        saveDeck();
+    }
+
+    function getDueCards() {
+        const now = Date.now();
+        return deck.filter(card => card.due <= now).sort((a, b) => a.due - b.due);
+    }
+
+    function render() {
+        const dueCards = getDueCards();
+        const reviewContainer = document.getElementById('reviewContainer');
+        const emptyState = document.getElementById('emptyState');
+        const deckInfo = document.getElementById('deckInfo');
+
+        deckInfo.innerText = `Total Cards: ${deck.length} | Due Now: ${dueCards.length}`;
+
+        if (dueCards.length > 0) {
+            currentCard = dueCards[0];
+            reviewContainer.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            
+            document.getElementById('currentWord').innerText = currentCard.word;
+            document.getElementById('currentStats').innerText = 
+                currentCard.reps === 0 ? "New Word" : 
+                `S: ${currentCard.stability.toFixed(2)} days | D: ${currentCard.difficulty.toFixed(2)}`;
+        } else {
+            currentCard = null;
+            reviewContainer.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+        }
+    }
+
+    function handleEnter(e) {
+        if (e.key === 'Enter') addWord();
+    }
+
+    function rate(grade) {
+        if (!currentCard) return;
+
+        const now = Date.now();
+        let s = currentCard.stability;
+        let d = currentCard.difficulty;
+        
+        // Calculate days since last review (Retrievability calculation needs this)
+        // For new cards, elapsed is 0
+        let elapsedDays = currentCard.lastReview ? (now - currentCard.lastReview) / (1000 * 60 * 60 * 24) : 0;
+        let r = currentCard.reps === 0 ? 0 : Math.exp(Math.log(0.9) * elapsedDays / s);
+
+        // Update FSRS parameters
+        if (currentCard.reps === 0) {
+            // Initializing new card
+            s = initStability(grade);
+            d = initDifficulty(grade);
+        } else {
+            // Reviewing existing
+            d = nextDifficulty(d, grade);
+            s = nextStability(s, d, grade, r);
+        }
+
+        // Calculate next interval
+        let ivl = 0;
+        if (grade === 1) {
+            ivl = 0; // Again = due immediately (or 1 min, but simplified to now)
+            s = p.w[11]; // simplified reset for forgetting
+        } else {
+            ivl = getInterval(s);
+        }
+
+        // Apply updates
+        currentCard.stability = s;
+        currentCard.difficulty = d;
+        currentCard.reps += 1;
+        currentCard.lastReview = now;
+        
+        // Set next due date
+        // If ivl is 0 (Again), add 1 minute to prevent instant loop overlap visually
+        const nextDueTime = grade === 1 ? now + 60000 : now + (ivl * 24 * 60 * 60 * 1000);
+        currentCard.due = nextDueTime;
+
+        saveDeck();
+    }
+
+    // Initialize
+    loadDeck();
+
+</script>
+</body>
+</html>
