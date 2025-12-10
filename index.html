@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FSRS 单词本 (Pro Fixed)</title>
+    <title>FSRS 单词本 (Pro Fixed + Plus)</title>
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <style>
         :root {
@@ -257,12 +257,100 @@
             margin-top: 10px;
             display: flex;
             justify-content: center;
+            flex-wrap: wrap;
             gap: 15px;
         }
         .text-link {
             color: var(--accent);
             cursor: pointer;
             text-decoration: underline;
+        }
+
+        /* --- 新增：列表模态框样式 --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end; /* Mobile friendly: slides from bottom or sits at bottom */
+        }
+        
+        .modal-content {
+            background: var(--bg);
+            width: 100%;
+            max-width: 600px;
+            height: 85vh;
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e5e5ea;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .close-btn {
+            background: #e5e5ea;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .word-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .word-item {
+            background: var(--card);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .word-info strong {
+            display: block;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .word-info span {
+            font-size: 12px;
+            color: var(--subtext);
+        }
+
+        .delete-btn {
+            color: var(--danger);
+            background: none;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 14px;
         }
     </style>
 </head>
@@ -280,6 +368,7 @@
         <div class="divider"><span>OR IMPORT</span></div>
 
         <div class="ocr-controls">
+            
             <label for="ocrFileInput" class="upload-btn" id="uploadBtnLabel">
                 📷 Camera / Photo Library
             </label>
@@ -302,7 +391,7 @@
 
     <div id="reviewContainer" class="hidden">
         <div class="card-display">
-            <div class="word-text" id="currentWord">Word</div>
+	  <div class="word-text" id="currentWord" onclick="speakWord()">Word</div>
             <div class="stats-text" id="currentStats">S: 0 | D: 0</div>
         </div>
         <div class="actions">
@@ -319,16 +408,30 @@
 
     <div class="footer-info">
         <div id="deckInfo">Cards: 0 | Due: 0</div>
+        
         <div class="data-tools">
-            <span class="text-link" onclick="exportData()">Export JSON</span>
-            <span class="text-link" style="color: var(--danger);" onclick="clearData()">Reset All</span>
+            <span class="text-link" onclick="toggleWordList()">📖 View List</span>
+            <span class="text-link" onclick="exportData()">⬇ Export</span>
+            <span class="text-link" onclick="triggerImport()">⬆ Import</span>
+            <span class="text-link" style="color: var(--danger);" onclick="clearData()">Reset</span>
         </div>
+        <input type="file" id="importJsonInput" accept=".json" onchange="handleFileImport(event)" style="display:none;">
+    </div>
+</div>
+
+<div id="wordListModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">Your Vocabulary (<span id="totalWordCount">0</span>)</div>
+            <button class="close-btn" onclick="toggleWordList()">Close</button>
+        </div>
+        <div class="word-list" id="fullWordList">
+            </div>
     </div>
 </div>
 
 <script>
     // --- 1. Global State & FSRS Parameters ---
-    // 修复：使用单例模式存储 worker
     let ocrWorker = null;
     let deck = [];
     let currentCard = null;
@@ -338,7 +441,7 @@
         requestRetention: 0.9
     };
 
-    // --- 2. Persistence Layer (修复：异常处理) ---
+    // --- 2. Persistence Layer ---
     function loadDeck() {
         try {
             const stored = localStorage.getItem('fsrs_deck_v2');
@@ -354,7 +457,6 @@
         try {
             localStorage.setItem('fsrs_deck_v2', JSON.stringify(deck));
         } catch (e) {
-            // 修复：捕获 QuotaExceededError
             if (e.name === 'QuotaExceededError' || e.code === 22) {
                 alert("⚠️ Storage Full! Please export and clear old data.");
             } else {
@@ -364,7 +466,7 @@
         render();
     }
 
-    // --- 3. FSRS Math (保持核心逻辑，优化调用) ---
+    // --- 3. FSRS Math ---
     function initStability(g) { return p.w[g - 1]; }
     function initDifficulty(g) { return Math.min(Math.max(p.w[4] - (g - 3) * p.w[5], 1), 10); }
     function nextDifficulty(d, g) { 
@@ -379,7 +481,7 @@
     }
     function getInterval(s) { return Math.max(1, Math.round(s * 9 * (1 / p.requestRetention - 1))); }
 
-    // --- 4. Card Logic (修复：ID生成) ---
+    // --- 4. Card Logic ---
     function generateID() {
         if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -403,7 +505,6 @@
         const word = input.value.trim();
         if (!word) return;
         
-        // 简单查重
         if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
             alert("Word already exists!");
             return;
@@ -433,9 +534,7 @@
                 ? "New Card" 
                 : `S: ${currentCard.stability.toFixed(1)} | D: ${currentCard.difficulty.toFixed(1)}`;
 
-            // 更新按钮上的预估时间 (Simplified UI update)
             updateButtonLabels(currentCard);
-
         } else {
             currentCard = null;
             revContainer.classList.add('hidden');
@@ -444,14 +543,11 @@
     }
 
     function updateButtonLabels(card) {
-        // 简单的预估展示，实际 FSRS 预测需要更复杂计算，这里仅做简略展示
-        // Hard(2), Good(3), Easy(4)
         if(card.reps === 0) {
             document.getElementById('ivl-hard').innerText = '1d';
             document.getElementById('ivl-good').innerText = '3d';
             document.getElementById('ivl-easy').innerText = '4d';
         } else {
-            // 此处省略实时计算 S_next 的逻辑以保持代码精简，仅显示占位符或基于当前 S 的估算
             const ivl = getInterval(card.stability);
             document.getElementById('ivl-hard').innerText = Math.max(1, Math.floor(ivl * 0.5)) + 'd';
             document.getElementById('ivl-good').innerText = ivl + 'd';
@@ -463,15 +559,12 @@
         if (!currentCard) return;
         const now = Date.now();
         
-        // 修复：新卡片的 elapsed 计算问题
         let elapsed = 0;
         if (currentCard.reps > 0) {
             elapsed = (now - currentCard.lastReview) / 86400000;
         }
 
         let s = currentCard.stability, d = currentCard.difficulty;
-        
-        // 修复：Retention 计算防止除以零
         let r = currentCard.reps === 0 ? 0 : Math.exp(Math.log(0.9) * elapsed / (s || 1)); 
 
         if (currentCard.reps === 0) {
@@ -487,7 +580,6 @@
         currentCard.reps++;
         currentCard.lastReview = now;
 
-        // 调度逻辑：Again(1) 设为1分钟后，其他按算法
         if (g === 1) {
             currentCard.due = now + 60000; // 1 min
         } else {
@@ -500,18 +592,14 @@
     
     function handleEnter(e) { if (e.key === 'Enter') addWord(); }
 
-    // --- 5. Robust OCR Logic (修复：Worker 复用与正则) ---
-
+    // --- 5. Robust OCR Logic ---
     async function getOCRWorker(statusCallback) {
         if (ocrWorker) return ocrWorker;
-        
         statusCallback("Loading OCR Engine (First Run)...");
-        // V5 写法，自动加载语言包
-        ocrWorker = await Tesseract.createWorker('eng'); 
+        ocrWorker = await Tesseract.createWorker('eng');
         return ocrWorker;
     }
 
-    // === 开始复制 ===
     async function handleImageUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -526,20 +614,15 @@
         resultsEl.classList.add('hidden');
         loadingEl.classList.remove('hidden');
         fillEl.style.width = '10%';
-
+        
         try {
-            // 1. 压缩图片，防止手机浏览器崩溃
             statusEl.innerText = "Compressing Image...";
             const compressedFile = await compressImage(file); 
 
-            // 2. 加载 OCR 引擎
-            const worker = await getOCRWorker((msg) => {
-                statusEl.innerText = msg;
-            });
+            const worker = await getOCRWorker((msg) => { statusEl.innerText = msg; });
             statusEl.innerText = "Processing Image...";
             fillEl.style.width = '40%';
 
-            // 3. 识别压缩后的图片
             const ret = await worker.recognize(compressedFile);
             fillEl.style.width = '100%';
             
@@ -561,7 +644,6 @@
         }
     }
 
-    // 辅助工具：图片压缩函数
     function compressImage(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -571,7 +653,6 @@
                 img.src = event.target.result;
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    // 限制最大宽度为 1024px，既能看清单词，又不会撑爆内存
                     const maxWidth = 1024; 
                     let width = img.width;
                     let height = img.height;
@@ -585,7 +666,6 @@
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    
                     canvas.toBlob((blob) => {
                         resolve(blob);
                     }, 'image/jpeg', 0.7);
@@ -595,21 +675,14 @@
             reader.onerror = (err) => reject(err);
         });
     }
-    // === 复制结束 ===
 
-    // 修复：改进的正则逻辑
     function processOCRText(text) {
-        // 1. 将非字母、非空格、非连字符的字符替换为空格
         const clean = text.replace(/[^a-zA-Z\s-]/g, " ");
-        
         const tokens = clean.split(/\s+/);
         const uniqueWords = new Set();
         
         tokens.forEach(t => {
-            // 去除首尾连字符
             const word = t.toLowerCase().trim().replace(/^-+|-+$/g, '');
-            
-            // 逻辑修正：允许长度 > 1 的词 (go, to, in)，且不是纯数字（虽然正则已经排除了数字，双重保险）
             if (word.length > 1) { 
                 uniqueWords.add(word);
             }
@@ -629,7 +702,6 @@
             chipContainer.appendChild(chip);
         });
         resultsEl.classList.remove('hidden');
-        // 隐藏 Input section 的一部分以专注选择
         document.querySelector('.input-group').classList.add('hidden');
         document.querySelector('.divider').classList.add('hidden');
         document.getElementById('uploadBtnLabel').classList.add('hidden');
@@ -638,7 +710,6 @@
     function cancelOCR() {
         document.getElementById('ocrResults').classList.add('hidden');
         document.getElementById('ocrLoading').classList.add('hidden');
-        // 恢复 UI
         document.querySelector('.input-group').classList.remove('hidden');
         document.querySelector('.divider').classList.remove('hidden');
         document.getElementById('uploadBtnLabel').classList.remove('hidden');
@@ -652,7 +723,6 @@
         let dups = 0;
         selected.forEach(chip => {
             const word = chip.innerText;
-            // 防止重复添加
             if (!deck.some(c => c.word.toLowerCase() === word)) {
                 deck.push(createCardObject(word));
                 count++;
@@ -660,7 +730,6 @@
                 dups++;
             }
         });
-        
         saveDeck();
         cancelOCR();
         
@@ -669,7 +738,7 @@
         alert(msg);
     }
 
-    // --- 6. Data Management Tools ---
+    // --- 6. Data Management Tools (Enhanced) ---
     function exportData() {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(deck));
         const downloadAnchorNode = document.createElement('a');
@@ -685,9 +754,117 @@
             localStorage.removeItem('fsrs_deck_v2');
             deck = [];
             render();
+            // 如果列表开着，也清空一下
+            renderListContent();
         }
     }
 
+    // --- 新增功能：导入数据 ---
+    function triggerImport() {
+        document.getElementById('importJsonInput').click();
+    }
+
+    function handleFileImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (!Array.isArray(importedData)) {
+                    throw new Error("Invalid JSON format (should be an array)");
+                }
+
+                let addedCount = 0;
+                let skipCount = 0;
+
+                // 简单的合并策略：如果单词不存在则添加，存在则跳过（保留现有进度）
+                importedData.forEach(card => {
+                    if (card.word && !deck.some(existing => existing.word.toLowerCase() === card.word.toLowerCase())) {
+                        // 确保导入的卡片有必要的字段
+                        if(!card.id) card.id = generateID();
+                        deck.push(card);
+                        addedCount++;
+                    } else {
+                        skipCount++;
+                    }
+                });
+
+                saveDeck();
+                alert(`Import Complete!\n✅ Added: ${addedCount}\n⏭️ Skipped (Duplicates): ${skipCount}`);
+                
+            } catch (err) {
+                console.error(err);
+                alert("Failed to import: " + err.message);
+            }
+            // 清空 input 以便下次能触发 onchange
+            event.target.value = '';
+        };
+        reader.readAsText(file);
+    }
+
+    // --- 新增功能：单词列表视图 ---
+    function toggleWordList() {
+        const modal = document.getElementById('wordListModal');
+        const isHidden = modal.classList.contains('hidden');
+        
+        if (isHidden) {
+            renderListContent();
+            modal.classList.remove('hidden');
+        } else {
+            modal.classList.add('hidden');
+        }
+    }
+
+    function renderListContent() {
+        const listContainer = document.getElementById('fullWordList');
+        const countSpan = document.getElementById('totalWordCount');
+        listContainer.innerHTML = '';
+        countSpan.innerText = deck.length;
+
+        // 按添加时间倒序排列（最近添加的在上面）
+        // 也可以按字母顺序，这里先按最近添加
+        const sortedDeck = [...deck].reverse();
+
+        if (sortedDeck.length === 0) {
+            listContainer.innerHTML = '<div style="text-align:center; color:var(--subtext); padding:20px;">No words yet.</div>';
+            return;
+        }
+
+        sortedDeck.forEach(card => {
+            const item = document.createElement('div');
+            item.className = 'word-item';
+            
+            // 计算简单的状态描述
+            let status = "New";
+            if(card.reps > 0) status = `Reps: ${card.reps} | S: ${card.stability.toFixed(1)}`;
+
+            item.innerHTML = `
+                <div class="word-info">
+                    <strong>${card.word}</strong>
+                    <span>${status}</span>
+                </div>
+                <button class="delete-btn" onclick="deleteWord('${card.id}')">Delete</button>
+            `;
+            listContainer.appendChild(item);
+        });
+    }
+
+    function deleteWord(id) {
+        if(confirm("Delete this word?")) {
+            deck = deck.filter(c => c.id !== id);
+            saveDeck();
+            renderListContent(); // 重新渲染列表
+        }
+    }
+function speakWord() {
+    const word = document.getElementById('currentWord').innerText;
+    if (!word) return;
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.lang = 'en-US'; // 设置为美式英语
+    speechSynthesis.speak(utterance);
+}
     // Start
     loadDeck();
 </script>
