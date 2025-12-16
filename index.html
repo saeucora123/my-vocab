@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FSRS Context Pro (Auto-Fill)</title>
+    <title>FSRS Context Pro (Recall Mode)</title>
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <style>
         :root {
@@ -109,7 +109,7 @@
             border-radius: 8px;
             cursor: pointer;
             font-size: 18px;
-            min-width: 44px; /* Ensure clickable area */
+            min-width: 44px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -118,7 +118,7 @@
 
         button.icon-btn:active { background: #d1d1d6; }
         
-        /* Loading Spinner for Auto-Fill */
+        /* Loading Spinner */
         .spinner {
             width: 16px;
             height: 16px;
@@ -168,15 +168,35 @@
 
         .pronounce-hint { font-size: 12px; color: var(--subtext); margin-bottom: 20px; }
 
+        /* Definition Area (New) */
+        .definition-area {
+            margin: 10px 0 15px 0;
+            padding: 15px;
+            background-color: #fff9e6; /* 淡黄色背景用于区分 */
+            border-radius: 12px;
+            text-align: left;
+            border: 1px solid #ffeeba;
+        }
+        .def-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #d48806;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .def-text {
+            font-size: 15px;
+            color: #333;
+            line-height: 1.4;
+        }
+
         /* Context Area Styling */
         .context-area {
-            margin-top: 15px;
             padding: 15px;
             background-color: var(--context-bg);
             border-radius: 12px;
             text-align: left;
             position: relative;
-            cursor: pointer;
             transition: all 0.2s;
         }
 
@@ -188,23 +208,6 @@
             margin-bottom: 5px;
         }
         
-        .blurred { filter: blur(5px); user-select: none; }
-        .context-area.revealed .blurred { filter: none; }
-
-        .context-label {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 12px;
-            color: var(--accent);
-            font-weight: 600;
-            pointer-events: none;
-            opacity: 1;
-            transition: opacity 0.2s;
-        }
-        .context-area.revealed .context-label { opacity: 0; }
-
         .stats-text { font-size: 12px; color: var(--subtext); margin-top: 20px; }
 
         .actions {
@@ -252,15 +255,18 @@
 
         /* Modal Styles */
         .modal-overlay {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.5); z-index: 1000;
             display: flex; justify-content: center; align-items: flex-end;
         }
         
         .modal-content {
-            background: var(--bg); width: 100%; max-width: 600px; height: 90vh;
+            background: var(--bg);
+            width: 100%; max-width: 600px; height: 90vh;
             border-radius: 20px 20px 0 0; display: flex; flex-direction: column;
-            padding: 20px; box-sizing: border-box; animation: slideUp 0.3s ease-out;
+            padding: 20px; box-sizing: border-box;
+            animation: slideUp 0.3s ease-out;
         }
 
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -270,7 +276,8 @@
         .close-btn { background: #e5e5ea; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: 600; }
         .word-list { flex: 1; overflow-y: auto; }
         .word-item {
-            background: var(--card); padding: 15px; margin-bottom: 10px;
+            background: var(--card);
+            padding: 15px; margin-bottom: 10px;
             border-radius: 12px; display: flex; flex-direction: column; gap: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
@@ -298,6 +305,9 @@
         .full-width-btn { width: 100%; padding: 14px; border-radius: 12px; margin-top: 15px; font-size: 16px; }
 
         .watermark { position: fixed; bottom: 10px; right: 15px; font-size: 11px; color: #b0b0b5; pointer-events: none; z-index: 9999; font-family: monospace; user-select: none; }
+        .divider { display: flex; align-items: center; text-align: center; color: var(--subtext); font-size: 12px; margin: 20px 0; }
+        .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid #e5e5ea; }
+        .divider span { padding: 0 10px; }
     </style>
 </head>
 <body>
@@ -342,24 +352,36 @@
     <div id="reviewContainer" class="hidden">
         <div class="card-display">
             <button class="edit-card-btn" onclick="openEditModal(currentCard.id)">✏️</button>
+            
             <div class="word-text" id="currentWord" onclick="speakCurrentCard()">Word</div>
             <div class="pronounce-hint">Tap word to listen</div>
             
-            <div class="context-area" id="contextArea" onclick="toggleContextReveal()">
-                <div class="context-label">TAP TO REVEAL CONTEXT</div>
-                <div id="contextContent" class="blurred">
+            <div id="definitionArea" class="definition-area hidden">
+                <div class="def-label">Definition</div>
+                <div id="currentDefinition" class="def-text"></div>
+            </div>
+
+            <div class="context-area hidden" id="contextArea">
+                <div id="contextContent">
                     <div class="context-sentence" id="currentSentence"></div>
                 </div>
-                <div id="noContextMsg" class="hidden" style="color:#999; font-size:13px;">No context added yet.<br>Click ✏️ to auto-fill.</div>
+                <div id="noContextMsg" class="hidden" style="color:#999; font-size:13px;">No context added.</div>
             </div>
 
             <div class="stats-text" id="currentStats">S: 0 | D: 0</div>
         </div>
-        <div class="actions">
-            <button class="action-btn btn-again" onclick="rate(1)">Again<br><small>1m</small></button>
-            <button class="action-btn btn-hard" onclick="rate(2)">Hard<br><small id="ivl-hard">-</small></button>
-            <button class="action-btn btn-good" onclick="rate(3)">Good<br><small id="ivl-good">-</small></button>
-            <button class="action-btn btn-easy" onclick="rate(4)">Easy<br><small id="ivl-easy">-</small></button>
+
+        <div class="actions-wrapper">
+            <button id="showAnswerBtn" class="add-btn full-width-btn" style="margin-top:0; height:60px; font-size:18px; background-color: var(--text);" onclick="revealAnswer()">
+                Show Answer 👁️
+            </button>
+
+            <div id="ratingButtons" class="actions hidden">
+                <button class="action-btn btn-again" onclick="rate(1)">Again<br><small>1m</small></button>
+                <button class="action-btn btn-hard" onclick="rate(2)">Hard<br><small id="ivl-hard">-</small></button>
+                <button class="action-btn btn-good" onclick="rate(3)">Good<br><small id="ivl-good">-</small></button>
+                <button class="action-btn btn-easy" onclick="rate(4)">Easy<br><small id="ivl-easy">-</small></button>
+            </div>
         </div>
     </div>
 
@@ -405,6 +427,12 @@
                     <input type="text" id="editWordInput">
                 </div>
             </div>
+            
+            <div>
+                <label style="font-size:12px; color:gray;">Definition (English)</label>
+                <textarea id="editDefinitionInput" rows="2" placeholder="Auto-filled from dictionary..."></textarea>
+            </div>
+
             <div>
                 <label style="font-size:12px; color:gray;">Context Sentence</label>
                 <div style="display:flex; gap:5px; align-items:flex-start;">
@@ -424,6 +452,7 @@
     let ocrWorker = null;
     let deck = [];
     let currentCard = null;
+    let tempAutoDefinition = ""; // Store auto-fetched definition before adding
 
     const p = {
         w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
@@ -472,11 +501,12 @@
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
-    function createCardObject(word, sentence = "") {
+    function createCardObject(word, sentence = "", definition = "") {
         return { 
             id: generateID(), 
             word: word.trim(), 
             sentence: sentence.trim(),
+            definition: definition.trim(), // Added definition field
             due: Date.now(), 
             state: 0, 
             stability: 0, 
@@ -486,17 +516,17 @@
         };
     }
 
-    // --- NEW: AUTO CONTEXT FETCHING LOGIC ---
+    // --- NEW: AUTO CONTEXT & DEFINITION FETCHING ---
     async function autoFetchContext(mode) {
         // mode: 'new' or 'edit'
         const wordInputId = mode === 'new' ? 'newWordInput' : 'editWordInput';
         const sentenceInputId = mode === 'new' ? 'newSentenceInput' : 'editSentenceInput';
+        const defInputId = mode === 'edit' ? 'editDefinitionInput' : null;
         const iconId = mode === 'new' ? 'btnIconNew' : 'btnIconEdit';
         
         const word = document.getElementById(wordInputId).value.trim();
         const sentenceEl = document.getElementById(sentenceInputId);
         const iconEl = document.getElementById(iconId);
-
         if (!word) return alert("Please type a word first.");
 
         // UI Loading State
@@ -505,49 +535,59 @@
         sentenceEl.setAttribute('placeholder', 'Searching dictionary...');
         
         try {
-            // Using Free Dictionary API
             const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
-            
             if (!response.ok) throw new Error("Word not found");
             
             const data = await response.json();
             
-            // Logic to find the first valid example sentence
             let foundSentence = "";
-            
-            // Traverse the messy JSON structure
+            let foundDefinition = "";
+
+            // Find first valid definition and example
             for (const entry of data) {
                 if (entry.meanings) {
                     for (const meaning of entry.meanings) {
                         if (meaning.definitions) {
                             for (const def of meaning.definitions) {
-                                if (def.example) {
-                                    foundSentence = def.example;
-                                    break;
+                                // Get Definition
+                                if (!foundDefinition && def.definition) {
+                                    foundDefinition = `(${meaning.partOfSpeech}) ${def.definition}`;
                                 }
+                                // Get Example
+                                if (!foundSentence && def.example) {
+                                    foundSentence = def.example;
+                                }
+                                if (foundDefinition && foundSentence) break;
                             }
                         }
-                        if (foundSentence) break;
+                        if (foundDefinition && foundSentence) break;
                     }
                 }
-                if (foundSentence) break;
+                if (foundDefinition && foundSentence) break;
             }
 
+            // Handle Sentence
             if (foundSentence) {
-                // Capitalize first letter
                 foundSentence = foundSentence.charAt(0).toUpperCase() + foundSentence.slice(1);
-                // Add period if missing
                 if (!/[.!?]$/.test(foundSentence)) foundSentence += ".";
-                
                 sentenceEl.value = foundSentence;
             } else {
-                alert("Definition found, but no example sentence available in free API.");
                 sentenceEl.placeholder = "No auto-example found. Please type one.";
+            }
+
+            // Handle Definition
+            if (foundDefinition) {
+                if(mode === 'new') {
+                    tempAutoDefinition = foundDefinition; // Store for 'Add' button
+                    console.log("Auto-fetched definition:", tempAutoDefinition);
+                } else if (mode === 'edit' && defInputId) {
+                    document.getElementById(defInputId).value = foundDefinition;
+                }
             }
 
         } catch (err) {
             console.error(err);
-            alert("Could not auto-fetch sentence. (Word might be rare or misspelled)");
+            alert("Could not auto-fetch. (Word might be rare or misspelled)");
             sentenceEl.placeholder = "Type context here...";
         } finally {
             // Restore UI
@@ -562,18 +602,21 @@
         const sentence = sInput.value.trim();
 
         if (!word) return;
-        
         if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
             alert("Word already exists!");
             return;
         }
 
-        deck.push(createCardObject(word, sentence));
+        // Pass the tempAutoDefinition if available
+        deck.push(createCardObject(word, sentence, tempAutoDefinition));
+        
         wInput.value = '';
         sInput.value = '';
+        tempAutoDefinition = ""; // Reset
         saveDeck();
     }
 
+    // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
     function render() {
         const now = Date.now();
         const dueCards = deck.filter(c => c.due <= now).sort((a, b) => a.due - b.due);
@@ -591,23 +634,35 @@
 
             document.getElementById('currentWord').innerText = currentCard.word;
             
-            // Render Context
-            const ctxContent = document.getElementById('contextContent');
-            const noCtxMsg = document.getElementById('noContextMsg');
-            const sentenceEl = document.getElementById('currentSentence');
-            const contextArea = document.getElementById('contextArea');
+            // --- STATE: QUESTION MODE ---
+            // 1. Hide Answers
+            document.getElementById('definitionArea').classList.add('hidden');
+            document.getElementById('contextArea').classList.add('hidden'); 
+            
+            // 2. Hide Ratings, Show "Show Answer"
+            document.getElementById('ratingButtons').classList.add('hidden');
+            document.getElementById('showAnswerBtn').classList.remove('hidden');
 
-            contextArea.classList.remove('revealed');
-
-            if (currentCard.sentence) {
-                ctxContent.classList.remove('hidden');
-                noCtxMsg.classList.add('hidden');
-                sentenceEl.innerText = currentCard.sentence;
+            // 3. Pre-fill content (but keep hidden)
+            const defEl = document.getElementById('currentDefinition');
+            if (currentCard.definition) {
+                defEl.innerText = currentCard.definition;
             } else {
-                ctxContent.classList.add('hidden');
+                defEl.innerText = "No definition saved.";
+            }
+
+            const sentenceEl = document.getElementById('currentSentence');
+            const noCtxMsg = document.getElementById('noContextMsg');
+            if (currentCard.sentence) {
+                sentenceEl.innerText = currentCard.sentence;
+                document.getElementById('contextContent').classList.remove('hidden');
+                noCtxMsg.classList.add('hidden');
+            } else {
+                document.getElementById('contextContent').classList.add('hidden');
                 noCtxMsg.classList.remove('hidden');
             }
             
+            // Stats
             const isNew = currentCard.reps === 0;
             document.getElementById('currentStats').innerText = isNew 
                 ? "New Card" 
@@ -622,9 +677,43 @@
         }
     }
 
-    function toggleContextReveal() {
-        if(!currentCard.sentence) return; 
-        document.getElementById('contextArea').classList.toggle('revealed');
+    // --- NEW: REVEAL ANSWER LOGIC ---
+    async function revealAnswer() {
+        // 1. Show Definition
+        document.getElementById('definitionArea').classList.remove('hidden');
+        
+        // 2. Show Context
+        document.getElementById('contextArea').classList.remove('hidden');
+        
+        // 3. Swap Buttons
+        document.getElementById('showAnswerBtn').classList.add('hidden');
+        document.getElementById('ratingButtons').classList.remove('hidden');
+
+        // 4. (Smart Feature) If no definition exists (old cards), try to fetch it now
+        if (!currentCard.definition) {
+             const defEl = document.getElementById('currentDefinition');
+             defEl.innerText = "Fetching definition...";
+             try {
+                const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${currentCard.word}`);
+                const data = await res.json();
+                // Extract first definition
+                let def = "";
+                if(data[0]?.meanings[0]?.definitions[0]?.definition) {
+                    def = `(${data[0].meanings[0].partOfSpeech}) ${data[0].meanings[0].definitions[0].definition}`;
+                }
+                
+                if(def) {
+                    defEl.innerText = def;
+                    // Auto-save this definition to the card so we don't fetch again next time
+                    currentCard.definition = def;
+                    saveDeck(); 
+                } else {
+                    defEl.innerText = "No definition found in dictionary.";
+                }
+             } catch(e) {
+                 defEl.innerText = "Could not fetch definition.";
+             }
+        }
     }
 
     function updateButtonLabels(card) {
@@ -651,7 +740,6 @@
 
         let s = currentCard.stability, d = currentCard.difficulty;
         let r = currentCard.reps === 0 ? 0 : Math.exp(Math.log(0.9) * elapsed / (s || 1));
-        
         if (currentCard.reps === 0) {
             s = initStability(g);
             d = initDifficulty(g);
@@ -676,7 +764,7 @@
     
     function handleEnter(e) { if (e.key === 'Enter') autoFetchContext('new'); }
 
-    // --- 5. OCR Logic (Unchanged but connected) ---
+    // --- 5. OCR Logic (Unchanged) ---
     async function getOCRWorker(statusCallback) {
         if (ocrWorker) return ocrWorker;
         statusCallback("Loading Engine...");
@@ -697,7 +785,6 @@
         resultsEl.classList.add('hidden');
         loadingEl.classList.remove('hidden');
         fillEl.style.width = '10%';
-        
         try {
             statusEl.innerText = "Processing...";
             const compressedFile = await compressImage(file); 
@@ -785,7 +872,7 @@
         selected.forEach(chip => {
             const word = chip.innerText;
             if (!deck.some(c => c.word.toLowerCase() === word)) {
-                deck.push(createCardObject(word)); // Note: OCR words don't auto-fetch to avoid API rate limits
+                deck.push(createCardObject(word)); 
                 count++;
             }
         });
@@ -837,7 +924,7 @@
         reader.readAsText(file);
     }
 
-    // --- 7. List & Edit (Updated with Auto-Fill) ---
+    // --- 7. List & Edit (Updated with Definition) ---
     function toggleWordList() {
         const modal = document.getElementById('wordListModal');
         if (modal.classList.contains('hidden')) {
@@ -853,7 +940,6 @@
         document.getElementById('totalWordCount').innerText = deck.length;
         listContainer.innerHTML = '';
         const sortedDeck = [...deck].reverse();
-        
         if (sortedDeck.length === 0) {
             listContainer.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">No words.</div>';
             return;
@@ -862,7 +948,7 @@
         sortedDeck.forEach(card => {
             const item = document.createElement('div');
             item.className = 'word-item';
-            let preview = card.sentence ? card.sentence : "No context";
+            let preview = card.definition ? card.definition : (card.sentence ? card.sentence : "No context");
             if (preview.length > 50) preview = preview.substring(0, 50) + "...";
 
             item.innerHTML = `
@@ -893,6 +979,7 @@
         document.getElementById('editCardId').value = card.id;
         document.getElementById('editWordInput').value = card.word;
         document.getElementById('editSentenceInput').value = card.sentence || "";
+        document.getElementById('editDefinitionInput').value = card.definition || ""; // Edit definition
         document.getElementById('editModal').classList.remove('hidden');
     }
 
@@ -902,10 +989,13 @@
         const id = document.getElementById('editCardId').value;
         const newWord = document.getElementById('editWordInput').value.trim();
         const newSentence = document.getElementById('editSentenceInput').value.trim();
+        const newDef = document.getElementById('editDefinitionInput').value.trim(); // Save definition
+
         const cardIndex = deck.findIndex(c => c.id === id);
         if(cardIndex > -1) {
             deck[cardIndex].word = newWord;
             deck[cardIndex].sentence = newSentence;
+            deck[cardIndex].definition = newDef;
             saveDeck();
             renderListContent();
             render(); 
@@ -920,10 +1010,12 @@
         speechSynthesis.cancel();
         const uWord = new SpeechSynthesisUtterance(word);
         uWord.lang = 'en-US';
-        
-        const sentence = document.getElementById('currentSentence').innerText;
         speechSynthesis.speak(uWord);
+        
+        // Only speak sentence if revealed
+        if(document.getElementById('contextArea').classList.contains('hidden')) return;
 
+        const sentence = document.getElementById('currentSentence').innerText;
         if (sentence && sentence.length > 0) {
            const uSent = new SpeechSynthesisUtterance(sentence);
            uSent.lang = 'en-US';
