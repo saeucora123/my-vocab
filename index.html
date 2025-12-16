@@ -451,6 +451,16 @@
     // --- 1. Global State & FSRS Parameters ---
     let ocrWorker = null;
     let deck = [];
+    // ====== 这里是新增的 AI 配置 (开始) ======
+    const AI_CONFIG = {
+        // 请在下面引号里填入你的 DeepSeek API Key，例如 "sk-ab12345..."
+        apiKey: "sk-f3ff7365a06f4fe1ae7609ebbd2238ac", 
+        
+        // DeepSeek 的接口地址
+        baseUrl: "https://api.deepseek.com/chat/completions", 
+        model: "deepseek-chat"
+    };
+    // ====== 这里是新增的 AI 配置 (结束) ======
     let currentCard = null;
     let tempAutoDefinition = ""; // Store auto-fetched definition before adding
 
@@ -517,8 +527,9 @@
     }
 
     // --- NEW: AUTO CONTEXT & DEFINITION FETCHING ---
+    // ====== 新的 AI 智能查词函数 (开始) ======
     async function autoFetchContext(mode) {
-        // mode: 'new' or 'edit'
+        // 1. 获取输入框里的单词
         const wordInputId = mode === 'new' ? 'newWordInput' : 'editWordInput';
         const sentenceInputId = mode === 'new' ? 'newSentenceInput' : 'editSentenceInput';
         const defInputId = mode === 'edit' ? 'editDefinitionInput' : null;
@@ -527,74 +538,77 @@
         const word = document.getElementById(wordInputId).value.trim();
         const sentenceEl = document.getElementById(sentenceInputId);
         const iconEl = document.getElementById(iconId);
-        if (!word) return alert("Please type a word first.");
 
-        // UI Loading State
+        // 如果没填 Key，提示用户
+        if (!AI_CONFIG.apiKey || AI_CONFIG.apiKey.includes("这里填入")) {
+            alert("请先在代码的 AI_CONFIG 中填入正确的 DeepSeek API Key！");
+            return;
+        }
+
+        if (!word) return alert("请先输入一个单词！");
+
+        // 2. 界面显示“正在思考...”
         const originalIcon = iconEl.innerText;
-        iconEl.innerHTML = '<div class="spinner"></div>';
-        sentenceEl.setAttribute('placeholder', 'Searching dictionary...');
+        iconEl.innerHTML = '<div class="spinner"></div>'; // 显示转圈圈
+        sentenceEl.value = "";
+        sentenceEl.placeholder = "AI 正在为你撰写完美例句...";
         
         try {
-            const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
-            if (!response.ok) throw new Error("Word not found");
-            
-            const data = await response.json();
-            
-            let foundSentence = "";
-            let foundDefinition = "";
-
-            // Find first valid definition and example
-            for (const entry of data) {
-                if (entry.meanings) {
-                    for (const meaning of entry.meanings) {
-                        if (meaning.definitions) {
-                            for (const def of meaning.definitions) {
-                                // Get Definition
-                                if (!foundDefinition && def.definition) {
-                                    foundDefinition = `(${meaning.partOfSpeech}) ${def.definition}`;
-                                }
-                                // Get Example
-                                if (!foundSentence && def.example) {
-                                    foundSentence = def.example;
-                                }
-                                if (foundDefinition && foundSentence) break;
-                            }
+            // 3. 向 DeepSeek 发送请求
+            const response = await fetch(AI_CONFIG.baseUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${AI_CONFIG.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: AI_CONFIG.model,
+                    messages: [
+                        {
+                            role: "system", 
+                            content: "你是一个专业的英语词汇老师。请为用户提供的单词生成一个地道的英文例句（包含语境，适合雅思/GRE学习，难度偏简单）和一个精简的英文释义。请严格只返回 JSON 格式：{\"sentence\": \"这里是例句\", \"definition\": \"这里是英文释义\"}。"
+                        },
+                        {
+                            role: "user", 
+                            content: `请为单词 "${word}" 生成内容。`
                         }
-                        if (foundDefinition && foundSentence) break;
-                    }
-                }
-                if (foundDefinition && foundSentence) break;
+                    ],
+                    temperature: 1.0,
+                    response_format: { type: 'json_object' } 
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error?.message || "API 请求失败");
             }
 
-            // Handle Sentence
-            if (foundSentence) {
-                foundSentence = foundSentence.charAt(0).toUpperCase() + foundSentence.slice(1);
-                if (!/[.!?]$/.test(foundSentence)) foundSentence += ".";
-                sentenceEl.value = foundSentence;
-            } else {
-                sentenceEl.placeholder = "No auto-example found. Please type one.";
-            }
+            const data = await response.json();
+            // 解析 AI 返回的结果
+            const content = data.choices[0].message.content;
+            const result = JSON.parse(content);
 
-            // Handle Definition
-            if (foundDefinition) {
-                if(mode === 'new') {
-                    tempAutoDefinition = foundDefinition; // Store for 'Add' button
-                    console.log("Auto-fetched definition:", tempAutoDefinition);
-                } else if (mode === 'edit' && defInputId) {
-                    document.getElementById(defInputId).value = foundDefinition;
-                }
+            // 4. 把结果填入输入框
+            sentenceEl.value = result.sentence;
+            
+            // 自动填充释义
+            if(mode === 'new') {
+                tempAutoDefinition = result.definition;
+                console.log("AI 释义:", tempAutoDefinition);
+            } else if (mode === 'edit' && defInputId) {
+                document.getElementById(defInputId).value = result.definition;
             }
 
         } catch (err) {
             console.error(err);
-            alert("Could not auto-fetch. (Word might be rare or misspelled)");
-            sentenceEl.placeholder = "Type context here...";
+            alert("出错了：" + err.message + "\n请检查 Key 是否正确，或者网络是否通畅。");
+            sentenceEl.placeholder = "生成失败，请重试。";
         } finally {
-            // Restore UI
+            // 恢复按钮图标
             iconEl.innerHTML = originalIcon;
         }
     }
-
+    // ====== 新的 AI 智能查词函数 (结束) ======
     function addWord() {
         const wInput = document.getElementById('newWordInput');
         const sInput = document.getElementById('newSentenceInput');
@@ -613,9 +627,7 @@
         wInput.value = '';
         sInput.value = '';
         tempAutoDefinition = ""; // Reset
-        // saveDeck();  <-- 不要调用这个，因为它会触发 render()
-        localStorage.setItem('fsrs_deck_context_v2', JSON.stringify(deck)); // 手动静默保存，不刷新界面
-        
+        saveDeck();
     }
 
     // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
@@ -708,7 +720,8 @@
                     defEl.innerText = def;
                     // Auto-save this definition to the card so we don't fetch again next time
                     currentCard.definition = def;
-                    saveDeck(); 
+                    // saveDeck();  <-- 不要调用这个，因为它会触发 render()
+		 localStorage.setItem('fsrs_deck_context_v2', JSON.stringify(deck)); // 手动静默保存，不刷新界面
                 } else {
                     defEl.innerText = "No definition found in dictionary.";
                 }
