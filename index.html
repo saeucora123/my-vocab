@@ -613,7 +613,9 @@
         wInput.value = '';
         sInput.value = '';
         tempAutoDefinition = ""; // Reset
-        saveDeck();
+        // saveDeck();  <-- 不要调用这个，因为它会触发 render()
+        localStorage.setItem('fsrs_deck_context_v2', JSON.stringify(deck)); // 手动静默保存，不刷新界面
+        
     }
 
     // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
