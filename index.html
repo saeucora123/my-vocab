@@ -1145,16 +1145,30 @@
     }
 
     // --- 6. Data Management ---
-    function exportData() {
-        // 记录备份时间 (新增)
+    async function exportData() {
+        // 1. 获取算法权重
+        let currentWeights = p.w;
+        try {
+            const savedW = await db.getSetting('fsrs_weights');
+            if (savedW) currentWeights = savedW;
+        } catch (e) { console.warn("Failed to read settings for export"); }
+
+        // 2. 构建包含设置和卡片的完整数据包
+        const exportPackage = {
+            version: 2, 
+            timestamp: Date.now(),
+            settings: { fsrs_weights: currentWeights },
+            cards: deck
+        };
+
+        // 3. 记录备份时间
         localStorage.setItem('fsrs_last_backup', Date.now());
-        // 刷新界面以去除红色警告
         render();
 
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(deck));
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportPackage));
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", "fsrs_context_deck.json");
+        downloadAnchorNode.setAttribute("download", `fsrs_backup_${new Date().toISOString().slice(0,10)}.json`);
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
@@ -1174,20 +1188,71 @@
         const file = event.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = function(e) {
+        
+        reader.onload = async function(e) {
             try {
-                const importedData = JSON.parse(e.target.result);
-                if (!Array.isArray(importedData)) throw new Error("Invalid JSON");
-                importedData.forEach(card => {
-                    if (card.word && !deck.some(existing => existing.word.toLowerCase() === card.word.toLowerCase())) {
-                        if(!card.id) card.id = generateID();
-                        deck.push(card);
+                const rawData = JSON.parse(e.target.result);
+                let newCards = [];
+                let newSettings = null;
+
+                // 1. 识别数据格式 (兼容旧版数组和新版对象)
+                if (Array.isArray(rawData)) {
+                    newCards = rawData; // 旧版格式
+                } else if (rawData.cards && Array.isArray(rawData.cards)) {
+                    newCards = rawData.cards; // 新版格式
+                    newSettings = rawData.settings;
+                } else {
+                    throw new Error("Invalid Format");
+                }
+
+                // 2. 询问合并策略
+                const mode = prompt(
+                    "导入模式 (请输入数字):\n1. 跳过重复 (保留当前进度)\n2. 强制覆盖 (使用文件中的进度)\n3. 仅添加新词", 
+                    "1"
+                );
+                if (!['1', '2', '3'].includes(mode)) return;
+
+                let addedCount = 0;
+                let updatedCount = 0;
+
+                // 3. 处理算法参数
+                if (newSettings && newSettings.fsrs_weights) {
+                    if(confirm("文件中包含算法参数设置，是否应用？")) {
+                        p.w = newSettings.fsrs_weights;
+                        await db.saveSetting('fsrs_weights', p.w);
+                    }
+                }
+
+                // 4. 处理卡片
+                newCards.forEach(importCard => {
+                    const existingIndex = deck.findIndex(c => c.word.toLowerCase() === importCard.word.toLowerCase());
+
+                    if (existingIndex === -1) {
+                        // 新词 -> 直接添加
+                        if (!importCard.id) importCard.id = generateID();
+                        deck.push(importCard);
+                        addedCount++;
+                    } else {
+                        // 单词已存在
+                        if (mode === '2') { 
+                            // 强制覆盖
+                            deck[existingIndex] = importCard;
+                            updatedCount++;
+                        } 
                     }
                 });
-                saveDeck();
-                alert("Import Complete!");
-            } catch (err) { alert("Import failed."); }
-            event.target.value = '';
+
+                // 5. 保存并刷新
+                saveDeck(); 
+                alert(`导入完成!\n新增: ${addedCount}\n更新/覆盖: ${updatedCount}`);
+                render();
+                renderListContent();
+
+            } catch (err) {
+                console.error(err);
+                alert("导入失败: 文件格式错误");
+            }
+            event.target.value = ''; 
         };
         reader.readAsText(file);
     }
