@@ -488,6 +488,19 @@
                 req.onsuccess = () => resolve(req.result || []);
             });
         },
+        // 【新增】只保存单张卡片（安全核心）
+        saveCard: async (card) => {
+            const d = await db.open();
+            const tx = d.transaction('cards', 'readwrite');
+            tx.objectStore('cards').put(card);
+        },
+        // 【新增】删除单张卡片
+        deleteCard: async (id) => {
+            const d = await db.open();
+            const tx = d.transaction('cards', 'readwrite');
+            tx.objectStore('cards').delete(id);
+        },
+        // 保留旧方法仅做兼容，不再推荐频繁调用
         saveAll: async (cards) => {
             const d = await db.open();
             return new Promise((resolve, reject) => {
@@ -733,7 +746,11 @@
         sInput.value = '';
         // 重置所有临时变量
         tempAutoDefinition = ""; tempMnemonic = ""; tempEmoji = ""; 
-        saveDeck();
+        
+        // 【修改】只保存当前这一张卡片到数据库
+        const newCard = deck[deck.length - 1];
+        db.saveCard(newCard);
+        render(); // 仅刷新界面，不进行全量保存
     }
 
     // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
@@ -765,8 +782,9 @@
             // === 核心逻辑修改：实现挖空模式 ===
             const wordEl = document.getElementById('currentWord');
             if (currentCard.reps > 0 && currentCard.sentence) {
-                // 如果是复习且有例句，显示挖空例句
-                const regex = new RegExp(`(${currentCard.word})`, 'gi');
+                // 如果是复习且有例句，显示挖空例句 (已修复特殊字符导致的崩溃 Bug)
+                const escapedWord = currentCard.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`(${escapedWord})`, 'gi');
                 const clozeSent = currentCard.sentence.replace(regex, '<span class="cloze-blank">_____</span>');
                 wordEl.innerHTML = `<div style="font-size:22px; line-height:1.4;">${clozeSent}</div>`;
                 wordEl.style.color = "#333"; // 句子颜色
@@ -902,8 +920,9 @@
                     defEl.innerText = def;
                     // Auto-save this definition to the card so we don't fetch again next time
                     currentCard.definition = def;
-                    // saveDeck();  <-- 不要调用这个，因为它会触发 render()
-		 localStorage.setItem('fsrs_deck_context_v2', JSON.stringify(deck)); // 手动静默保存，不刷新界面
+                    
+                    // 【修改】使用新的数据库方法静默保存，确保数据同步且不刷新界面
+                    db.saveCard(currentCard); 
                 } else {
                     defEl.innerText = "No definition found in dictionary.";
                 }
@@ -969,7 +988,9 @@
             const days = getInterval(s);
             currentCard.due = now + (days * 86400000);
         }
-        saveDeck();
+        // 【修改】只保存当前复习的这张卡片
+        db.saveCard(currentCard);
+        render();
     }
     
     function handleEnter(e) { if (e.key === 'Enter') autoFetchContext('new'); }
@@ -1218,7 +1239,11 @@
             deck[cardIndex].sentence = newSentence;
             deck[cardIndex].definition = newDef;
             deck[cardIndex].mnemonic = newMnemonic; // Save mnemonic
-            saveDeck();
+            
+            // 【修改】改为单条保存
+            db.saveCard(deck[cardIndex]);
+            
+            // saveDeck(); // 原来的全量保存注释掉
             renderListContent();
             render(); 
             closeEditModal();
