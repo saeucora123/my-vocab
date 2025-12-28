@@ -324,8 +324,12 @@
         <div class="input-wrapper">
             <div class="input-row">
                 <input type="text" id="newWordInput" placeholder="Word (e.g., serendipity)" onkeypress="handleEnter(event)">
-                <button class="icon-btn" id="autoFillBtn" onclick="autoFetchContext('new')" title="✨ Auto-Generate Context">
-                    <span id="btnIconNew">🪄</span>
+                <!-- 修改：拆分为两个按钮，分别传入 'simple' 和 'advanced' 参数，并传入 this 以便显示加载动画 -->
+                <button class="icon-btn" onclick="autoFetchContext('new', 'simple', this)" title="🌱 Simple Context (4k vocab)" style="width: auto; padding: 0 10px; font-size: 14px;">
+                    🌱 简单
+                </button>
+                <button class="icon-btn" onclick="autoFetchContext('new', 'advanced', this)" title="⚡ Advanced Context (IELTS 8+)" style="width: auto; padding: 0 10px; font-size: 14px;">
+                    ⚡ 进阶
                 </button>
             </div>
             
@@ -454,9 +458,11 @@
                 <label style="font-size:12px; color:gray;">Context Sentence</label>
                 <div style="display:flex; gap:5px; align-items:flex-start;">
                     <textarea id="editSentenceInput" rows="3"></textarea>
-                    <button class="icon-btn" onclick="autoFetchContext('edit')" title="Auto-Generate">
-                        <span id="btnIconEdit">🪄</span>
-                    </button>
+                    <!-- 修改：拆分为两个按钮 -->
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                        <button class="icon-btn" onclick="autoFetchContext('edit', 'simple', this)" title="🌱 Simple" style="font-size:12px; height:30px;">🌱</button>
+                        <button class="icon-btn" onclick="autoFetchContext('edit', 'advanced', this)" title="⚡ Advanced" style="font-size:12px; height:30px;">⚡</button>
+                    </div>
                 </div>
             </div>
             <button class="add-btn full-width-btn" onclick="saveCardEdit()">Save Changes</button>
@@ -628,16 +634,18 @@
 
     // --- NEW: AUTO CONTEXT & DEFINITION FETCHING ---
     // ====== 新的 AI 智能查词函数 (开始) ======
-    async function autoFetchContext(mode) {
+    // 修改：增加 level 和 btnElement 参数
+    async function autoFetchContext(mode, level, btnElement) {
         // 1. 获取输入框里的单词
         const wordInputId = mode === 'new' ? 'newWordInput' : 'editWordInput';
         const sentenceInputId = mode === 'new' ? 'newSentenceInput' : 'editSentenceInput';
         const defInputId = mode === 'edit' ? 'editDefinitionInput' : null;
-        const iconId = mode === 'new' ? 'btnIconNew' : 'btnIconEdit';
+        
+        // 修改：直接使用传入的按钮元素来显示转圈圈
+        const iconEl = btnElement; 
         
         const word = document.getElementById(wordInputId).value.trim();
         const sentenceEl = document.getElementById(sentenceInputId);
-        const iconEl = document.getElementById(iconId);
 
         // 如果没填 Key，提示用户
         if (!AI_CONFIG.apiKey || AI_CONFIG.apiKey.includes("这里填入")) {
@@ -666,11 +674,26 @@
                     messages: [
                         {
                             role: "system", 
-                            content: `你是一个雅思词汇专家。请为单词生成数据。
+                            // 修改：根据 level 动态切换 System Prompt
+                            content: level === 'simple' 
+                            ? `你是一位针对4000词汇量学生的英语老师。请为单词生成数据。
+要求：
+1. 【例句 (sentence)】：**必须简单、清晰、直接**。必须是“强语境”句子。句子的前半部分或后半部分必须包含解释该单词含义的线索（如同义词、反义词、因果关系），让人读了句子能通过逻辑推导出该单词。
+   - 难度：CEFR B1/B2 (中级)。除了目标单词外，句子其余部分请使用最常见的3000个英语单词。
+   - 逻辑：句子本身必须通过简单的日常情景清晰地展示出单词的含义。不要使用复杂的从句或生僻的习语。
+   - 约束：句子中必须包含单词的**原始形态**（允许简单的复数/时态），以便挖空。
+2. 【释义 (definition)】：英文，使用最简单的词汇解释，CEFR B1级别。
+3. 【助记 (mnemonic)】：中文，深刻，甚至可以荒诞，必须能辅助记忆。
+4. 【Emoji】：一个最能代表该词的表情。
+5. 【词族 (family)】：列出其派生词。
+
+请严格返回JSON格式：{"sentence": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "..."}`
+                            
+                            : `你是一个雅思词汇专家。请为单词生成数据。
 要求：
 1. 【例句 (sentence)】：必须是“强语境”句子。句子的前半部分或后半部分必须包含解释该单词含义的线索（如同义词、反义词、因果关系），让人读了句子能通过逻辑推导出该单词。
-   - 风格：**IELTS Band 8+ 水平。侧重于“地道搭配(Collocations)”和“逻辑严密”，而非单纯堆砌生僻词。句子应当自然、精准，展示母语人士的高级用法。除了目标词外，句子的其他部分稍微易于理解一点，重点展示逻辑。**
-   - 约束：句子中必须包含单词的**原始形态**（或仅做简单的复数/时态变化），以便前端代码能正确识别并挖空。不要把名词形式变成形容词形式（如输入decision，句子里不要只出现decisive），否则挖空功能会失效。
+   - 风格：**IELTS Band 8+ 水平。侧重于“地道搭配(Collocations)”和“逻辑严密”。句子应当自然、精准，展示母语人士的高级用法。**
+   - 约束：句子中必须包含单词的**原始形态**（或仅做简单的复数/时态变化），以便前端代码能正确识别并挖空。
 2. 【释义 (definition)】：英文，简洁，CEFR C1/C2级别。
 3. 【助记 (mnemonic)】：中文，深刻，甚至可以荒诞，必须能辅助记忆。
 4. 【Emoji】：一个最能代表该词的表情。
@@ -994,7 +1017,15 @@
         render();
     }
     
-    function handleEnter(e) { if (e.key === 'Enter') autoFetchContext('new'); }
+    // 修改：默认回车键触发“简单模式”，并传入 null 作为 btnElement (需要稍微修改 autoFetchContext 防报错)
+    // 但为了最简单起见，我们可以在这里直接模拟点击“简单”按钮
+    function handleEnter(e) { 
+        if (e.key === 'Enter') {
+            // 找到那个“简单”按钮并点击它，这样逻辑最闭环
+            const simpleBtn = document.querySelector('#inputSection button[title*="Simple"]');
+            if(simpleBtn) simpleBtn.click();
+        }
+    }
 
     // --- 5. OCR Logic (Unchanged) ---
     async function getOCRWorker(statusCallback) {
