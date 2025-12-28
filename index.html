@@ -446,6 +446,11 @@
             </div>
 
             <div>
+                <label style="font-size:12px; color:gray;">Mnemonic (助记法)</label>
+                <textarea id="editMnemonicInput" rows="2" placeholder="Click magic wand to generate..."></textarea>
+            </div>
+
+            <div>
                 <label style="font-size:12px; color:gray;">Context Sentence</label>
                 <div style="display:flex; gap:5px; align-items:flex-start;">
                     <textarea id="editSentenceInput" rows="3"></textarea>
@@ -683,6 +688,10 @@
                 console.log("AI Data:", result);
             } else if (mode === 'edit' && defInputId) {
                 document.getElementById(defInputId).value = result.definition;
+                
+                let aiMnemonic = result.mnemonic || "";
+                if(result.family) aiMnemonic += `\n[Family: ${result.family}]`;
+                document.getElementById('editMnemonicInput').value = aiMnemonic;
             }
 
         } catch (err) {
@@ -1180,6 +1189,7 @@
         document.getElementById('editWordInput').value = card.word;
         document.getElementById('editSentenceInput').value = card.sentence || "";
         document.getElementById('editDefinitionInput').value = card.definition || ""; // Edit definition
+        document.getElementById('editMnemonicInput').value = card.mnemonic || ""; // Edit mnemonic
         document.getElementById('editModal').classList.remove('hidden');
     }
 
@@ -1190,12 +1200,14 @@
         const newWord = document.getElementById('editWordInput').value.trim();
         const newSentence = document.getElementById('editSentenceInput').value.trim();
         const newDef = document.getElementById('editDefinitionInput').value.trim(); // Save definition
+        const newMnemonic = document.getElementById('editMnemonicInput').value.trim(); // Save mnemonic
 
         const cardIndex = deck.findIndex(c => c.id === id);
         if(cardIndex > -1) {
             deck[cardIndex].word = newWord;
             deck[cardIndex].sentence = newSentence;
             deck[cardIndex].definition = newDef;
+            deck[cardIndex].mnemonic = newMnemonic; // Save mnemonic
             saveDeck();
             renderListContent();
             render(); 
