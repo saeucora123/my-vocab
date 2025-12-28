@@ -164,9 +164,14 @@
             cursor: pointer;
             color: var(--text);
         }
-        .word-text:active { color: var(--accent); transform: scale(0.98); }
+.word-text:active { color: var(--accent); transform: scale(0.98); }
 
         .pronounce-hint { font-size: 12px; color: var(--subtext); margin-bottom: 20px; }
+
+        /* 新增样式：助记法和挖空 */
+        .mnemonic-box { background: #f3e5f5; padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 14px; color: #4a148c; border: 1px solid #e1bee7; text-align: left; }
+        .cloze-blank { display: inline-block; min-width: 50px; border-bottom: 2px solid var(--accent); color: transparent; cursor: pointer; }
+        .emoji-icon { font-size: 24px; margin-right: 8px; vertical-align: middle; }
 
         /* Definition Area (New) */
         .definition-area {
@@ -360,6 +365,12 @@
                 <div class="def-label">Definition</div>
                 <div id="currentDefinition" class="def-text"></div>
             </div>
+            
+            <!-- 新增助记法区域 -->
+            <div id="mnemonicArea" class="mnemonic-box hidden">
+                <div class="def-label">🧠 Memory Hook</div>
+                <div id="currentMnemonic"></div>
+            </div>
 
             <div class="context-area hidden" id="contextArea">
                 <div id="contextContent">
@@ -395,6 +406,7 @@
             <span class="text-link" onclick="toggleWordList()">📖 View List</span>
             <span class="text-link" onclick="exportData()">⬇ Export</span>
             <span class="text-link" onclick="triggerImport()">⬆ Import</span>
+            <span class="text-link" onclick="openSettings()">⚙️ Params</span>
             <span class="text-link" style="color: var(--danger);" onclick="clearData()">Reset</span>
         </div>
         <input type="file" id="importJsonInput" accept=".json" onchange="handleFileImport(event)" style="display:none;">
@@ -451,6 +463,52 @@
     // --- 1. Global State & FSRS Parameters ---
     let ocrWorker = null;
     let deck = [];
+    
+    // --- IndexedDB Wrapper (解决 5MB 限制) ---
+    const db = {
+        open: () => new Promise((resolve, reject) => {
+            const r = indexedDB.open('FSRS_Context_DB', 1);
+            r.onupgradeneeded = e => {
+                const d = e.target.result;
+                if (!d.objectStoreNames.contains('cards')) d.createObjectStore('cards', { keyPath: 'id' });
+                if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings');
+            };
+            r.onsuccess = e => resolve(e.target.result);
+            r.onerror = () => reject(r.error);
+        }),
+        getAll: async () => {
+            const d = await db.open();
+            return new Promise(resolve => {
+                const req = d.transaction('cards', 'readonly').objectStore('cards').getAll();
+                req.onsuccess = () => resolve(req.result || []);
+            });
+        },
+        saveAll: async (cards) => {
+            const d = await db.open();
+            return new Promise((resolve, reject) => {
+                const tx = d.transaction('cards', 'readwrite');
+                const store = tx.objectStore('cards');
+                store.clear(); // 简单粗暴全量覆盖，防止ID变动残留
+                cards.forEach(c => store.put(c));
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        },
+        getSetting: async (k) => {
+            const d = await db.open();
+            return new Promise(resolve => {
+                const req = d.transaction('settings', 'readonly').objectStore('settings').get(k);
+                req.onsuccess = () => resolve(req.result);
+            });
+        },
+        saveSetting: async (k, v) => {
+            const d = await db.open();
+            const tx = d.transaction('settings', 'readwrite');
+            tx.objectStore('settings').put(v, k);
+        }
+    };
+    // ----------------------------------------
+
     // ====== 这里是新增的 AI 配置 (开始) ======
     const AI_CONFIG = {
         // 请在下面引号里填入你的 DeepSeek API Key，例如 "sk-ab12345..."
@@ -463,6 +521,8 @@
     // ====== 这里是新增的 AI 配置 (结束) ======
     let currentCard = null;
     let tempAutoDefinition = ""; // Store auto-fetched definition before adding
+    let tempMnemonic = ""; // 新增：暂存助记法
+    let tempEmoji = "";    // 新增：暂存 Emoji
 
     const p = {
         w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
@@ -470,10 +530,30 @@
     };
 
     // --- 2. Persistence Layer ---
-    function loadDeck() {
+    async function loadDeck() {
         try {
-            const stored = localStorage.getItem('fsrs_deck_context_v2'); 
-            if (stored) deck = JSON.parse(stored);
+            // 1. 尝试从数据库加载
+            const dbData = await db.getAll();
+            if (dbData && dbData.length > 0) {
+                deck = dbData;
+            } else {
+                // 2. 数据库为空，检查是否有旧版 LocalStorage 数据 (自动迁移)
+                const stored = localStorage.getItem('fsrs_deck_context_v2'); 
+                if (stored) {
+                    deck = JSON.parse(stored);
+                    await db.saveAll(deck); // 迁移入库
+                    console.log("Migrated data to IndexedDB");
+                    // 只有确认迁移成功后，才建议手动清除 localStorage
+                }
+            }
+            
+            // 3. 加载自定义算法参数
+            const customW = await db.getSetting('fsrs_weights');
+            if (customW && Array.isArray(customW)) {
+                p.w = customW;
+                console.log("Loaded custom FSRS parameters");
+            }
+
         } catch (e) {
             console.error("Load failed", e);
         }
@@ -481,13 +561,11 @@
     }
 
     function saveDeck() {
-        try {
-            localStorage.setItem('fsrs_deck_context_v2', JSON.stringify(deck));
-        } catch (e) {
-            if (e.name === 'QuotaExceededError') {
-                alert("⚠️ Storage Full! Please export and clear old data.");
-            }
-        }
+        // 使用 fire-and-forget 模式异步保存到 DB
+        db.saveAll(deck).catch(e => console.error("Save to DB failed", e));
+        
+        // 为了安全，依然保留一份最新的 JSON 字符串在内存或做极简备份，但主要依赖 DB
+        // 这里仅调用 render 更新 UI，不再写入 localStorage 防止报错
         render();
     }
 
@@ -511,18 +589,22 @@
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
-    function createCardObject(word, sentence = "", definition = "") {
+    // 修改：增加了 mnemonic 和 emoji 参数
+    function createCardObject(word, sentence = "", definition = "", mnemonic = "", emoji = "") {
         return { 
             id: generateID(), 
             word: word.trim(), 
             sentence: sentence.trim(),
-            definition: definition.trim(), // Added definition field
+            definition: definition.trim(),
+            mnemonic: mnemonic.trim(), // 新增字段
+            emoji: emoji.trim(),       // 新增字段
             due: Date.now(), 
-            state: 0, 
+            state: 0,
             stability: 0, 
             difficulty: 0, 
             reps: 0, 
-            lastReview: 0 
+            lastReview: 0,
+            history: [] // 新增：记录复习历史，用于未来算法优化
         };
     }
 
@@ -566,10 +648,10 @@
                     messages: [
                         {
                             role: "system", 
-                            content: "你是一个专业的英语词汇老师。请为用户提供的单词生成一个地道的英文例句（包含语境，适合雅思/GRE学习，不要太简单）和一个精简的英文释义。请严格只返回 JSON 格式：{\"sentence\": \"这里是例句\", \"definition\": \"这里是英文释义\"}。"
+                            content: "你是一个专业的词汇记忆大师。请为单词生成：1.地道英文例句(雅思难度)。2.精简英文释义。3.强力助记法(词源/谐音/联想，中文简述)。4.代表该词的Emoji。5.词族(Word Family, 如: decide -> decision, decisive)。请严格只返回JSON格式：{\"sentence\": \"...\", \"definition\": \"...\", \"mnemonic\": \"...\", \"emoji\": \"...\", \"family\": \"...\"}。"
                         },
                         {
-                            role: "user", 
+                            role: "user",
                             content: `请为单词 "${word}" 生成内容。`
                         }
                     ],
@@ -591,10 +673,14 @@
             // 4. 把结果填入输入框
             sentenceEl.value = result.sentence;
             
-            // 自动填充释义
+            // 自动填充释义、助记法和 Emoji
             if(mode === 'new') {
                 tempAutoDefinition = result.definition;
-                console.log("AI 释义:", tempAutoDefinition);
+                tempMnemonic = result.mnemonic; 
+                tempEmoji = result.emoji;       
+                // 暂时把词族数据拼接到助记法后面，避免修改数据库结构，这样最稳妥
+                if(result.family) tempMnemonic += `\n[Family: ${result.family}]`;
+                console.log("AI Data:", result);
             } else if (mode === 'edit' && defInputId) {
                 document.getElementById(defInputId).value = result.definition;
             }
@@ -621,12 +707,13 @@
             return;
         }
 
-        // Pass the tempAutoDefinition if available
-        deck.push(createCardObject(word, sentence, tempAutoDefinition));
+        // 修改：传入所有新字段 (definition, mnemonic, emoji)
+        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempEmoji));
         
         wInput.value = '';
         sInput.value = '';
-        tempAutoDefinition = ""; // Reset
+        // 重置所有临时变量
+        tempAutoDefinition = ""; tempMnemonic = ""; tempEmoji = ""; 
         saveDeck();
     }
 
@@ -640,17 +727,42 @@
         const empty = document.getElementById('emptyState');
         const inputSec = document.getElementById('inputSection');
 
+        // --- 备份提醒逻辑 (新增) ---
+        const lastBackup = localStorage.getItem('fsrs_last_backup');
+        const daysSinceBackup = lastBackup ? (Date.now() - parseInt(lastBackup)) / (1000 * 60 * 60 * 24) : 999;
+        const exportBtn = document.querySelector('.data-tools span:nth-child(2)'); // 找到 Export 按钮
+        if (daysSinceBackup > 3) {
+            exportBtn.innerHTML = "⬇ Export <span style='color:red;font-weight:bold'>(!Backup Needed!)</span>";
+        } else {
+            exportBtn.innerHTML = "⬇ Export";
+        }
+
         if (dueCards.length > 0) {
             currentCard = dueCards[0];
             revContainer.classList.remove('hidden');
             empty.classList.add('hidden');
             inputSec.classList.add('hidden');
 
-            document.getElementById('currentWord').innerText = currentCard.word;
+            // === 核心逻辑修改：实现挖空模式 ===
+            const wordEl = document.getElementById('currentWord');
+            if (currentCard.reps > 0 && currentCard.sentence) {
+                // 如果是复习且有例句，显示挖空例句
+                const regex = new RegExp(`(${currentCard.word})`, 'gi');
+                const clozeSent = currentCard.sentence.replace(regex, '<span class="cloze-blank">_____</span>');
+                wordEl.innerHTML = `<div style="font-size:22px; line-height:1.4;">${clozeSent}</div>`;
+                wordEl.style.color = "#333"; // 句子颜色
+            } else {
+                // 新卡片或无例句，显示单词 + Emoji
+                const emojiHtml = currentCard.emoji ? `<span class="emoji-icon">${currentCard.emoji}</span>` : "";
+                wordEl.innerHTML = `${emojiHtml}${currentCard.word}`;
+                wordEl.style.color = "var(--text)";
+            }
+            // ===================================
             
             // --- STATE: QUESTION MODE ---
             // 1. Hide Answers
             document.getElementById('definitionArea').classList.add('hidden');
+            document.getElementById('mnemonicArea').classList.add('hidden'); // 隐藏助记法
             document.getElementById('contextArea').classList.add('hidden'); 
             
             // 2. Hide Ratings, Show "Show Answer"
@@ -682,6 +794,30 @@
                 ? "New Card" 
                 : `S: ${currentCard.stability.toFixed(1)} | D: ${currentCard.difficulty.toFixed(1)}`;
 
+            // --- 强制拼写逻辑 (新增) ---
+            const actionWrapper = document.querySelector('.actions-wrapper');
+            // 移除可能存在的旧输入框
+            const oldInput = document.getElementById('spellingInput');
+            if(oldInput) oldInput.remove();
+
+            // 如果复习次数大于3次，强制拼写
+            if (currentCard.reps > 3) {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = 'spellingInput';
+                input.placeholder = 'Type the word here...';
+                input.style = 'width:100%; padding:15px; border:2px solid #007aff; border-radius:12px; margin-bottom:10px; font-size:18px; text-align:center;';
+                input.onkeypress = (e) => { if(e.key === 'Enter') revealAnswer(); };
+                // 插入到 Show Answer 按钮之前
+                const showBtn = document.getElementById('showAnswerBtn');
+                actionWrapper.insertBefore(input, showBtn);
+                showBtn.innerText = "Check Answer 👁️";
+                // 自动聚焦
+                setTimeout(() => input.focus(), 100);
+            } else {
+                document.getElementById('showAnswerBtn').innerText = "Show Answer 👁️";
+            }
+
             updateButtonLabels(currentCard);
         } else {
             currentCard = null;
@@ -693,8 +829,35 @@
 
     // --- NEW: REVEAL ANSWER LOGIC ---
     async function revealAnswer() {
-        // 1. Show Definition
+        // --- 拼写检查逻辑 (新增) ---
+        const spellingInput = document.getElementById('spellingInput');
+        if (spellingInput && !document.getElementById('showAnswerBtn').classList.contains('hidden')) {
+            const userSpelling = spellingInput.value.trim().toLowerCase();
+            const correctSpelling = currentCard.word.trim().toLowerCase();
+            if (userSpelling !== correctSpelling) {
+                alert(`❌ Incorrect! \nYour: ${userSpelling}\nReal: ${correctSpelling}`);
+                spellingInput.style.borderColor = 'red';
+                return; // 拼错不让看答案
+            } else {
+                // 拼对了移除输入框，给予视觉奖励
+                spellingInput.style.borderColor = '#34c759'; 
+                spellingInput.style.backgroundColor = '#e8f5e9';
+                spellingInput.disabled = true;
+            }
+        }
+
+        // 0. 还原单词显示 (如果是挖空状态，这里要显示回单词)
+        const wordEl = document.getElementById('currentWord');
+        const emojiHtml = currentCard.emoji ? `<span class="emoji-icon">${currentCard.emoji}</span>` : "";
+        wordEl.innerHTML = `${emojiHtml}${currentCard.word}`;
+        wordEl.style.color = "var(--accent)"; // 高亮显示
+
+        // 1. Show Definition & Mnemonic
         document.getElementById('definitionArea').classList.remove('hidden');
+        if(document.getElementById('currentMnemonic')) {
+             document.getElementById('currentMnemonic').innerText = currentCard.mnemonic || "无助记法";
+             document.getElementById('mnemonicArea').classList.remove('hidden');
+        }
         
         // 2. Show Context
         document.getElementById('contextArea').classList.remove('hidden');
@@ -766,6 +929,19 @@
         currentCard.stability = s;
         currentCard.difficulty = d;
         currentCard.reps++;
+        
+        // --- 记录详细复习历史 ---
+        if (!currentCard.history) currentCard.history = [];
+        currentCard.history.push({
+            date: now,
+            rating: g,
+            state: currentCard.state,
+            elapsed_days: elapsed,
+            scheduled_days: getInterval(currentCard.stability),
+            review_duration: 0 // 暂留，未来可接计时器
+        });
+        // -----------------------
+
         currentCard.lastReview = now;
 
         if (g === 1) {
@@ -898,6 +1074,11 @@
 
     // --- 6. Data Management ---
     function exportData() {
+        // 记录备份时间 (新增)
+        localStorage.setItem('fsrs_last_backup', Date.now());
+        // 刷新界面以去除红色警告
+        render();
+
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(deck));
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
@@ -955,12 +1136,16 @@
         document.getElementById('totalWordCount').innerText = deck.length;
         listContainer.innerHTML = '';
         const sortedDeck = [...deck].reverse();
-        if (sortedDeck.length === 0) {
+
+        // 修改：只显示最近的 100 个单词，防止单词多了页面卡死
+        const displayDeck = sortedDeck.slice(0, 100);
+
+        if (displayDeck.length === 0) {
             listContainer.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">No words.</div>';
             return;
         }
 
-        sortedDeck.forEach(card => {
+        displayDeck.forEach(card => {
             const item = document.createElement('div');
             item.className = 'word-item';
             let preview = card.definition ? card.definition : (card.sentence ? card.sentence : "No context");
@@ -1036,6 +1221,26 @@
            uSent.lang = 'en-US';
            uSent.rate = 0.9;
            speechSynthesis.speak(uSent);
+        }
+    }
+
+    // --- 新增：手动设置 FSRS 参数 ---
+    function openSettings() {
+        const currentParams = JSON.stringify(p.w);
+        const input = prompt("Current FSRS Weights (w):\nPaste new weights array to optimize algorithm:", currentParams);
+        if (input && input !== currentParams) {
+            try {
+                const newW = JSON.parse(input);
+                if (Array.isArray(newW) && (newW.length === 17 || newW.length === 19)) {
+                    p.w = newW;
+                    db.saveSetting('fsrs_weights', newW);
+                    alert("✅ Weights updated and saved!");
+                } else {
+                    alert("❌ Invalid format. Must be an array of 17 or 19 numbers.");
+                }
+            } catch (e) {
+                alert("❌ JSON Parse Error");
+            }
         }
     }
 
