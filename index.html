@@ -781,7 +781,8 @@
 
             // === 核心逻辑修改：实现挖空模式 ===
             const wordEl = document.getElementById('currentWord');
-            if (currentCard.reps > 0 && currentCard.sentence) {
+            // 修改：将 > 0 改为 >= 3。前3次复习直接看单词，第3次起切换为挖空语境
+            if (currentCard.reps >= 3 && currentCard.sentence) {
                 // 如果是复习且有例句，显示挖空例句 (已修复特殊字符导致的崩溃 Bug)
                 const escapedWord = currentCard.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const regex = new RegExp(`(${escapedWord})`, 'gi');
