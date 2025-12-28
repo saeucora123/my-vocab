@@ -653,7 +653,7 @@
                     messages: [
                         {
                             role: "system", 
-                            content: "你是一个专业的词汇记忆大师。请为单词生成：1.地道英文例句(雅思难度)。2.精简英文释义。3.强力助记法(词源/谐音/联想，中文简述)。4.代表该词的Emoji。5.词族(Word Family, 如: decide -> decision, decisive)。请严格只返回JSON格式：{\"sentence\": \"...\", \"definition\": \"...\", \"mnemonic\": \"...\", \"emoji\": \"...\", \"family\": \"...\"}。"
+                            content: "你是一个专业的雅思备考教练。请为单词生成：1.【雅思高分例句】：要求必须展现该词的地道搭配(Collocation)，但句子结构要清晰、逻辑直接，避免使用过于生僻的单词来解释目标词。2.精简英文释义。3.强力助记法(词源/谐音/联想，中文简述)。4.代表该词的Emoji。5.词族(Word Family)。请严格只返回JSON格式：{\"sentence\": \"...\", \"definition\": \"...\", \"mnemonic\": \"...\", \"emoji\": \"...\", \"family\": \"...\"}。"
                         },
                         {
                             role: "user",
