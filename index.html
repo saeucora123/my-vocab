@@ -750,7 +750,7 @@
             currentCard = dueCards[0];
             revContainer.classList.remove('hidden');
             empty.classList.add('hidden');
-            inputSec.classList.add('hidden');
+            // inputSec.classList.add('hidden'); // <--- 注释掉这一行，输入框就会一直显示！
 
             // === 核心逻辑修改：实现挖空模式 ===
             const wordEl = document.getElementById('currentWord');
