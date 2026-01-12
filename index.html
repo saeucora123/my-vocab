@@ -555,6 +555,8 @@
     let tempAutoDefinition = ""; // Store auto-fetched definition before adding
     let tempMnemonic = ""; // 新增：暂存助记法
     let tempEmoji = "";    // 新增：暂存 Emoji
+    let tempTrap = "";     // 新增：暂存易混辨析
+    let tempWriting = "";  // 新增：暂存作文例句
 
     const p = {
         w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
@@ -622,7 +624,7 @@
     }
 
     // 修改：增加了 mnemonic 和 emoji 参数
-    function createCardObject(word, sentence = "", definition = "", mnemonic = "", emoji = "") {
+    function createCardObject(word, sentence = "", definition = "", mnemonic = "", emoji = "", trap = "", writing = "") {
         return { 
             id: generateID(), 
             word: word.trim(), 
@@ -630,6 +632,8 @@
             definition: definition.trim(),
             mnemonic: mnemonic.trim(), // 新增字段
             emoji: emoji.trim(),       // 新增字段
+            trap: trap ? trap.trim() : "",       // 新增：易混
+            writing: writing ? writing.trim() : "", // 新增：作文
             due: Date.now(), 
             state: 0,
             stability: 0, 
@@ -673,10 +677,12 @@
 3. **难度控制**：除了目标单词外，句子其余部分严格限制在 CET-4 (高中/四级) 词汇范围内，确保学生读得懂语境。
 4. **禁止**：禁止生成 "This implies [word]" 这种空洞的句子。
 【JSON 返回格式要求】
-{"sentence": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "..."}
+{"sentence": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "...", "trap": "...", "writing": "..."}
 【字段说明】
 - sentence: 英文例句。必须包含单词原型。逻辑必须闭环。
 - definition: 英文释义。用最简单的 Core English 解释，CEFR B1 难度。
+- trap: 易混辨析。格式为“🚫易混词: [词] 💡区别: [中文简述]”。
+- writing: 作文神句。用该词写一个通用高分句型（含中文翻译）。
 - mnemonic: 中文助记。利用谐音、词根或荒诞联想。
 - emoji: 一个最贴切的表情符号。
 - family: 词族/派生词。`;
@@ -689,10 +695,12 @@
 3. **逻辑逻辑**：句子必须体现考研常见的逻辑关系（转折、让步、因果）。
 4. **线索闭环**：⚠️至关重要！虽然句子很长，但必须保证通过句内的逻辑（如 Contextual Clues）或地道搭配（Collocations）能推导出该单词。绝不允许出现“填什么词都通”的万金油句子。
 【JSON 返回格式要求】
-{"sentence": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "..."}
+{"sentence": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "...", "trap": "...", "writing": "..."}
 【字段说明】
 - sentence: 高级英文例句。长度适中偏长。
 - definition: 英文释义。精准，学术化定义，CEFR C1 难度。
+- trap: 易混辨析。找出一个最容易混淆的近义词/形近词，并用中文一句话区分。
+- writing: 作文神句。写一个能用在考研大作文（社会/个人类）的通用模板句（含中文）。
 - mnemonic: 中文助记。深刻、硬核的记忆钩子。
 - emoji: 代表符号。
 - family: 词族。`;
@@ -721,6 +729,8 @@
                 tempAutoDefinition = result.definition;
                 tempMnemonic = result.mnemonic; 
                 tempEmoji = result.emoji;       
+                tempTrap = result.trap;         // 提取易混
+                tempWriting = result.writing;   // 提取作文
                 if(result.family) tempMnemonic += `\n[Family: ${result.family}]`;
             } else if (mode === 'edit' && defInputId) {
                 document.getElementById(defInputId).value = result.definition;
@@ -749,13 +759,13 @@
             return;
         }
 
-        // 修改：传入所有新字段 (definition, mnemonic, emoji)
-        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempEmoji));
+        // 修改：传入所有新字段 (definition, mnemonic, emoji, trap, writing)
+        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempEmoji, tempTrap, tempWriting));
         
         wInput.value = '';
         sInput.value = '';
         // 重置所有临时变量
-        tempAutoDefinition = ""; tempMnemonic = ""; tempEmoji = ""; 
+        tempAutoDefinition = ""; tempMnemonic = ""; tempEmoji = ""; tempTrap = ""; tempWriting = "";
         
         // 【修改】只保存当前这一张卡片到数据库
         const newCard = deck[deck.length - 1];
@@ -1369,9 +1379,22 @@
     // 新增：深度学习扩展功能 (辨析 & 作文)
     async function fetchDeepContext(type, btn) {
         if (!currentCard) return;
+
+        // --- 优化：优先读取本地缓存，节省 Token ---
+        const contentDiv = document.getElementById('deepContent');
+        if (type === 'trap' && currentCard.trap) {
+            contentDiv.innerHTML = `<div style="background:#f1f3f5; padding:10px; border-radius:8px; border-left:4px solid #6c757d"><strong>📦 Saved:</strong><br>${currentCard.trap.replace(/\n/g, '<br>')}</div>`;
+            return;
+        }
+        if (type === 'writing' && currentCard.writing) {
+            contentDiv.innerHTML = `<div style="background:#e8eaf6; padding:10px; border-radius:8px; border-left:4px solid #5856d6"><strong>📦 Saved:</strong><br>${currentCard.writing.replace(/\n/g, '<br>')}</div>`;
+            return;
+        }
+        // ----------------------------------------
+
         const originalText = btn.innerText;
         btn.innerText = "Thinking...";
-        const contentDiv = document.getElementById('deepContent');
+        // const contentDiv = document.getElementById('deepContent'); // 这行上面已经定义了，可以注释掉或删除
         contentDiv.innerHTML = '<div class="spinner"></div>';
 
         const promptTrap = `针对考研英语，找出单词 "${currentCard.word}" 最容易混淆的一个近义词或形近词（Confusing Word）。
