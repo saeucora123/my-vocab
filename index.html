@@ -1349,8 +1349,10 @@
     
     // --- 8. Speech ---
     function speakCurrentCard() {
-        const word = document.getElementById('currentWord').innerText;
-        if (!word) return;
+        // 修改：直接使用 currentCard 数据中的纯单词，避免读出界面上的 Emoji
+        if (!currentCard || !currentCard.word) return;
+        const word = currentCard.word;
+        
         speechSynthesis.cancel();
         const uWord = new SpeechSynthesisUtterance(word);
         uWord.lang = 'en-US';
