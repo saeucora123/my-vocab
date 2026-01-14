@@ -213,6 +213,11 @@
             position: relative;
             transition: all 0.2s;
         }
+        
+        /* 【新增】渐进式揭示：模糊遮罩样式 */
+        .blur-mask { filter: blur(6px); user-select: none; transition: filter 0.3s ease; cursor: pointer; }
+        .blur-mask:hover, .blur-mask:active { filter: blur(4px); }
+        .blur-hint { position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:rgba(0,0,0,0.5); font-weight:bold; font-size:12px; pointer-events:none; }
 
         .context-sentence {
             font-size: 16px;
@@ -303,6 +308,12 @@
         .edit-btn { color: var(--accent); background: none; border: none; padding: 5px 10px; cursor: pointer; font-size: 14px; }
         .delete-btn { color: var(--danger); background: none; border: none; padding: 5px 10px; cursor: pointer; font-size: 14px; }
         
+        /* 【新增】胜任感仪表盘与生存模式 */
+        .mastery-bar-container { width: 100%; height: 8px; background: #e5e5ea; border-radius: 4px; margin-bottom: 20px; overflow: hidden; position: relative; }
+        .mastery-bar-fill { height: 100%; background: linear-gradient(90deg, #34c759, #30b0c7); width: 0%; transition: width 0.5s ease; }
+        .survival-mode { background-color: #fff0f0 !important; border: 2px solid #ff3b30 !important; animation: pulse-red 2s infinite; }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
+
         /* Edit Form */
         .edit-form { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
 
@@ -328,6 +339,10 @@
 
 <div class="container">
     <h1>FSRS Context Pro</h1>
+    
+    <!-- 【新增】胜任感仪表盘 (Competence Dashboard) -->
+    <div style="text-align:center; font-size:12px; color:#86868b; margin-bottom:5px;">Language Mastery Level</div>
+    <div class="mastery-bar-container"><div id="masteryBar" class="mastery-bar-fill"></div></div>
 
     <div id="inputSection" class="input-section">
         <div class="input-wrapper">
@@ -396,14 +411,24 @@
         </div>
 
         <div class="actions-wrapper">
+            <!-- 【新增】语义联想验证：在看答案前强制思考词性，增加加工深度 -->
+            <div id="semanticCheck" style="display:flex; gap:5px; margin-bottom:10px;">
+                <button class="action-btn" style="background:#e5e5ea; color:#333; flex:1;" onclick="checkSemantic('pos')">😄 褒义</button>
+                <button class="action-btn" style="background:#e5e5ea; color:#333; flex:1;" onclick="checkSemantic('neu')">😐 中性</button>
+                <button class="action-btn" style="background:#e5e5ea; color:#333; flex:1;" onclick="checkSemantic('neg')">😟 贬义</button>
+            </div>
+
             <button id="showAnswerBtn" class="add-btn full-width-btn" style="margin-top:0; height:60px; font-size:18px; background-color: var(--text);" onclick="revealAnswer()">
                 Show Answer 👁️
             </button>
 
             <!-- 新增：辨析与作文扩展工具栏 -->
-            <div id="deepLearningTools" class="hidden" style="display:flex; gap:10px; margin-top:10px;">
-                <button class="action-btn" style="background:#6c757d; flex:1; padding:10px; font-size:12px;" onclick="fetchDeepContext('trap', this)">🆚 易混辨析</button>
-                <button class="action-btn" style="background:#5856d6; flex:1; padding:10px; font-size:12px;" onclick="fetchDeepContext('writing', this)">✍️ 作文神句</button>
+            <div id="deepLearningTools" class="hidden" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
+                <button class="action-btn" style="background:#6c757d; flex:1; padding:10px; font-size:12px; min-width:45%;" onclick="fetchDeepContext('trap', this)">🆚 易混辨析</button>
+                <button class="action-btn" style="background:#5856d6; flex:1; padding:10px; font-size:12px; min-width:45%;" onclick="fetchDeepContext('writing', this)">✍️ 作文神句</button>
+                <!-- 【新增】专家建议功能按钮 -->
+                <button class="action-btn" style="background:#ff9500; flex:1; padding:10px; font-size:12px; min-width:45%;" onclick="fetchDeepContext('contrast', this)">🇨🇳🇺🇸 思维差异</button>
+                <button class="action-btn" style="background:#007aff; flex:1; padding:10px; font-size:12px; min-width:45%;" onclick="startSentenceChallenge()">⚔️ AI造句纠错</button>
             </div>
             <div id="deepContent" style="margin-top:10px; font-size:14px; text-align:left; color:#333; line-height:1.5;"></div>
             <!-- 新增结束 -->
@@ -434,7 +459,7 @@
     </div>
 </div>
 
-<div class="watermark">该软件制作者微信 Saeuco v4</div>
+<div class="watermark">该软件制作者微信 Saeuco v5</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -730,7 +755,8 @@
                         { role: "system", content: level === 'simple' ? promptSimple : promptAdvanced },
                         { role: "user", content: `生成单词: "${word}"` }
                     ],
-                    temperature: 1.1,
+                    // 【修改】0.5是“严谨释义”和“趣味助记”的最佳平衡点，既不瞎编也不死板
+                    temperature: 0.5,
                     response_format: { type: 'json_object' } 
                 })
             });
@@ -860,6 +886,12 @@
             // 2. Hide Ratings, Show "Show Answer"
             document.getElementById('ratingButtons').classList.add('hidden');
             document.getElementById('showAnswerBtn').classList.remove('hidden');
+            // 【新增】重置语义检查按钮状态
+            document.getElementById('semanticCheck').classList.remove('hidden');
+            document.querySelectorAll('#semanticCheck .action-btn').forEach(b => {
+                b.style.background = '#e5e5ea'; 
+                b.style.color = '#333';
+            });
 
             // 3. Pre-fill content (but keep hidden)
             const defEl = document.getElementById('currentDefinition');
@@ -885,6 +917,21 @@
             document.getElementById('currentStats').innerText = isNew 
                 ? "New Card" 
                 : `S: ${currentCard.stability.toFixed(1)} | D: ${currentCard.difficulty.toFixed(1)}`;
+
+            // 【新增】生存模式 (Survival Mode)：如果难度 D > 7.5，触发红色警示 UI
+            const cardDisplay = document.querySelector('.card-display');
+            if (currentCard.difficulty > 7.5) {
+                cardDisplay.classList.add('survival-mode');
+                document.getElementById('currentStats').innerHTML += " <b style='color:red'>🔥 HIGH PRESSURE</b>";
+            } else {
+                cardDisplay.classList.remove('survival-mode');
+            }
+            
+            // 【新增】更新胜任感进度条 (Competence Bar)
+            const matureCount = deck.filter(c => c.stability > 21).length; // S > 21 天视作掌握
+            const totalCount = deck.length || 1;
+            const progressPct = Math.min((matureCount / totalCount) * 100, 100);
+            document.getElementById('masteryBar').style.width = `${progressPct}%`;
 
             // --- 强制拼写逻辑 (新增) ---
             const actionWrapper = document.querySelector('.actions-wrapper');
@@ -964,11 +1011,32 @@
              document.getElementById('mnemonicArea').classList.remove('hidden');
         }
         
-        // 2. Show Context
-        document.getElementById('contextArea').classList.remove('hidden');
+        // 2. Show Context (Modified: Progressive Disclosure)
+        const ctxArea = document.getElementById('contextArea');
+        const ctxContent = document.getElementById('contextContent');
+        ctxArea.classList.remove('hidden');
+        
+        // 【新增】默认给例句加上模糊遮罩，点击后移除
+        // 只有当不是新卡片时才模糊，新卡片可以直接看
+        if (currentCard.reps > 0) {
+            ctxContent.classList.add('blur-mask');
+            if(!document.getElementById('blurHint')) {
+                ctxContent.innerHTML += '<div id="blurHint" class="blur-hint">👆 Tap to Focus</div>';
+            }
+            ctxContent.onclick = function() {
+                this.classList.remove('blur-mask');
+                const hint = document.getElementById('blurHint');
+                if(hint) hint.remove();
+                this.onclick = null; // 移除点击事件
+            }
+        } else {
+            ctxContent.classList.remove('blur-mask'); // 新词直接显示
+        }
         
         // 3. Swap Buttons
         document.getElementById('showAnswerBtn').classList.add('hidden');
+        // 【新增】看答案后隐藏语义检查按钮
+        document.getElementById('semanticCheck').classList.add('hidden');
         document.getElementById('ratingButtons').classList.remove('hidden');
         
         // 新增：显示深度学习工具栏
@@ -1005,6 +1073,10 @@
     }
 
     function updateButtonLabels(card) {
+        // 【新增】更新 Again 按钮的时间显示
+        const againTime = (card.difficulty > 6) ? '5m' : '1m';
+        document.querySelector('.btn-again small').innerText = againTime;
+
         if(card.reps === 0) {
             document.getElementById('ivl-hard').innerText = '1d';
             document.getElementById('ivl-good').innerText = '3d';
@@ -1052,10 +1124,12 @@
         });
         // -----------------------
 
-        currentCard.lastReview = now;
+       currentCard.lastReview = now;
 
         if (g === 1) {
-            currentCard.due = now + 60000;
+            // 【修改】动态 Again：如果难度 D > 6，说明是难词，间隔延长至 5分钟 (300000ms)，增加提取难度
+            const againInterval = currentCard.difficulty > 6 ? 300000 : 60000;
+            currentCard.due = now + againInterval;
         } else {
             const days = getInterval(s);
             currentCard.due = now + (days * 86400000);
@@ -1440,7 +1514,38 @@
         // ... (这部分代码保持不变) ...
     }
 
-    // 新增：深度学习扩展功能 (辨析 & 作文)
+    // 【新增】造句挑战逻辑
+    async function startSentenceChallenge() {
+        const userSentence = prompt(`请用单词 "${currentCard.word}" 造一个句子（英文）：`);
+        if(!userSentence) return;
+        
+        const contentDiv = document.getElementById('deepContent');
+        contentDiv.innerHTML = '<div class="spinner"></div> 正在分析你的语法和地道程度...';
+        
+        const promptCheck = `用户正在尝试用单词 "${currentCard.word}" 造句。
+        用户的句子是: "${userSentence}"
+        请你作为母语英语老师进行评估：
+        1. 语法是否正确？如果不正确，请修正。
+        2. 表达是否地道？是否符合 "Pushed Output" 的要求？
+        3. 给出一个更高级、更地道的改写版本。
+        请用中文简要反馈。`;
+
+        try {
+            const response = await fetch(AI_CONFIG.baseUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AI_CONFIG.apiKey}` },
+                body: JSON.stringify({
+                    model: AI_CONFIG.model,
+                    messages: [{ role: "user", content: promptCheck }],
+                    temperature: 0.7
+                })
+            });
+            const data = await response.json();
+            contentDiv.innerHTML = `<div style="background:#e3f2fd; padding:10px; border-radius:8px; border-left:4px solid #2196f3"><strong>🕵️ AI Feedback:</strong><br>${data.choices[0].message.content.replace(/\n/g, '<br>')}</div>`;
+        } catch(e) { alert("AI Error"); }
+    }
+
+    // 新增：深度学习扩展功能 (辨析 & 作文 & 思维差异)
     async function fetchDeepContext(type, btn) {
         if (!currentCard) return;
 
@@ -1472,7 +1577,23 @@
         2. 将句子中可替换的主题部分用 [方括号] 标出。
         3. 附带中文翻译。`;
 
+        // 【新增】中英思维差异 Prompt
+        const promptContrast = `针对单词 "${currentCard.word}"，请进行【中英思维对比分析】(Contrastive Analysis)。
+        1. 指出该词在中文直译时容易产生的误解（L1 Interference）。
+        2. 解释在英语母语语境下(尤其是考研/学术)，它真正的逻辑色彩是什么（褒义/贬义/中性）。
+        3. 举一个简单的例子说明这种差异。`;
+
+        // 确定使用哪个 Prompt
+        let finalPrompt = "";
+        if (type === 'trap') finalPrompt = promptTrap;
+        else if (type === 'writing') finalPrompt = promptWriting;
+        else if (type === 'contrast') finalPrompt = promptContrast;
+
         try {
+            // 【修改】修复了重复代码Bug，并根据功能类型动态调整温度
+            // 写作(writing)需要高创造性(1.1)，辨析(trap/contrast)需要高准确性(0.3)
+            const dynamicTemp = type === 'writing' ? 1.1 : 0.3;
+
             const response = await fetch(AI_CONFIG.baseUrl, {
                 method: "POST",
                 headers: {
@@ -1483,9 +1604,9 @@
                     model: AI_CONFIG.model,
                     messages: [
                         { role: "system", content: "You are a specialized Kaoyan English Tutor." },
-                        { role: "user", content: type === 'trap' ? promptTrap : promptWriting }
+                        { role: "user", content: finalPrompt }
                     ],
-                    temperature: 0.7
+                    temperature: dynamicTemp
                 })
             });
 
@@ -1508,6 +1629,26 @@
         }
     }
 
+// 【新增】语义联想检查函数
+    function checkSemantic(type) {
+        // 简单的视觉反馈，点击后高亮一下，然后自动显示答案
+        const btns = document.querySelectorAll('#semanticCheck .action-btn');
+        btns.forEach(b => b.style.opacity = '0.3');
+        
+        // 选中项高亮
+        const targetBtn = Array.from(btns).find(b => b.getAttribute('onclick').includes(type));
+        if(targetBtn) {
+            targetBtn.style.opacity = '1';
+            targetBtn.style.background = '#007aff';
+            targetBtn.style.color = 'white';
+        }
+        
+        // 延迟 300毫秒后自动翻牌，给用户一种“确认了”的感觉
+        setTimeout(() => {
+            revealAnswer();
+        }, 300);
+    }
+    
     loadDeck();
 </script>
 </body>
