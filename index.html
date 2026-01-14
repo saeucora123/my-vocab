@@ -2,7 +2,13 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- 【新增】iOS 全屏优化配置 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Context单词">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/192/brain.png">
+    
     <title>FSRS Context Pro (Recall Mode)</title>
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <style>
@@ -74,7 +80,7 @@
             border: 1px solid #e5e5ea;
             width: 100%;
             padding: 12px;
-            font-size: 16px;
+            font-size: 16px; /* ⚠️ 确保这里是 16px，不要小于这个数值，否则 iPhone 会自动放大 */
             outline: none;
             border-radius: 8px;
             background: var(--bg);
@@ -166,7 +172,10 @@
         }
 .word-text:active { color: var(--accent); transform: scale(0.98); }
 
-        .pronounce-hint { font-size: 12px; color: var(--subtext); margin-bottom: 20px; }
+        .pronounce-hint { font-size: 12px; color: var(--subtext); margin-bottom: 20px; min-height: 18px; } /* 增加了 min-height 防止抖动 */
+
+        /* 【新增】高亮搭配的样式 (Collocation Highlight) */
+        b { color: #d63384; background: rgba(214, 51, 132, 0.1); padding: 0 2px; border-radius: 4px; font-weight: 700; }
 
         /* 新增样式：助记法和挖空 */
         .mnemonic-box { background: #f3e5f5; padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 14px; color: #4a148c; border: 1px solid #e1bee7; text-align: left; }
@@ -425,7 +434,7 @@
     </div>
 </div>
 
-<div class="watermark">该软件制作者微信 Saeuco v1</div>
+<div class="watermark">该软件制作者微信 Saeuco v3</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -554,6 +563,7 @@
     let currentCard = null;
     let tempAutoDefinition = ""; // Store auto-fetched definition before adding
     let tempMnemonic = ""; // 新增：暂存助记法
+    let tempSocratic = ""; // 【新增】暂存苏格拉底提问
     let tempEmoji = "";    // 新增：暂存 Emoji
     let tempTrap = "";     // 新增：暂存易混辨析
     let tempWriting = "";  // 新增：暂存作文例句
@@ -623,18 +633,19 @@
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
-    // 修改：增加了 mnemonic 和 emoji 参数
-    function createCardObject(word, sentence = "", definition = "", mnemonic = "", emoji = "", trap = "", writing = "") {
+    // 修改：增加了 socratic 参数
+    function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", trap = "", writing = "") {
         return { 
             id: generateID(), 
             word: word.trim(), 
             sentence: sentence.trim(),
             definition: definition.trim(),
-            mnemonic: mnemonic.trim(), // 新增字段
-            emoji: emoji.trim(),       // 新增字段
-            trap: trap ? trap.trim() : "",       // 新增：易混
-            writing: writing ? writing.trim() : "", // 新增：作文
-            due: Date.now(), 
+            mnemonic: mnemonic.trim(), 
+            socratic: socratic ? socratic.trim() : "", // 【新增】保存苏格拉底提问
+            emoji: emoji.trim(),       
+            trap: trap ? trap.trim() : "",       
+            writing: writing ? writing.trim() : "", 
+            due: Date.now(),
             state: 0,
             stability: 0, 
             difficulty: 0, 
@@ -674,13 +685,15 @@
 【核心要求：强语境逻辑 (Strong Contextual Clues)】
 1. 你的例句必须是一个"自解释的谜题"。
 2. 句子中**必须**包含明确的逻辑线索（如同义词复现、反义词对比、因果解释），让学生即使没见过这个词，读了句子也能猜出这个空应该填什么意思。
-3. **难度控制**：除了目标单词外，句子其余部分严格限制在 CET-4 (高中/四级) 词汇范围内，确保学生读得懂语境。
-4. **禁止**：禁止生成 "This implies [word]" 这种空洞的句子。
+3. **高亮搭配**：在例句中，请务必将该单词的**固定搭配(Collocation)或核心短语**用 HTML 标签 <b>...</b> 包裹起来。例如：He made a <b>shrewd investment</b>.
+4. **难度控制**：除了目标单词外，句子其余部分严格限制在 CET-4 (高中/四级) 词汇范围内。
+5. **禁止**：禁止生成 "This implies [word]" 这种空洞的句子。
 【JSON 返回格式要求】
-{"sentence": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "...", "trap": "...", "writing": "..."}
+{"sentence": "...", "socratic": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "...", "trap": "...", "writing": "..."}
 【字段说明】
-- sentence: 英文例句。必须包含单词原型。逻辑必须闭环。
-- definition: 英文释义。用 Core English 解释。⚠️必须附带一个高频搭配(Collocation)，格式：Definition | 🔗 Chunk: ...
+- sentence: 英文例句。必须包含单词原型。记得用 <b> 包裹词块。
+- socratic: 【苏格拉底提问】。一个简短的英文问题，引导学生猜出这个词。例如 "What do you call a happy accident?"。
+- definition: 英文释义。用 Core English 解释。
 - trap: 易混辨析。格式为“🚫易混词: [词] 💡区别: [中文简述]”。
 - writing: 作文神句。用该词写一个通用高分句型（含中文翻译）。
 - mnemonic: 中文助记。利用谐音、词根或荒诞联想。
@@ -692,14 +705,16 @@
 【核心要求：考研长难句 (Syntactic Complexity)】
 1. **风格仿真**：模仿《经济学人》或考研阅读真题的文风。学术、客观、正式。
 2. **⚠️ 词汇难度控制 (i+1原则)**：除了目标单词 "${word}" 外，句中其他词汇严格限制在 CET-6 (六级) 范围内。严禁堆砌其他GRE级生僻词，确保学生能通过已知语境推导生词。
-3. **句法结构**：例句必须是长难句。包含：定语/同位语从句、分词作状语、倒装或虚拟语气。
-4. **逻辑逻辑**：句子必须体现考研常见的逻辑关系（转折、让步、因果）。
-4. **线索闭环**：⚠️至关重要！虽然句子很长，但必须保证通过句内的逻辑（如 Contextual Clues）或地道搭配（Collocations）能推导出该单词。绝不允许出现“填什么词都通”的万金油句子。
+3. **高亮搭配**：在例句中，请务必将包含该词的**地道词块(Collocation)**用 HTML 标签 <b>...</b> 包裹。例如：It implies a <b>tacit agreement</b> between...
+4. **句法结构**：例句必须是长难句。包含：定语/同位语从句、分词作状语、倒装或虚拟语气。
+5. **逻辑逻辑**：句子必须体现考研常见的逻辑关系（转折、让步、因果）。
+6. **线索闭环**：⚠️至关重要！虽然句子很长，但必须保证通过句内的逻辑（Contextual Clues）推导出该单词。
 【JSON 返回格式要求】
-{"sentence": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "...", "trap": "...", "writing": "..."}
+{"sentence": "...", "socratic": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "...", "trap": "...", "writing": "..."}
 【字段说明】
-- sentence: 高级英文例句。长度适中偏长。
-- definition: 英文释义。学术定义。⚠️必须附带一个地道搭配(Collocation)，格式：Definition | 🔗 Chunk: ...
+- sentence: 高级英文例句。必须用 <b>...</b> 高亮核心词块。
+- socratic: 【苏格拉底提问】。一个极具启发性的英文问题，让学生通过逻辑推导想起该词。
+- definition: 英文释义。学术定义。
 - trap: 易混辨析。找出一个最容易混淆的近义词/形近词，并用中文一句话区分。
 - writing: 作文神句。写一个能用在考研大作文（社会/个人类）的通用模板句（含中文）。
 - mnemonic: 中文助记。深刻、硬核的记忆钩子。
@@ -732,10 +747,11 @@
             
             if(mode === 'new') {
                 tempAutoDefinition = result.definition;
-                tempMnemonic = result.mnemonic; 
+                tempMnemonic = result.mnemonic;
+                tempSocratic = result.socratic || ""; // 【新增】提取苏格拉底提问
                 tempEmoji = result.emoji;       
-                tempTrap = result.trap;         // 提取易混
-                tempWriting = result.writing;   // 提取作文
+                tempTrap = result.trap;         
+                tempWriting = result.writing;   
                 if(result.family) tempMnemonic += `\n[Family: ${result.family}]`;
             } else if (mode === 'edit' && defInputId) {
                 document.getElementById(defInputId).value = result.definition;
@@ -764,13 +780,13 @@
             return;
         }
 
-        // 修改：传入所有新字段 (definition, mnemonic, emoji, trap, writing)
-        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempEmoji, tempTrap, tempWriting));
+        // 修改：传入 socratic 字段 (注意顺序要和 createCardObject 一致)
+        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, tempTrap, tempWriting));
         
         wInput.value = '';
         sInput.value = '';
-        // 重置所有临时变量
-        tempAutoDefinition = ""; tempMnemonic = ""; tempEmoji = ""; tempTrap = ""; tempWriting = "";
+        // 重置所有临时变量，包括 socratic
+        tempAutoDefinition = ""; tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; tempTrap = ""; tempWriting = "";
         
         // 【修改】只保存当前这一张卡片到数据库
         const newCard = deck[deck.length - 1];
@@ -820,13 +836,22 @@
                 wordEl.style.color = "#333"; // 句子颜色
             } else {
                 // 新卡片或无例句，显示单词 + Emoji + 喇叭图标(视觉暗示)
-                const emojiHtml = currentCard.emoji ? `<span class="emoji-icon">${currentCard.emoji}</span>` : "";
-                wordEl.innerHTML = `${emojiHtml}${currentCard.word} <span style="font-size:0.5em; opacity:0.6; margin-left:5px;">🔊</span>`;
-                wordEl.style.color = "var(--text)";
-            }
-            // ===================================
-            
-            // --- STATE: QUESTION MODE ---
+            const emojiHtml = currentCard.emoji ? `<span class="emoji-icon">${currentCard.emoji}</span>` : "";
+            wordEl.innerHTML = `${emojiHtml}${currentCard.word} <span style="font-size:0.5em; opacity:0.6; margin-left:5px;">🔊</span>`;
+            wordEl.style.color = "var(--text)";
+        }
+
+        // 【新增】苏格拉底提问展示
+        // 如果有 socratic 数据，优先显示提问，否则显示默认提示
+        const hintEl = document.querySelector('.pronounce-hint');
+        if (currentCard.socratic) {
+            hintEl.innerHTML = `<span style="color:var(--accent); font-style:italic;">🤔 ${currentCard.socratic}</span>`;
+        } else {
+            hintEl.innerText = "Tap word to listen";
+        }
+        // ===================================
+        
+        // --- STATE: QUESTION MODE ---
             // 1. Hide Answers
             document.getElementById('definitionArea').classList.add('hidden');
             document.getElementById('mnemonicArea').classList.add('hidden'); // 隐藏助记法
@@ -1370,28 +1395,45 @@
         }
     }
     
-    // --- 8. Speech ---
+    // --- 8. Speech (Updated with Edge TTS Logic) ---
     function speakCurrentCard() {
-        // 修改：直接使用 currentCard 数据中的纯单词，避免读出界面上的 Emoji
         if (!currentCard || !currentCard.word) return;
-        const word = currentCard.word;
         
-        speechSynthesis.cancel();
-        const uWord = new SpeechSynthesisUtterance(word);
-        uWord.lang = 'en-US';
-        speechSynthesis.speak(uWord);
-        
-        // Only speak sentence if revealed
-        if(document.getElementById('contextArea').classList.contains('hidden')) return;
+        // 1. 智能语音选择 (兼容 iOS Safari 和 PC Edge)
+        const voices = speechSynthesis.getVoices();
+        // 优先级：微软在线(PC) > 苹果高清语音(Samantha/Ava) > Google语音 > 任意英语
+        const bestVoice = voices.find(v => v.name.includes("Microsoft") && v.name.includes("Online") && v.name.includes("United States")) 
+                       || voices.find(v => v.name === "Samantha") // iOS 经典高质量女声
+                       || voices.find(v => v.name === "Ava")      // iOS 新版高质量语音
+                       || voices.find(v => v.name.includes("Google US English"))
+                       || voices.find(v => v.lang === 'en-US');
 
-        const sentence = document.getElementById('currentSentence').innerText;
-        if (sentence && sentence.length > 0) {
-           const uSent = new SpeechSynthesisUtterance(sentence);
-           uSent.lang = 'en-US';
-           uSent.rate = 0.9;
-           speechSynthesis.speak(uSent);
+        const speakText = (text, rate = 1.0) => {
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'en-US';
+            u.rate = rate; // 语速
+            if (bestVoice) u.voice = bestVoice;
+            speechSynthesis.speak(u);
+        };
+
+        speechSynthesis.cancel();
+        
+        // 2. 朗读单词
+        speakText(currentCard.word, 1.0);
+        
+        // 3. 朗读例句 (如果已显示)
+        if(!document.getElementById('contextArea').classList.contains('hidden')) {
+            // 去除 HTML 标签 (比如 <b>) 再朗读，否则会读出标签
+            const cleanSentence = document.getElementById('currentSentence').innerText;
+            if (cleanSentence && cleanSentence.length > 0) {
+                // 稍微延迟一点再读句子
+                setTimeout(() => speakText(cleanSentence, 0.9), 800);
+            }
         }
     }
+    
+    // 初始化语音列表 (Chrome/Edge 需要)
+    speechSynthesis.onvoiceschanged = () => {};
 
     // --- 新增：手动设置 FSRS 参数 ---
     function openSettings() {
