@@ -22,14 +22,15 @@
             --warning: #ff9500;
             --success: #34c759;
             --easy: #30b0c7;
-            --context-bg: #f0f8ff;
-            --shadow: 0 4px 12px rgba(0,0,0,0.08);
-            --radius: 16px;
+            --context-bg: #f8f9fa; /* 更中性的背景，不干扰视线 */
+            --shadow: 0 10px 40px -10px rgba(0,0,0,0.08); /* 扩散感更强的弥散阴影 */
+            --radius: 20px; /* 更圆润的圆角 */
+            --gradient-primary: linear-gradient(135deg, #007aff, #005bb5); /* 按钮渐变 */
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(to bottom, #f5f5f7, #ffffff); /* 细微的纵向渐变 */
             color: var(--text);
             margin: 0;
             display: flex;
@@ -77,10 +78,19 @@
         }
 
         input[type="text"], textarea {
-            border: 1px solid #e5e5ea;
+            border: 1px solid transparent; /* 默认无边框 */
             width: 100%;
-            padding: 12px;
+            padding: 16px; /* 增加内边距，呼吸感更强 */
             font-size: 16px; /* ⚠️ 确保这里是 16px，不要小于这个数值，否则 iPhone 会自动放大 */
+            background: #f2f2f7; /* iOS 风格的浅灰背景 */
+            transition: all 0.3s ease;
+        }
+        
+        input[type="text"]:focus, textarea:focus {
+            background: #ffffff;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1); /* 聚焦时的光晕 */
+        }
             outline: none;
             border-radius: 8px;
             background: var(--bg);
@@ -95,10 +105,11 @@
         }
 
         button.add-btn {
-            background: var(--accent);
+            background: var(--gradient-primary); /* 使用渐变色 */
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 14px 24px; /* 加大按钮，更容易点击 */
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3); /* 蓝色投影 */
             border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
@@ -126,21 +137,22 @@
         
         /* Loading Spinner */
         .spinner {
-            width: 16px;
-            height: 16px;
-            border: 2px solid #888;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(0, 122, 255, 0.1); /* 极淡的底轨 */
             border-top: 2px solid var(--accent);
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 0.8s cubic-bezier(0.4, 0.0, 0.2, 1) infinite; /* 使用缓动函数，转动更有节奏 */
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         /* Review Section */
         .card-display {
-            background: var(--card);
+            background: rgba(255, 255, 255, 0.95); /* 轻微透光 */
             border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            padding: 30px 20px;
+            box-shadow: var(--shadow), 0 0 0 1px rgba(0,0,0,0.03); /* 叠加一层描边增加精致度 */
+            backdrop-filter: blur(10px); /* 磨砂玻璃效果 */
+            padding: 40px 20px; /* 增加内部空间 */
             text-align: center;
             min-height: 250px;
             display: flex;
@@ -163,9 +175,10 @@
         }
 
         .word-text {
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 5px;
+            font-size: 42px; /* 加大字号 */
+            font-weight: 800; /* 加粗 */
+            margin-bottom: 8px;
+            letter-spacing: -0.5px; /* 收紧字间距，更现代 */
             word-break: break-all;
             cursor: pointer;
             color: var(--text);
@@ -184,12 +197,13 @@
 
         /* Definition Area (New) */
         .definition-area {
-            margin: 10px 0 15px 0;
-            padding: 15px;
-            background-color: #fff9e6; /* 淡黄色背景用于区分 */
+            margin: 16px 0;
+            padding: 16px 20px;
+            background-color: rgba(255, 249, 230, 0.6); /* 降低不透明度，更通透 */
             border-radius: 12px;
             text-align: left;
-            border: 1px solid #ffeeba;
+            border-left: 4px solid #ffd591; /* 仅保留左侧装饰线，更现代 */
+            border: none; /* 去掉四周杂乱的边框 */
         }
         .def-label {
             font-size: 11px;
@@ -220,11 +234,13 @@
         .blur-hint { position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:rgba(0,0,0,0.5); font-weight:bold; font-size:12px; pointer-events:none; }
 
         .context-sentence {
-            font-size: 16px;
-            line-height: 1.5;
-            font-style: italic;
-            color: #444;
-            margin-bottom: 5px;
+            font-size: 17px; /* 稍微加大一点点 */
+            line-height: 1.7; /* 黄金阅读行高 */
+            font-style: normal; /* 去掉斜体，斜体在大段文字中较难阅读 */
+            font-family: "Georgia", serif; /* 改为衬线体，更有文学味 */
+            color: #2c3e50; /* 深灰蓝，比纯黑柔和 */
+            margin-bottom: 8px;
+            letter-spacing: 0.02em; /* 微弱的字间距 */
         }
         
         .stats-text { font-size: 12px; color: var(--subtext); margin-top: 20px; }
@@ -238,8 +254,9 @@
         .action-btn {
             border: none;
             padding: 15px 0;
-            border-radius: 12px;
+            border-radius: 16px; /* 更圆 */
             color: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.06); /* 轻微投影 */
             font-weight: 600;
             font-size: 13px;
             cursor: pointer;
@@ -276,8 +293,12 @@
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5); z-index: 1000;
+            background: rgba(0,0,0,0.3); /* 降低遮罩黑度 */
+            backdrop-filter: blur(8px); /* 关键：背景模糊 */
+            -webkit-backdrop-filter: blur(8px); /* 兼容 Safari */
+            z-index: 1000;
             display: flex; justify-content: center; align-items: flex-end;
+            transition: all 0.3s ease;
         }
         
         .modal-content {
@@ -309,9 +330,9 @@
         .delete-btn { color: var(--danger); background: none; border: none; padding: 5px 10px; cursor: pointer; font-size: 14px; }
         
         /* 【新增】胜任感仪表盘与生存模式 */
-        .mastery-bar-container { width: 100%; height: 8px; background: #e5e5ea; border-radius: 4px; margin-bottom: 20px; overflow: hidden; position: relative; }
-        .mastery-bar-fill { height: 100%; background: linear-gradient(90deg, #34c759, #30b0c7); width: 0%; transition: width 0.5s ease; }
-        .survival-mode { background-color: #fff0f0 !important; border: 2px solid #ff3b30 !important; animation: pulse-red 2s infinite; }
+        .mastery-bar-container { width: 100%; height: 10px; background: #e9ecef; border-radius: 10px; margin-bottom: 24px; overflow: hidden; position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05); }
+        .mastery-bar-fill { height: 100%; background: linear-gradient(90deg, #34c759, #30b0c7); width: 0%; transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); /* 更有弹性的动画 */ border-radius: 10px; }
+        .survival-mode { background-color: #fff5f5 !important; border: 2px solid #ff3b30 !important; box-shadow: 0 0 20px rgba(255, 59, 48, 0.2); animation: pulse-red 2s infinite; }
         @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
 
         /* Edit Form */
@@ -333,6 +354,31 @@
         .divider { display: flex; align-items: center; text-align: center; color: var(--subtext); font-size: 12px; margin: 20px 0; }
         .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid #e5e5ea; }
         .divider span { padding: 0 10px; }
+
+
+
+        /* 强制覆盖内联样式，实现糖果色按钮 */
+        #deepLearningTools .action-btn {
+            background-color: transparent !important; /* 覆盖原来的深色背景 */
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: none;
+            border: 1px solid transparent;
+        }
+        
+        /* 辨析 (灰色系) */
+        #deepLearningTools button[onclick*="trap"] { background: #f1f3f5 !important; color: #495057 !important; }
+        
+        /* 作文 (紫色系) */
+        #deepLearningTools button[onclick*="writing"] { background: #f3e8ff !important; color: #7950f2 !important; }
+        
+        /* 思维 (橙色系) */
+        #deepLearningTools button[onclick*="contrast"] { background: #fff4e6 !important; color: #e67700 !important; }
+        
+        /* 纠错 (蓝色系) */
+        #deepLearningTools button[onclick*="Challenge"] { background: #e7f5ff !important; color: #1c7ed6 !important; }
+        
+        #deepLearningTools .action-btn:active { transform: scale(0.96); filter: brightness(0.95); }
     </style>
 </head>
 <body>
