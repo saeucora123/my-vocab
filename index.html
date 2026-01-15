@@ -533,7 +533,7 @@
     </div>
 </div>
 
-<div class="watermark">该软件制作者微信 Saeuco v7</div>
+<div class="watermark">该软件制作者微信 Saeuco v5</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -1240,7 +1240,10 @@
             applyBlur(srText, currentCard.selfRef);
             srArea.classList.remove('hidden');
         } else {
-            srArea.classList.add('hidden');
+            // 【修改】如果没有数据，不再隐藏，而是显示生成按钮
+            srArea.classList.remove('hidden');
+            srText.className = ""; 
+            srText.innerHTML = `<button class="action-btn" style="background:#fff7e6; color:#d46b08; border:1px solid #ffd591; width:100%; font-size:12px; padding:8px;" onclick="fetchMissingField('selfRef', this)">⚡ Generate Self-Reflection</button>`;
         }
         
         // 2. Show Context (Context)
@@ -1929,8 +1932,45 @@
     // 初始化时加载用户设置的保留率
     db.getSetting('fsrs_retention').then(r => { if(r) { p.requestRetention = r; render(); } });
 
+    // 【新增】用于补全缺失字段的函数
+    async function fetchMissingField(field, btn) {
+        if (!currentCard) return;
+        const originalText = btn.innerText;
+        btn.innerHTML = '<div class="spinner" style="border-top-color:#d46b08"></div> Thinking...';
+        
+        const prompt = `针对单词 "${currentCard.word}"，生成一个能引发"自我参照效应(Self-Reference Effect)"的英文提问。
+        要求：
+        1. 引导用户将该词与自己的个人经历、价值观或记忆联系起来。
+        2. 格式示例：When was the last time you felt...?
+        3. 只返回问题本身，不要其他废话。`;
+
+        try {
+            const response = await fetch(AI_CONFIG.baseUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AI_CONFIG.apiKey}` },
+                body: JSON.stringify({
+                    model: AI_CONFIG.model,
+                    messages: [{ role: "user", content: prompt }],
+                    temperature: 0.7
+                })
+            });
+            const data = await response.json();
+            const text = data.choices[0].message.content.trim();
+
+            // 更新数据并保存
+            currentCard[field] = text;
+            await db.saveCard(currentCard);
+            
+            // 直接显示结果
+            const srText = document.getElementById('currentSelfRef');
+            srText.innerHTML = text; 
+        } catch (e) {
+            alert("生成失败: " + e.message);
+            btn.innerText = originalText;
+        }
+    }
+
     loadDeck();
-</script>
 </script>
 </body>
 </html>
