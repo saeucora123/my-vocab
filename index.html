@@ -228,10 +228,24 @@
             transition: all 0.2s;
         }
         
-        /* 【新增】渐进式揭示：模糊遮罩样式 */
-        .blur-mask { filter: blur(6px); user-select: none; transition: filter 0.3s ease; cursor: pointer; }
-        .blur-mask:hover, .blur-mask:active { filter: blur(4px); }
-        .blur-hint { position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:rgba(0,0,0,0.5); font-weight:bold; font-size:12px; pointer-events:none; }
+        /* 【新增】渐进式揭示：通用认知模糊层 (Cognitive Blur) */
+        /* 点击后移除模糊，防止扫视带来的虚假熟练感 */
+        .cognitive-blur { filter: blur(5px); user-select: none; cursor: pointer; transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); opacity: 0.8; }
+        .cognitive-blur:hover { opacity: 1; filter: blur(3px); }
+        .cognitive-blur.revealed { filter: blur(0); cursor: text; user-select: text; opacity: 1; }
+        
+        /* 废弃旧的 .blur-mask，统一使用 .cognitive-blur */
+        .blur-hint { position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:#007aff; font-weight:bold; font-size:12px; pointer-events:none; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* 【新增】生存模式 (Survival Mode) - 视觉降噪 */
+        /* 当 body 拥有此 class 时，隐藏非核心元素，降低色彩饱和度 */
+        body.survival-focus { background: #1c1c1e; color: #e5e5ea; transition: background 0.5s; }
+        body.survival-focus .card-display { background: #2c2c2e; box-shadow: none; border: 1px solid #3a3a3c; }
+        body.survival-focus .word-text { color: #fff; }
+        body.survival-focus .action-btn { filter: desaturate(60%); } /* 降低按钮鲜艳度 */
+        body.survival-focus .footer-info, 
+        body.survival-focus .edit-card-btn,
+        body.survival-focus .mastery-bar-container { opacity: 0.1; pointer-events: none; } /* 隐藏干扰项 */
 
         .context-sentence {
             font-size: 17px; /* 稍微加大一点点 */
@@ -443,6 +457,12 @@
                 <div class="def-label">🧠 Memory Hook</div>
                 <div id="currentMnemonic"></div>
             </div>
+            
+            <!-- 【Phase 2 新增】自我参照 (Self-Reference) 区域 -->
+            <div id="selfRefArea" class="hidden" style="margin:10px 0; padding:10px; border-left:3px solid #ff9500; background:#fffbf0; border-radius:8px;">
+                <div class="def-label" style="color:#d46b08;">👤 Self-Reflection</div>
+                <div id="currentSelfRef" style="font-size:14px; color:#595959; font-style:italic;"></div>
+            </div>
 
             <div class="context-area hidden" id="contextArea">
                 <div id="contextContent">
@@ -465,6 +485,13 @@
             <button id="showAnswerBtn" class="add-btn full-width-btn" style="margin-top:0; height:60px; font-size:18px; background-color: var(--text);" onclick="revealAnswer()">
                 Show Answer 👁️
             </button>
+
+            <!-- 【新增】自信度评级按钮 (默认隐藏) -->
+            <div id="confidenceSelector" class="hidden" style="display:flex; gap:8px; margin-top:10px;">
+                <button class="action-btn" style="background:#ffcc00; color:#333; flex:1;" onclick="revealAnswer(1)">🎲 盲猜</button>
+                <button class="action-btn" style="background:#ff9500; color:white; flex:1;" onclick="revealAnswer(2)">🤔 有印象</button>
+                <button class="action-btn" style="background:#34c759; color:white; flex:1;" onclick="revealAnswer(3)">😎 完全确定</button>
+            </div>
 
             <!-- 新增：辨析与作文扩展工具栏 -->
             <div id="deepLearningTools" class="hidden" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
@@ -630,17 +657,27 @@
     };
     // ====== 这里是新增的 AI 配置 (结束) ======
     let currentCard = null;
+    let currentConfidence = 0; // 【新增】用户自信度 (1:盲猜, 2:不确定, 3:确定)
+    let scaffoldLevel = 0;     // 【新增】拼写提示等级 (每错一次显示更多字母)
     let tempAutoDefinition = ""; // Store auto-fetched definition before adding
     let tempMnemonic = ""; // 新增：暂存助记法
     let tempSocratic = ""; // 【新增】暂存苏格拉底提问
+    let tempSelfRef = "";  // 【新增】暂存自我参照问题
     let tempEmoji = "";    // 新增：暂存 Emoji
     let tempTrap = "";     // 新增：暂存易混辨析
     let tempWriting = "";  // 新增：暂存作文例句
 
     const p = {
         w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
-        requestRetention: 0.9
+        requestRetention: 0.9 // 默认值，稍后会根据模式动态切换
     };
+
+    // 【新增】Apollo 预测引擎核心公式
+    // 计算卡片在 deltaDays 天后的保留率 R = (1 + factor * t / s) ^ -1
+    function predictR(s, deltaDays) {
+        const factor = 9 * (1 / 0.9 - 1); // 基于 FSRS 标准常数
+        return 1 / (1 + factor * deltaDays / s);
+    }
 
     // --- 2. Persistence Layer ---
     async function loadDeck() {
@@ -687,6 +724,15 @@
     function initDifficulty(g) { return Math.min(Math.max(p.w[4] - (g - 3) * p.w[5], 1), 10); }
     function nextDifficulty(d, g) { 
         let nextD = p.w[7] * p.w[4] + (1 - p.w[7]) * (d - p.w[6] * (g - 3));
+        
+        // 【新增】难度阻尼 (Difficulty Damping)：防止 D 飙升锁死
+        // 当 D 超过 9 时，增长幅度减半
+        if (nextD > 9) nextD = 9 + (nextD - 9) * 0.5;
+
+        // 【新增】均值回归 (Mean Reversion)：表现好时缓慢拉回平均难度
+        // 如果评分为 Good(3) 或 Easy(4)，将 D 向默认值 w[4] 拉近 10%
+        if (g > 2) nextD = nextD * 0.9 + p.w[4] * 0.1;
+
         return Math.min(Math.max(nextD, 1), 10);
     }
     function nextStability(s, d, g, r) {
@@ -695,15 +741,25 @@
         let eb = g === 4 ? p.w[16] : 1;
         return s * (1 + Math.exp(p.w[8]) * (11 - d) * Math.pow(s, -p.w[9]) * (Math.exp((1 - r) * p.w[10]) - 1) * hp * eb);
     }
-    function getInterval(s) { return Math.max(1, Math.round(s * 9 * (1 / p.requestRetention - 1))); }
+    
+    // 【修改】弹性模糊 (Fuzzing)
+    function getInterval(s) { 
+        let ivl = s * 9 * (1 / p.requestRetention - 1);
+        // 如果间隔大于 3 天，引入 ±5% 的随机波动，避免复习拥堵
+        if (ivl > 3) {
+            const fuzz = 0.95 + Math.random() * 0.10; // 0.95 ~ 1.05
+            ivl *= fuzz;
+        }
+        return Math.max(1, Math.round(ivl)); 
+    }
 
     // --- 4. Core App Logic ---
     function generateID() {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
-    // 修改：增加了 socratic 参数
-    function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", trap = "", writing = "") {
+    // 修改：增加了 socratic 和 selfRef 参数
+    function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", trap = "", writing = "", selfRef = "") {
         return { 
             id: generateID(), 
             word: word.trim(), 
@@ -714,6 +770,7 @@
             emoji: emoji.trim(),       
             trap: trap ? trap.trim() : "",       
             writing: writing ? writing.trim() : "", 
+            selfRef: selfRef ? selfRef.trim() : "",    // 【新增】自我参照问题
             due: Date.now(),
             state: 0,
             stability: 0, 
@@ -749,46 +806,60 @@
             : "AI 正在生成考研级长难句，请做好准备...";
         
         try {
-            const promptSimple = `你是一位精通认知语言学的英语老师，专门辅导词汇量约4000的学生。
-请为单词 "${word}" 生成学习卡片数据。
-【核心要求：强语境逻辑 (Strong Contextual Clues)】
-1. 你的例句必须是一个"自解释的谜题"。
-2. 句子中**必须**包含明确的逻辑线索（如同义词复现、反义词对比、因果解释），让学生即使没见过这个词，读了句子也能猜出这个空应该填什么意思。
-3. **高亮搭配**：在例句中，请务必将该单词的**固定搭配(Collocation)或核心短语**用 HTML 标签 <b>...</b> 包裹起来。例如：He made a <b>shrewd investment</b>.
-4. **难度控制**：除了目标单词外，句子其余部分严格限制在 CET-4 (高中/四级) 词汇范围内。
-5. **禁止**：禁止生成 "This implies [word]" 这种空洞的句子。
-【JSON 返回格式要求】
-{"sentence": "...", "socratic": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "...", "trap": "...", "writing": "..."}
-【字段说明】
-- sentence: 英文例句。必须包含单词原型。记得用 <b> 包裹词块。
-- socratic: 【苏格拉底提问】。一个简短的英文问题，引导学生猜出这个词。例如 "What do you call a happy accident?"。
-- definition: 英文释义。用 Core English 解释。
-- trap: 易混辨析。格式为“🚫易混词: [词] 💡区别: [中文简述]”。
-- writing: 作文神句。用该词写一个通用高分句型（含中文翻译）。
-- mnemonic: 中文助记。利用谐音、词根或荒诞联想。
-- emoji: 一个最贴切的表情符号。
-- family: 词族/派生词。`;
+            // 【Phase 2 深度优化：简单模式 Prompt】
+            const promptSimple = `你是一位精通"i+1"理论的认知语言学专家，专门为词汇量约3500-4000的学生设计学习材料。
+请为单词 "${word}" 生成深度编码卡片。
 
-            const promptAdvanced = `你是一位考研英语命题专家。
-请为单词 "${word}" 生成符合《全国硕士研究生入学统一考试英语（一）》难度的真题级语料。
-【核心要求：考研长难句 (Syntactic Complexity)】
-1. **风格仿真**：模仿《经济学人》或考研阅读真题的文风。学术、客观、正式。
-2. **⚠️ 词汇难度控制 (i+1原则)**：除了目标单词 "${word}" 外，句中其他词汇严格限制在 CET-6 (六级) 范围内。严禁堆砌其他GRE级生僻词，确保学生能通过已知语境推导生词。
-3. **高亮搭配**：在例句中，请务必将包含该词的**地道词块(Collocation)**用 HTML 标签 <b>...</b> 包裹。例如：It implies a <b>tacit agreement</b> between...
-4. **句法结构**：例句必须是长难句。包含：定语/同位语从句、分词作状语、倒装或虚拟语气。
-5. **逻辑逻辑**：句子必须体现考研常见的逻辑关系（转折、让步、因果）。
-6. **线索闭环**：⚠️至关重要！虽然句子很长，但必须保证通过句内的逻辑（Contextual Clues）推导出该单词。
-【JSON 返回格式要求】
-{"sentence": "...", "socratic": "...", "definition": "...", "mnemonic": "...", "emoji": "...", "family": "...", "trap": "...", "writing": "..."}
-【字段说明】
-- sentence: 高级英文例句。必须用 <b>...</b> 高亮核心词块。
-- socratic: 【苏格拉底提问】。一个极具启发性的英文问题，让学生通过逻辑推导想起该词。
-- definition: 英文释义。学术定义。
-- trap: 易混辨析。找出一个最容易混淆的近义词/形近词，并用中文一句话区分。
-- writing: 作文神句。写一个能用在考研大作文（社会/个人类）的通用模板句（含中文）。
-- mnemonic: 中文助记。深刻、硬核的记忆钩子。
-- emoji: 代表符号。
-- family: 词族。`;
+【核心指令 1：强逻辑互联例句 (Logic-Embedded Context)】
+1.  **逻辑连接词强制**：例句中**必须**包含明确的逻辑路标（如: unlike, because, caused by, similar to, despite, although）。
+2.  **线索闭环**：学生必须能通过句中的逻辑关系+已知词汇，推导出 "${word}" 的含义。严禁生成 "He is very [word]" 这种无效语境。
+3.  **i+1 难度约束**：⚠️ 除目标词外，句子中其他所有词汇必须严格限制在 **CET-4 (高中英语)** 范围内。
+4.  **高亮词块**：必须用 <b>...</b> 标签包裹目标词及其搭配（Collocation）。
+5.你的例句必须是一个"自解释的谜题"。
+6.句子中**必须**包含明确的逻辑线索（如同义词复现、反义词对比、因果解释），让学生即使没见过这个词，读了句子也能猜出这个空应该填什么意思。
+
+【核心指令 2：自我参照效应 (Self-Reference)】
+1.  生成一个 "self_ref" 问题，引导用户将该词与个人生活经历挂钩。
+2.  格式示例："When was the last time you felt...?" 或 "If you could change..., would you...?"
+
+【JSON 返回结构】
+{
+  "sentence": "包含逻辑连接词和 <b>词块</b> 的例句...",
+  "definition": "Simple English definition (CEFR B1 level).",
+  "mnemonic": "中文趣味/谐音/词根助记...",
+  "socratic": "引导猜测的英文提示性问题...",
+  "emoji": "最精准的表情符号",
+  "self_ref": "一个引导用户联系自身经历的英文问题",
+  "trap": "🚫易混: [词] 💡区别: [中文简述]",
+  "writing": "一个通用高分作文句型(含中文)",
+  "family": "词族/派生词"
+}`;
+
+            // 【Phase 2 深度优化：进阶模式 Prompt】
+            const promptAdvanced = `你是一位考研英语命题组长，专注于"语篇逻辑"与"长难句解析"。
+请为单词 "${word}" 生成真题级(Economist风格)的深度语料。
+
+【核心指令 1：句法复杂度与逻辑 (Syntactic & Logical Complexity)】
+1.  **语篇逻辑**：例句必须体现考研常见的逻辑关系（转折、让步、因果、条件）。请使用高级连接词 (e.g., Conversely, Notwithstanding, Stemming from)。
+2.  **i+1 难度约束**：⚠️ 除目标词外，句子中其他词汇严格限制在 **CET-6** 范围内。不要堆砌GRE生词，重点在于句法结构的复杂度（定语从句、分词做状语、独立主格）。
+3.  **高亮词块**：必须用 <b>...</b> 标签包裹目标词的地道搭配。
+4. **线索闭环**：⚠️至关重要！虽然句子很长，但必须保证通过句内的逻辑（Contextual Clues）推导出该单词。
+
+【核心指令 2：自我参照效应 (Self-Reference)】
+1.  生成一个 "self_ref" 问题，引导用户思考该词在社会现象或个人价值观中的体现。
+
+【JSON 返回结构】
+{
+  "sentence": "包含复杂句法和 <b>核心搭配</b> 的考研级例句...",
+  "definition": "Academic English definition.",
+  "mnemonic": "硬核词根词缀记忆法...",
+  "socratic": "一个极具启发性的英文逻辑推导问题...",
+  "emoji": "抽象概念的具体化Emoji",
+  "self_ref": "引导深度思考的英文问题 (e.g., How does [concept] affect your daily decision...?)",
+  "trap": "🚫易混: [近义词] 💡考点: [中文辨析]",
+  "writing": "可用于考研大作文的论证句(含中文)",
+  "family": "词族"
+}`;
 
             const response = await fetch(AI_CONFIG.baseUrl, {
                 method: "POST",
@@ -819,6 +890,7 @@
                 tempAutoDefinition = result.definition;
                 tempMnemonic = result.mnemonic;
                 tempSocratic = result.socratic || ""; // 【新增】提取苏格拉底提问
+                tempSelfRef = result.self_ref || "";  // 【Phase 2 新增】提取自我参照
                 tempEmoji = result.emoji;       
                 tempTrap = result.trap;         
                 tempWriting = result.writing;   
@@ -850,13 +922,13 @@
             return;
         }
 
-        // 修改：传入 socratic 字段 (注意顺序要和 createCardObject 一致)
-        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, tempTrap, tempWriting));
+        // 修改：传入 selfRef 字段 (注意顺序要和 createCardObject 一致)
+        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, tempTrap, tempWriting, tempSelfRef));
         
         wInput.value = '';
         sInput.value = '';
-        // 重置所有临时变量，包括 socratic
-        tempAutoDefinition = ""; tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; tempTrap = ""; tempWriting = "";
+        // 重置所有临时变量，包括 selfRef
+        tempAutoDefinition = ""; tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; tempTrap = ""; tempWriting = ""; tempSelfRef = "";
         
         // 【修改】只保存当前这一张卡片到数据库
         const newCard = deck[deck.length - 1];
@@ -869,7 +941,47 @@
         const now = Date.now();
         const dueCards = deck.filter(c => c.due <= now).sort((a, b) => a.due - b.due);
         
-        document.getElementById('deckInfo').innerText = `Total: ${deck.length} | Due: ${dueCards.length}`;
+        // 【新增】Apollo's Prophecy & CMRR Display
+        // 1. 计算"明天"的整体记忆保留率 (基于所有复习过的卡片)
+        const activeCards = deck.filter(c => c.reps > 0);
+        let predictedR = 0;
+        if (activeCards.length > 0) {
+            // 预测每张卡片在明天(1天后)的 R 值并取平均
+            const sumR = activeCards.reduce((acc, c) => {
+                // 计算该卡片距离上次复习过了几天
+                const elapsed = (now - c.lastReview) / 86400000;
+                // 预测明天 (elapsed + 1) 的 R
+                return acc + predictR(c.stability, elapsed + 1);
+            }, 0);
+            predictedR = (sumR / activeCards.length * 100).toFixed(1);
+        } else {
+            predictedR = "0.0";
+        }
+
+        // 2. 生成仪表盘 HTML (含模式切换)
+        const modeLabel = p.requestRetention >= 0.9 ? "🚀 Cram (90%)" : "☕ Daily (80%)";
+        const modeColor = p.requestRetention >= 0.9 ? "#ff3b30" : "#34c759";
+        // 简单的 CSS 进度条可视化
+        const barColor = parseFloat(predictedR) > 80 ? '#34c759' : (parseFloat(predictedR) > 60 ? '#ff9500' : '#ff3b30');
+        
+        document.getElementById('deckInfo').innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                <span>Cards: ${deck.length}</span>
+                <button onclick="toggleRetentionMode()" style="padding:2px 8px; border:1px solid ${modeColor}; color:${modeColor}; background:none; border-radius:10px; font-size:10px;">${modeLabel}</button>
+            </div>
+            
+            <!-- Apollo Prophecy Visualization -->
+            <div style="background:#e5e5ea; border-radius:6px; padding:8px; margin-top:5px;">
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:#555; margin-bottom:4px;">
+                    <span>🔮 Apollo Prophecy (T+1)</span>
+                    <strong style="color:${barColor}">${predictedR}%</strong>
+                </div>
+                <div style="width:100%; height:6px; background:#d1d1d6; border-radius:3px; overflow:hidden;">
+                    <div style="width:${predictedR}%; background:${barColor}; height:100%; transition:width 0.5s;"></div>
+                </div>
+            </div>
+        `;
+        
         const revContainer = document.getElementById('reviewContainer');
         const empty = document.getElementById('emptyState');
         const inputSec = document.getElementById('inputSection');
@@ -886,9 +998,15 @@
 
         if (dueCards.length > 0) {
             currentCard = dueCards[0];
+            currentConfidence = 0; // 【重置】
+            scaffoldLevel = 0;     // 【重置】
             revContainer.classList.remove('hidden');
             empty.classList.add('hidden');
             // inputSec.classList.add('hidden'); // <--- 注释掉这一行，输入框就会一直显示！
+            
+            // 【新增】隐藏自信度按钮，显示看答案按钮
+            document.getElementById('confidenceSelector').classList.add('hidden');
+            document.getElementById('showAnswerBtn').classList.remove('hidden');
 
             // === 核心逻辑修改：实现挖空模式 ===
             const wordEl = document.getElementById('currentWord');
@@ -962,13 +1080,15 @@
                 ? "New Card" 
                 : `S: ${currentCard.stability.toFixed(1)} | D: ${currentCard.difficulty.toFixed(1)}`;
 
-            // 【新增】生存模式 (Survival Mode)：如果难度 D > 7.5，触发红色警示 UI
-            const cardDisplay = document.querySelector('.card-display');
-            if (currentCard.difficulty > 7.5) {
-                cardDisplay.classList.add('survival-mode');
-                document.getElementById('currentStats').innerHTML += " <b style='color:red'>🔥 HIGH PRESSURE</b>";
+            // 【新增】生存模式 (Survival Mode)：Yerkes-Dodson 定律应用
+            // 当难度 D > 8.0 时，认为用户进入"高认知负荷区"，开启全局降噪
+            if (currentCard.difficulty > 8.0) {
+                document.body.classList.add('survival-focus'); // 全局变暗
+                document.getElementById('currentStats').innerHTML += " <b style='color:#ff3b30'>🔥 FOCUS MODE</b>";
             } else {
-                cardDisplay.classList.remove('survival-mode');
+                document.body.classList.remove('survival-focus');
+                // 移除旧的局部样式
+                document.querySelector('.card-display').classList.remove('survival-mode');
             }
             
             // 【新增】更新胜任感进度条 (Competence Bar)
@@ -1011,23 +1131,56 @@
     }
 
     // --- NEW: REVEAL ANSWER LOGIC ---
-    async function revealAnswer() {
-        // --- 拼写检查逻辑 (新增) ---
+    // 修改：接收 confidenceVal 参数
+    async function revealAnswer(confidenceVal = null) {
+        // --- 1. 强制拼写与脚手架逻辑 (Scaffolding) ---
         const spellingInput = document.getElementById('spellingInput');
-        if (spellingInput && !document.getElementById('showAnswerBtn').classList.contains('hidden')) {
+        // 只有当输入框存在，且尚未通过验证时才检查
+        if (spellingInput && !spellingInput.disabled && !document.getElementById('showAnswerBtn').classList.contains('hidden')) {
             const userSpelling = spellingInput.value.trim().toLowerCase();
             const correctSpelling = currentCard.word.trim().toLowerCase();
+            
             if (userSpelling !== correctSpelling) {
-                alert(`❌ Incorrect! \nYour: ${userSpelling}\nReal: ${correctSpelling}`);
+                // 拼写错误：增加提示等级 (Scaffolding)
+                scaffoldLevel++;
                 spellingInput.style.borderColor = 'red';
-                return; // 拼错不让看答案
+                spellingInput.value = ''; // 清空让用户重输
+                
+                // 动态生成提示：显示前 N 个字母，其余用 _ 代替
+                // 例如 word="apple", level=1 -> "a _ _ _ _"
+                const revealLen = Math.min(scaffoldLevel, correctSpelling.length - 1);
+                const hint = correctSpelling.substring(0, revealLen) + 
+                             " _".repeat(correctSpelling.length - revealLen);
+                
+                spellingInput.placeholder = `❌ Try again: ${hint}`;
+                // 震动反馈 (如果设备支持)
+                if(navigator.vibrate) navigator.vibrate(200);
+                return; // ⛔️ 阻断，不准看答案
             } else {
-                // 拼对了移除输入框，给予视觉奖励
+                // 拼写正确：给予视觉奖励，并默认视为“高自信”
                 spellingInput.style.borderColor = '#34c759'; 
                 spellingInput.style.backgroundColor = '#e8f5e9';
                 spellingInput.disabled = true;
+                currentConfidence = 3; // 拼写正确默认自信度为满
             }
         }
+
+        // --- 2. 自信度拦截 (Confidence Rating) ---
+        // 如果是点击了具体的自信度按钮，记录数值
+        if (typeof confidenceVal === 'number') {
+            currentConfidence = confidenceVal;
+        }
+        
+        // 如果还没有自信度（且没有被拼写逻辑自动填满），则拦截，显示选项
+        if (!currentConfidence) {
+            document.getElementById('showAnswerBtn').classList.add('hidden');
+            document.getElementById('confidenceSelector').classList.remove('hidden');
+            return; // ⛔️ 阻断，等待用户选择自信度
+        }
+
+        // --- 3. 真正揭示答案 (Actual Reveal) ---
+        // 隐藏自信度选择器
+        document.getElementById('confidenceSelector').classList.add('hidden');
 
         // 0. 还原单词显示 (如果是挖空状态，这里要显示回单词)
         const wordEl = document.getElementById('currentWord');
@@ -1035,46 +1188,60 @@
         wordEl.innerHTML = `${emojiHtml}${currentCard.word}`;
         wordEl.style.color = "var(--accent)"; // 高亮显示
 
-        // 1. Show Definition & Mnemonic
+        // 1. Show Definition (Always visible after reveal)
         document.getElementById('definitionArea').classList.remove('hidden');
+
+        // 通用模糊函数
+        const applyBlur = (el, content) => {
+            el.innerHTML = content + '<div class="blur-hint">TAP</div>';
+            el.className = 'cognitive-blur'; // 应用模糊类
+            el.onclick = function() {
+                this.classList.add('revealed'); // 移除模糊
+                // 移除 hint
+                const hint = this.querySelector('.blur-hint');
+                if(hint) hint.remove();
+            };
+        };
+
+        // Mnemonic (助记法)
         if(document.getElementById('currentMnemonic')) {
-             // 【专家修改】生成效应：默认隐藏助记法，点击后才显示，促进主动思考
              const mEl = document.getElementById('currentMnemonic');
-             const realMnemonic = currentCard.mnemonic || "无助记法";
-             
-             // 先显示“点击查看”的提示，样式设置为只有 60% 透明度，暗示它是次要/隐藏信息
-             mEl.innerHTML = `<span style="cursor:pointer; opacity:0.6; font-style:italic;">💡 助记线索 (Think first! Tap to reveal...)</span>`;
-             
-             // 绑定一次性点击事件：点击文字后，瞬间替换为真实助记内容
-             mEl.onclick = function() {
-                 mEl.innerText = realMnemonic;
-                 mEl.style.opacity = "1"; // 恢复完全不透明
-                 mEl.onclick = null; // 移除点击事件，防止误触
-             };
-             
+             if (currentCard.mnemonic) {
+                 applyBlur(mEl, currentCard.mnemonic);
+             } else {
+                 mEl.innerText = "无助记法";
+                 mEl.className = "";
+             }
              document.getElementById('mnemonicArea').classList.remove('hidden');
         }
         
-        // 2. Show Context (Modified: Progressive Disclosure)
+        // Self-Reference (自我参照)
+        const srArea = document.getElementById('selfRefArea');
+        const srText = document.getElementById('currentSelfRef');
+        if (currentCard.selfRef) {
+            applyBlur(srText, currentCard.selfRef);
+            srArea.classList.remove('hidden');
+        } else {
+            srArea.classList.add('hidden');
+        }
+        
+        // 2. Show Context (Context)
         const ctxArea = document.getElementById('contextArea');
         const ctxContent = document.getElementById('contextContent');
         ctxArea.classList.remove('hidden');
         
-        // 【新增】默认给例句加上模糊遮罩，点击后移除
-        // 只有当不是新卡片时才模糊，新卡片可以直接看
+        // 新卡片直接显示，复习卡片默认模糊
         if (currentCard.reps > 0) {
-            ctxContent.classList.add('blur-mask');
-            if(!document.getElementById('blurHint')) {
-                ctxContent.innerHTML += '<div id="blurHint" class="blur-hint">👆 Tap to Focus</div>';
-            }
-            ctxContent.onclick = function() {
-                this.classList.remove('blur-mask');
-                const hint = document.getElementById('blurHint');
-                if(hint) hint.remove();
-                this.onclick = null; // 移除点击事件
-            }
+            const cleanSentence = document.getElementById('currentSentence').innerHTML; // 此时可能已经有文字了
+            // 重新包裹模糊逻辑
+            ctxContent.classList.remove('revealed'); // 重置状态
+            applyBlur(ctxContent, `<div class="context-sentence" id="currentSentence">${cleanSentence}</div>`);
         } else {
-            ctxContent.classList.remove('blur-mask'); // 新词直接显示
+            // 新词不模糊
+            ctxContent.className = 'revealed'; 
+            // 确保移除可能残留的 hint
+            const hint = ctxContent.querySelector('.blur-hint');
+            if(hint) hint.remove();
         }
         
         // 3. Swap Buttons
@@ -1172,7 +1339,16 @@
 
         if (g === 1) {
             // 【修改】动态 Again：如果难度 D > 6，说明是难词，间隔延长至 5分钟 (300000ms)，增加提取难度
-            const againInterval = currentCard.difficulty > 6 ? 300000 : 60000;
+            let againInterval = currentCard.difficulty > 6 ? 300000 : 60000;
+            
+            // 【Hypercorrection 逻辑钩子】
+            // 如果用户之前“完全确定”(3) 但现在选了 Again，说明发生了“高自信错误”
+            // 此时大脑处于惊奇状态 (P300波)，我们立即进行超短间隔复习 (例如 10秒后)，利用这个窗口
+            if (currentConfidence === 3) {
+                againInterval = 10000; // 10秒后立即重来
+                alert("💡 Surprise! \nYou were sure, but got it wrong.\nThis is the BEST time to learn. Reviewing in 10s.");
+            }
+
             currentCard.due = now + againInterval;
         } else {
             const days = getInterval(s);
@@ -1539,13 +1715,19 @@
         // 2. 朗读单词
         speakText(currentCard.word, 1.0);
         
-        // 3. 朗读例句 (如果已显示)
+        // 3. 朗读例句 (双重编码优化：词 -> 0.5s静音 -> 句)
+        // 只有当例句区域可见时才播放例句
         if(!document.getElementById('contextArea').classList.contains('hidden')) {
-            // 去除 HTML 标签 (比如 <b>) 再朗读，否则会读出标签
             const cleanSentence = document.getElementById('currentSentence').innerText;
+            
             if (cleanSentence && cleanSentence.length > 0) {
-                // 稍微延迟一点再读句子
-                setTimeout(() => speakText(cleanSentence, 0.9), 800);
+                // 【Phase 2 优化】使用 500ms 黄金静音间隔，给予大脑切换处理通道的时间
+                setTimeout(() => {
+                    // 再次检查页面状态，防止用户已经切走了
+                    if(!document.getElementById('contextArea').classList.contains('hidden')) {
+                        speakText(cleanSentence, 0.85); // 语速稍慢(0.85)，利于听力解码
+                    }
+                }, 500);
             }
         }
     }
@@ -1692,8 +1874,26 @@
             revealAnswer();
         }, 300);
     }
+
+    // 【新增】切换保留率模式 (备考冲刺 vs 日常积累)
+    function toggleRetentionMode() {
+        if (p.requestRetention >= 0.9) {
+            p.requestRetention = 0.8; // 切换到日常模式
+            alert("已切换到【日常积累模式】(80%)\n复习压力将大幅降低。");
+        } else {
+            p.requestRetention = 0.9; // 切换到冲刺模式
+            alert("已切换到【备考冲刺模式】(90%)\n复习频率将翻倍，请做好准备！");
+        }
+        // 保存设置到数据库 (这里简化处理，下次刷新会重置为默认，完整版需存入DB)
+        db.saveSetting('fsrs_retention', p.requestRetention);
+        render(); // 刷新界面
+    }
     
+    // 初始化时加载用户设置的保留率
+    db.getSetting('fsrs_retention').then(r => { if(r) { p.requestRetention = r; render(); } });
+
     loadDeck();
+</script>
 </script>
 </body>
 </html>
