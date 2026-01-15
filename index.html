@@ -91,6 +91,9 @@
             border-color: var(--accent);
             box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1); /* 聚焦时的光晕 */
         }
+        
+        /* 修复：给这些属性加上选择器，否则它们不生效 */
+        input, textarea, select {
             outline: none;
             border-radius: 8px;
             background: var(--bg);
@@ -530,7 +533,7 @@
     </div>
 </div>
 
-<div class="watermark">该软件制作者微信 Saeuco v6</div>
+<div class="watermark">该软件制作者微信 Saeuco v7</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -666,6 +669,7 @@
     let tempEmoji = "";    // 新增：暂存 Emoji
     let tempTrap = "";     // 新增：暂存易混辨析
     let tempWriting = "";  // 新增：暂存作文例句
+    let tempContrast = ""; // 【新增】暂存思维差异
 
     const p = {
         w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
@@ -758,12 +762,13 @@
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
-    // 修改：增加了 socratic 和 selfRef 参数
-    function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", trap = "", writing = "", selfRef = "") {
+    // 修改：增加了 socratic 和 selfRef 参数，【本次新增】contrast 参数
+    function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", trap = "", writing = "", selfRef = "", contrast = "") {
         return { 
             id: generateID(), 
             word: word.trim(), 
             sentence: sentence.trim(),
+            contrast: contrast ? contrast.trim() : "", // 【新增】存储思维差异
             definition: definition.trim(),
             mnemonic: mnemonic.trim(), 
             socratic: socratic ? socratic.trim() : "", // 【新增】保存苏格拉底提问
@@ -832,6 +837,7 @@
   "self_ref": "一个引导用户联系自身经历的英文问题",
   "trap": "🚫易混: [词] 💡区别: [中文简述]",
   "writing": "一个通用高分作文句型(含中文)",
+  "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
   "family": "词族/派生词"
 }`;
 
@@ -858,6 +864,7 @@
   "self_ref": "引导深度思考的英文问题 (e.g., How does [concept] affect your daily decision...?)",
   "trap": "🚫易混: [近义词] 💡考点: [中文辨析]",
   "writing": "可用于考研大作文的论证句(含中文)",
+  "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
   "family": "词族"
 }`;
 
@@ -893,7 +900,8 @@
                 tempSelfRef = result.self_ref || "";  // 【Phase 2 新增】提取自我参照
                 tempEmoji = result.emoji;       
                 tempTrap = result.trap;         
-                tempWriting = result.writing;   
+                tempWriting = result.writing;
+                tempContrast = result.contrast || ""; // 【新增】提取思维差异
                 if(result.family) tempMnemonic += `\n[Family: ${result.family}]`;
             } else if (mode === 'edit' && defInputId) {
                 document.getElementById(defInputId).value = result.definition;
@@ -922,13 +930,13 @@
             return;
         }
 
-        // 修改：传入 selfRef 字段 (注意顺序要和 createCardObject 一致)
-        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, tempTrap, tempWriting, tempSelfRef));
+        // 修改：传入 selfRef 和 contrast 字段 (注意顺序要和 createCardObject 一致)
+        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, tempTrap, tempWriting, tempSelfRef, tempContrast));
         
         wInput.value = '';
         sInput.value = '';
-        // 重置所有临时变量，包括 selfRef
-        tempAutoDefinition = ""; tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; tempTrap = ""; tempWriting = ""; tempSelfRef = "";
+        // 重置所有临时变量
+        tempAutoDefinition = ""; tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; tempTrap = ""; tempWriting = ""; tempSelfRef = ""; tempContrast = "";
         
         // 【修改】只保存当前这一张卡片到数据库
         const newCard = deck[deck.length - 1];
@@ -1143,6 +1151,16 @@
             if (userSpelling !== correctSpelling) {
                 // 拼写错误：增加提示等级 (Scaffolding)
                 scaffoldLevel++;
+                
+                // 修复：如果试错超过2次，允许放弃
+                if(scaffoldLevel > 2) {
+                    if(confirm("太难了，要直接看答案吗？")) {
+                         spellingInput.disabled = true; // 禁用检查
+                         revealAnswer(1); // 以“盲猜”状态翻牌
+                         return;
+                    }
+                }
+
                 spellingInput.style.borderColor = 'red';
                 spellingInput.value = ''; // 清空让用户重输
                 
@@ -1350,6 +1368,13 @@
             }
 
             currentCard.due = now + againInterval;
+            
+            // 修复：设置一个定时器，当 Again 时间到了自动刷新页面，让卡片重新弹出来
+            setTimeout(() => {
+                // 仅当当前显示为空状态时才刷新，避免打断用户操作
+                if(!currentCard) render(); 
+            }, againInterval + 500); 
+
         } else {
             const days = getInterval(s);
             currentCard.due = now + (days * 86400000);
@@ -1785,6 +1810,11 @@
             contentDiv.innerHTML = `<div style="background:#e8eaf6; padding:10px; border-radius:8px; border-left:4px solid #5856d6"><strong>📦 Saved:</strong><br>${currentCard.writing.replace(/\n/g, '<br>')}</div>`;
             return;
         }
+        // 【新增】优先读取思维差异缓存
+        if (type === 'contrast' && currentCard.contrast) {
+            contentDiv.innerHTML = `<div style="background:#fff4e6; padding:10px; border-radius:8px; border-left:4px solid #fd7e14"><strong>📦 Saved:</strong><br>${currentCard.contrast.replace(/\n/g, '<br>')}</div>`;
+            return;
+        }
         // ----------------------------------------
 
         const originalText = btn.innerText;
@@ -1842,6 +1872,7 @@
             // 修复：立即保存到数据库，避免下次重复生成消耗 Token
             if(type === 'trap') currentCard.trap = text;
             if(type === 'writing') currentCard.writing = text;
+            if(type === 'contrast') currentCard.contrast = text; // 【新增】保存思维差异
             db.saveCard(currentCard);
 
             // 简单的格式化显示
@@ -1869,6 +1900,12 @@
             targetBtn.style.color = 'white';
         }
         
+        // 修复：点击语义联想时，禁用拼写框，防止 revealAnswer 误判为拼写错误
+        const sInput = document.getElementById('spellingInput');
+        if(sInput) { sInput.disabled = true; sInput.style.display = 'none'; } 
+        // 既然能进行语义联想，说明对单词有一定自信，设为 3
+        currentConfidence = 3; 
+
         // 延迟 300毫秒后自动翻牌，给用户一种“确认了”的感觉
         setTimeout(() => {
             revealAnswer();
