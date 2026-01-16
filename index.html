@@ -394,6 +394,7 @@
         #deepLearningTools button[onclick*="Challenge"] { background: #e7f5ff !important; color: #1c7ed6 !important; }
         
         #deepLearningTools .action-btn:active { transform: scale(0.96); filter: brightness(0.95); }
+        @keyframes popUp { from { transform: translate(-50%, -40%) scale(0.5); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
@@ -533,7 +534,7 @@
     </div>
 </div>
 
-<div class="watermark">该软件制作者微信 Saeuco v5</div>
+<div class="watermark">该软件制作者微信 Saeuco v1.2</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -762,11 +763,15 @@
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
-    // 修改：增加了 socratic 和 selfRef 参数，【本次新增】contrast 参数
-    function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", trap = "", writing = "", selfRef = "", contrast = "") {
+    // 修改：增加了 morphemes (形态学) 和 family (词族) 参数
+    function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", trap = "", writing = "", selfRef = "", contrast = "", morphemes = null, family = "") {
         return { 
             id: generateID(), 
-            word: word.trim(), 
+            word: word.trim(),
+            // 【Expert Structure】核心形态学对象
+            morphemes: morphemes || { prefix: "", root: word.trim(), suffix: "" }, 
+            family: family ? family.trim() : "", // 词族网络
+            sentence: sentence.trim(),
             sentence: sentence.trim(),
             contrast: contrast ? contrast.trim() : "", // 【新增】存储思维差异
             definition: definition.trim(),
@@ -779,7 +784,7 @@
             due: Date.now(),
             state: 0,
             stability: 0, 
-            difficulty: 0, 
+            difficulty: 5, // 【Expert修改】初始难度设为 5 (1-10)，假设一切皆为中等，等待RPE修正
             reps: 0, 
             lastReview: 0,
             history: [] // 新增：记录复习历史，用于未来算法优化
@@ -830,6 +835,7 @@
 【JSON 返回结构】
 {
   "sentence": "包含逻辑连接词和 <b>词块</b> 的例句...",
+  "morphemes": { "prefix": "un- (not)", "root": "help", "suffix": "-ful (full of)" }, 
   "definition": "Simple English definition (CEFR B1 level).",
   "mnemonic": "中文趣味/谐音/词根助记...",
   "socratic": "引导猜测的英文提示性问题...",
@@ -838,7 +844,7 @@
   "trap": "🚫易混: [词] 💡区别: [中文简述]",
   "writing": "一个通用高分作文句型(含中文)",
   "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
-  "family": "词族/派生词"
+  "family": "contract, distract, retract (仅列出同根词)"
 }`;
 
             // 【Phase 2 深度优化：进阶模式 Prompt】
@@ -902,7 +908,9 @@
                 tempTrap = result.trap;         
                 tempWriting = result.writing;
                 tempContrast = result.contrast || ""; // 【新增】提取思维差异
-                if(result.family) tempMnemonic += `\n[Family: ${result.family}]`;
+                // 【Expert Data】不再拼接到助记法，而是独立存储
+                tempMorphemes = result.morphemes; 
+                tempFamily = result.family;
             } else if (mode === 'edit' && defInputId) {
                 document.getElementById(defInputId).value = result.definition;
                 let aiMnemonic = result.mnemonic || "";
@@ -925,13 +933,14 @@
         const sentence = sInput.value.trim();
 
         if (!word) return;
+        let tempMorphemes = null; let tempFamily = "";
         if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
             alert("Word already exists!");
             return;
         }
 
-        // 修改：传入 selfRef 和 contrast 字段 (注意顺序要和 createCardObject 一致)
-        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, tempTrap, tempWriting, tempSelfRef, tempContrast));
+        // 修改：传入 morphemes 和 family (注意顺序要和 createCardObject 一致)
+        deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, tempTrap, tempWriting, tempSelfRef, tempContrast, tempMorphemes, tempFamily));
         
         wInput.value = '';
         sInput.value = '';
@@ -947,8 +956,25 @@
     // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
     function render() {
         const now = Date.now();
-        const dueCards = deck.filter(c => c.due <= now).sort((a, b) => a.due - b.due);
+        let rawDueCards = deck.filter(c => c.due <= now).sort((a, b) => a.due - b.due);
         
+        // 【Expert Kernel】语义干扰拦截器 (Semantic Interference Blocker)
+        // 简单的客户端实现：如果有两个词长得太像（例如前4个字母相同），强制把第二个推迟到明天。
+        const dueCards = [];
+        const semanticSet = new Set();
+        
+        for (const card of rawDueCards) {
+            // 提取简易词根 (前4个字母) 或使用 family 字段(如果有)
+            const root = card.word.length > 4 ? card.word.substring(0, 4).toLowerCase() : card.word.toLowerCase();
+            
+            if (semanticSet.has(root)) {
+                console.log(`Semantic Interlock: Deferring '${card.word}' due to conflict.`);
+                continue; // 跳过此卡片，不放入本次复习队列
+            }
+            semanticSet.add(root);
+            dueCards.push(card);
+        }
+
         // 【新增】Apollo's Prophecy & CMRR Display
         // 1. 计算"明天"的整体记忆保留率 (基于所有复习过的卡片)
         const activeCards = deck.filter(c => c.reps > 0);
@@ -1024,18 +1050,46 @@
 
             // 修改：增加 !forceDecontextualized 判断
             if (currentCard.reps >= 3 && currentCard.sentence && !forceDecontextualized) {
-                // 如果是复习且有例句，显示挖空例句 (已修复特殊字符导致的崩溃 Bug)
+                // 【Expert Logic】脚手架式挖空 (Scaffolded Cloze)
+                // 不再显示纯下划线，而是根据难度给出“词根线索”，强迫逻辑推导
+                // 例如: "adapt" -> "ad___" (给出前缀线索)
                 const escapedWord = currentCard.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const regex = new RegExp(`(${escapedWord})`, 'gi');
-                const clozeSent = currentCard.sentence.replace(regex, '<span class="cloze-blank">_____</span>');
-                wordEl.innerHTML = `<div style="font-size:22px; line-height:1.4;">${clozeSent}</div>`;
-                wordEl.style.color = "#333"; // 句子颜色
+                
+                // 线索生成逻辑：提取前2个字母作为微弱线索
+                const hintClue = currentCard.word.substring(0, 2); 
+                const clozeHtml = `<span class="cloze-blank" style="color:#007aff; font-weight:bold; border-bottom:2px dashed #007aff;">${hintClue}___</span>`;
+                
+                const clozeSent = currentCard.sentence.replace(regex, clozeHtml);
+                wordEl.innerHTML = `<div style="font-size:22px; line-height:1.4; font-family:'Georgia';">${clozeSent}</div>`;
+                wordEl.style.color = "#333"; 
             } else {
-                // 新卡片或无例句，显示单词 + Emoji + 喇叭图标(视觉暗示)
-            const emojiHtml = currentCard.emoji ? `<span class="emoji-icon">${currentCard.emoji}</span>` : "";
-            wordEl.innerHTML = `${emojiHtml}${currentCard.word} <span style="font-size:0.5em; opacity:0.6; margin-left:5px;">🔊</span>`;
-            wordEl.style.color = "var(--text)";
-        }
+                // 【Expert Visual】形态学合成器 (Morphological Synthesizer)
+                // 新词展示时，不再是单纯的字符串，而是拆解的“逻辑积木”
+                const emojiHtml = currentCard.emoji ? `<span class="emoji-icon">${currentCard.emoji}</span>` : "";
+                
+                if (currentCard.morphemes && currentCard.morphemes.root) {
+                    const m = currentCard.morphemes;
+                    // 构造视觉积木：前缀(灰) + 词根(红/强调) + 后缀(灰)
+                    const p = m.prefix ? `<span style="color:#86868b; font-size:0.7em;">${m.prefix}</span>` : "";
+                    const r = `<span style="color:#ff3b30; font-weight:900; border:2px solid #ff3b30; padding:2px 8px; border-radius:8px;">${m.root}</span>`;
+                    const s = m.suffix ? `<span style="color:#86868b; font-size:0.7em;">${m.suffix}</span>` : "";
+                    
+                    wordEl.innerHTML = `
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+                            ${emojiHtml}
+                            <div style="font-size:32px;">${p} ${r} ${s}</div>
+                            <!-- 【Expert Tutor】推导任务指令 -->
+                            <div style="background:#e3f2fd; color:#0d47a1; padding:8px 12px; border-radius:8px; font-size:13px; margin-top:5px; border:1px dashed #2196f3;">
+                                🔮 <strong>Pre-test:</strong> Don't reveal yet.<br>Guess meaning from roots above.
+                            </div>
+                        </div>`;
+                } else {
+                    // 旧数据兼容
+                    wordEl.innerHTML = `${emojiHtml}${currentCard.word} <span style="font-size:0.5em; opacity:0.6; margin-left:5px;">🔊</span>`;
+                }
+                wordEl.style.color = "var(--text)";
+            }
 
         // 【新增】苏格拉底提问展示
         // 如果有 socratic 数据，优先显示提问，否则显示默认提示
@@ -1084,9 +1138,17 @@
             
             // Stats
             const isNew = currentCard.reps === 0;
-            document.getElementById('currentStats').innerText = isNew 
-                ? "New Card" 
-                : `S: ${currentCard.stability.toFixed(1)} | D: ${currentCard.difficulty.toFixed(1)}`;
+            // 【Expert UI】Apollo Prophecy: 实时显示记忆保留率
+            // 计算逻辑：R = 算法预测你此刻大脑中还剩多少记忆
+            let statsHtml = "New Card";
+            if (!isNew) {
+                const elapsed = (now - currentCard.lastReview) / 86400000;
+                const currentR = (predictR(currentCard.stability, elapsed) * 100).toFixed(1);
+                // 颜色编码：低于 70% 变红，激发危机感；高于 90% 变绿，建立自信
+                const color = currentR < 70 ? '#ff3b30' : (currentR > 90 ? '#34c759' : '#86868b');
+                statsHtml = `<span style="color:${color}; font-weight:bold; font-size:14px;">🧠 Memory Left: ${currentR}%</span><br><span style="font-size:10px; opacity:0.7;">(S:${currentCard.stability.toFixed(1)} D:${currentCard.difficulty.toFixed(1)})</span>`;
+            }
+            document.getElementById('currentStats').innerHTML = statsHtml;
 
             // 【新增】生存模式 (Survival Mode)：Yerkes-Dodson 定律应用
             // 当难度 D > 8.0 时，认为用户进入"高认知负荷区"，开启全局降噪
@@ -1224,8 +1286,17 @@
         // Mnemonic (助记法)
         if(document.getElementById('currentMnemonic')) {
              const mEl = document.getElementById('currentMnemonic');
-             if (currentCard.mnemonic) {
-                 applyBlur(mEl, currentCard.mnemonic);
+             // 【Expert Display】动态词族网络 (Dynamic Word Family)
+             // 将词族数据拼接到助记法下方，形成知识树
+             let content = currentCard.mnemonic || "无助记法";
+             if (currentCard.family) {
+                 content += `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed #ccc; font-size:12px; color:#555;">
+                    <strong>🌳 Family Tree:</strong> ${currentCard.family}
+                 </div>`;
+             }
+             
+             if (content !== "无助记法") {
+                 applyBlur(mEl, content);
              } else {
                  mEl.innerText = "无助记法";
                  mEl.className = "";
@@ -1237,7 +1308,17 @@
         const srArea = document.getElementById('selfRefArea');
         const srText = document.getElementById('currentSelfRef');
         if (currentCard.selfRef) {
-            applyBlur(srText, currentCard.selfRef);
+            // 【Expert Tutor】不再模糊，而是作为"灵魂拷问"直接展示
+            // 这是一个问题(Question)，不是答案(Answer)，所以必须让用户立刻看到并思考
+            srText.className = ""; // 移除模糊类
+            srText.innerHTML = `
+                <div style="display:flex; align-items:start; gap:10px;">
+                    <span style="font-size:24px;">🫵</span>
+                    <div>
+                        <div style="font-weight:bold; color:#d46b08; margin-bottom:4px;">Direct Question:</div>
+                        <div style="font-style:italic; color:#333; font-size:15px;">"${currentCard.selfRef}"</div>
+                    </div>
+                </div>`;
             srArea.classList.remove('hidden');
         } else {
             // 【修改】如果没有数据，不再隐藏，而是显示生成按钮
@@ -1336,8 +1417,56 @@
             s = initStability(g);
             d = initDifficulty(g);
         } else {
+            // 【Expert Kernel】计算预测误差 (Reward Prediction Error)
+            // R = 当前时刻大脑理应还剩多少记忆 (0.0 - 1.0)
+            const currentR = predictR(currentCard.stability, elapsed);
+            
             d = nextDifficulty(d, g);
             s = nextStability(s, d, g, r);
+
+            // 1. 正向预测误差 (Positive RPE): "我以为我忘了(R低)，结果记住了(Rating high)"
+            // 效果：多巴胺激增，大幅提升稳定性
+            if (currentR < 0.3 && g >= 3) {
+                 const boost = 1.5 + (0.3 - currentR); // R越低，奖励倍率越高
+                 s = s * boost;
+                 console.log(`🚀 Positive RPE Triggered! S boosted by ${boost.toFixed(2)}x`);
+            }
+
+            // 2. 负向预测误差 (Negative RPE): "我以为我记得(R高)，结果全忘了(Rating low)"
+            // 效果：认知失调，大幅增加难度 D，迫使短期内高频复习
+            if (currentR > 0.9 && g === 1) {
+                 d = Math.min(10, d + 2.0); // 难度激增
+                 s = s * 0.5; // 稳定性惩罚
+                 console.log(`⚠️ Negative RPE! Difficulty spiked.`);
+            }
+        }
+
+        // 【Expert Gamification】变比强化系统 (Variable Ratio Reinforcement)
+        // 1. 盲猜奖励 (Blind Bet Bonus): 自信度低(1)但选了Good/Easy -> 视为“意外之喜”
+        // 2. 随机暴击 (Random Critical): 10% 概率触发多巴胺视觉反馈
+        if (g >= 3) { // 只有答对才奖励
+            const isBlindSuccess = (currentConfidence === 1);
+            const isLucky = Math.random() < 0.15; // 15% 掉落率
+            
+            if (isBlindSuccess || isLucky) {
+                const bonusMsg = isBlindSuccess ? "🎰 BLIND BET WIN! (Blind Guess + Correct)" : "🔥 CRITICAL HIT! (Bonus Dopamine)";
+                // 简单的视觉反馈：背景闪烁金光
+                const body = document.body;
+                const originalBg = body.style.background;
+                body.style.transition = "background 0.2s";
+                body.style.background = "linear-gradient(135deg, #ffd700, #ffaa00)"; // 金色闪光
+                
+                // 浮动奖励文字 (简单的 alert 替代，避免复杂 DOM 操作，实际项目应为粒子特效)
+                const rewardEl = document.createElement('div');
+                rewardEl.innerHTML = `<div style="position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.8); color:#ffd700; padding:20px; border-radius:12px; font-size:24px; font-weight:bold; z-index:9999; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); animation: popUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">${bonusMsg} <br> <span style="font-size:40px;">💎 +${isBlindSuccess ? 30 : 10} XP</span></div>`;
+                document.body.appendChild(rewardEl);
+                
+                // 1.5秒后消失
+                setTimeout(() => {
+                    body.style.background = originalBg;
+                    rewardEl.remove();
+                }, 1500);
+            }
         }
 
         currentCard.stability = s;
