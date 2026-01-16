@@ -562,7 +562,7 @@
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v2.1</div>
+<div class="watermark">软件制作者微信 Saeuco v2.2</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -1141,43 +1141,40 @@
                 wordEl.innerHTML = `<div style="font-size:22px; line-height:1.4; font-family:'Georgia';">${clozeSent}</div>`;
                 wordEl.style.color = "#333"; 
             } else {
-                // 【Expert Visual】形态学合成器 (Morphological Synthesizer)
-                // 新词展示时，不再是单纯的字符串，而是拆解的“逻辑积木”
+                // 【Expert Visual】形态学合成器 - 极简稳定版
+                // 逻辑：不再尝试用碎片拼凑单词，而是"大字显示单词，小字显示分析"
+                
                 const emojiHtml = currentCard.emoji ? `<div class="emoji-badge">${currentCard.emoji}</div>` : "";
                 
+                // 1. 核心：大字永远只显示原始单词 (Safe & Clean)
+                const mainWordHtml = `<div style="font-size:32px; font-weight:800; color:var(--text); letter-spacing:0.5px;">${currentCard.word}</div>`;
+
+                // 2. 辅助：如果有词根数据，在下方生成一条彩色的分析链
+                let analysisHtml = "";
                 if (currentCard.morphemes && currentCard.morphemes.root) {
                     const m = currentCard.morphemes;
                     
-                    // 1. 大字部分：彻底清洗所有部分的解释文本 (正则去除括号及内容)
-                    // 修复Bug：之前漏了处理 m.root，导致长解释出现在大字里
-                    const clean = (str) => str ? str.replace(/\s*\(.*?\)/g, '').trim() : "";
-
-                    const pText = clean(m.prefix);
-                    const rText = clean(m.root); // ✅ 关键修复：清洗词根
-                    const sText = clean(m.suffix);
+                    // 简单的清洗函数：去掉括号里的解释，只留词素本身
+                    const clean = (str) => str ? str.replace(/\(.*\)/g, '').replace(/（.*）/g, '').trim() : "";
                     
-                    const p = pText ? `<span style="color:#d63384;">${pText}</span>` : '';
-                    // 显示清洗后的 rText，而不是原始的 m.root
-                    const r = `<span style="font-weight:800; border-bottom:2px solid var(--accent); color:var(--text);">${rText}</span>`;
-                    const s = sText ? `<span style="color:#007aff;">${sText}</span>` : '';
-                    
-                    // 2. 小字部分：显示完整的词源解释，拼接成 "un-(not) · happy · ..." 的格式
                     let parts = [];
-                    if (m.prefix) parts.push(m.prefix);
-                    parts.push(`<b>${m.root}</b>`);
-                    if (m.suffix) parts.push(m.suffix);
-                    const etymoHtml = `<div class="etymology-line">${parts.join(' · ')}</div>`;
-
-                    // 组合显示
-                    wordEl.innerHTML = `${emojiHtml} <div style="font-family:'Courier New', monospace; letter-spacing:-1px">${p}${r}${s}</div>${etymoHtml}`;
+                    // 只有当有内容时才添加，避免空标签
+                    if (m.prefix) parts.push(`<span style="color:#d63384">${clean(m.prefix)}</span>`);
+                    parts.push(`<span style="font-weight:bold; border-bottom:2px solid #007aff; color:var(--text);">${clean(m.root)}</span>`);
+                    if (m.suffix) parts.push(`<span style="color:#007aff">${clean(m.suffix)}</span>`);
                     
-                    // ✅ 关键：这里要重置颜色的填充，否则大字会被 CSS 里的渐变覆盖导致看不到彩色前缀
-                    wordEl.style.webkitTextFillColor = "initial"; 
-                } else {
-                    // 旧数据兼容
-                    wordEl.innerHTML = `${emojiHtml} <div>${currentCard.word}</div>`;
-                    wordEl.style.webkitTextFillColor = "transparent"; // 恢复渐变
+                    // 用 "+" 号连接，看起来像数学公式，清晰明了
+                    analysisHtml = `<div class="etymology-line" style="margin-top:8px; font-family:'Courier New', monospace; font-size:13px; opacity:0.8;">
+                        ${parts.join(' + ')}
+                    </div>`;
                 }
+
+                // 3. 组合显示
+                wordEl.innerHTML = `${emojiHtml}${mainWordHtml}${analysisHtml}`;
+                
+                // 重置所有颜色干扰，确保黑色字体清晰
+                wordEl.style.webkitTextFillColor = "initial"; 
+                wordEl.style.background = "none";
                 wordEl.style.color = "var(--text)";
             }
 
