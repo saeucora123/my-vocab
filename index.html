@@ -557,7 +557,7 @@
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v1.5</div>
+<div class="watermark">软件制作者微信 Saeuco v1.3</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -1222,7 +1222,7 @@
             const sentenceEl = document.getElementById('currentSentence');
             const noCtxMsg = document.getElementById('noContextMsg');
             if (currentCard.sentence) {
-                sentenceEl.innerText = currentCard.sentence;
+                sentenceEl.innerHTML = currentCard.sentence; // ✅ 改成 innerHTML，<b> 就会变成粗体
                 document.getElementById('contextContent').classList.remove('hidden');
                 noCtxMsg.classList.add('hidden');
             } else {
