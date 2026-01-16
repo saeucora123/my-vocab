@@ -181,19 +181,23 @@
         }
 
         .word-text {
-            font-size: 36px; /* ✅ 改大字号，手机看更爽 */
+            font-size: 40px; /* 增大字号 */
             font-weight: 800; 
-            margin-bottom: 4px; /* ✅ 减小下方空隙，紧贴解释行 */
-            letter-spacing: 0; 
-            line-height: 1.2; /* ✅ 紧凑行高 */
+            margin-bottom: 8px; 
+            letter-spacing: -0.5px; /*稍微紧凑一点，防止单词太长换行*/
+            line-height: 1.1; 
             background: linear-gradient(135deg, #1d1d1f 0%, #434344 100%); 
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent; 
-            word-break: break-word; 
-            overflow-wrap: break-word;
+            
+            /* 布局核心修复：居中，且内部元素不轻易换行 */
+            text-align: center;
+            white-space: normal; 
+            word-wrap: break-word;
+            
             cursor: pointer;
             color: var(--text);
-            display: block; /* ✅ 强制独占一行 */
+            display: block; 
             width: 100%;
         }
         
@@ -1126,12 +1130,17 @@
                 if (currentCard.morphemes && currentCard.morphemes.root) {
                     const m = currentCard.morphemes;
                     
-                    // 1. 大字部分：只提取拼写 (split截取掉解释)
-                    const pText = m.prefix ? m.prefix.split('(')[0].trim() : "";
-                    const sText = m.suffix ? m.suffix.split('(')[0].trim() : "";
+                    // 1. 大字部分：彻底清洗所有部分的解释文本 (正则去除括号及内容)
+                    // 修复Bug：之前漏了处理 m.root，导致长解释出现在大字里
+                    const clean = (str) => str ? str.replace(/\s*\(.*?\)/g, '').trim() : "";
+
+                    const pText = clean(m.prefix);
+                    const rText = clean(m.root); // ✅ 关键修复：清洗词根
+                    const sText = clean(m.suffix);
                     
                     const p = pText ? `<span style="color:#d63384;">${pText}</span>` : '';
-                    const r = `<span style="font-weight:800; border-bottom:2px solid var(--accent); color:var(--text)">${m.root}</span>`;
+                    // 显示清洗后的 rText，而不是原始的 m.root
+                    const r = `<span style="font-weight:800; border-bottom:2px solid var(--accent); color:var(--text);">${rText}</span>`;
                     const s = sText ? `<span style="color:#007aff;">${sText}</span>` : '';
                     
                     // 2. 小字部分：显示完整的词源解释，拼接成 "un-(not) · happy · ..." 的格式
