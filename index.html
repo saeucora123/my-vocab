@@ -557,7 +557,7 @@
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v1.5</div>
+<div class="watermark">软件制作者微信 Saeuco v1.6</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -855,22 +855,24 @@
 6.句子中**必须**包含明确的逻辑线索（如同义词复现、反义词对比、因果解释），让学生即使没见过这个词，读了句子也能猜出这个空应该填什么意思。
 
 【核心指令 2：自我参照效应 (Self-Reference)】
-1.  生成一个 "self_ref" 问题，引导用户将该词与个人生活经历挂钩。
-2.  格式示例："When was the last time you felt...?" 或 "If you could change..., would you...?"
+1.  **Target**: Generate a sharp, analytical question in **English only**.
+2.  **Style**: Do NOT use labels like "Logic Application" or "Self-Reflection". Go straight to the question.
+3.  **Content**: Ask the user to verify the word's logic in their own life systems. (e.g., "Does your current coding habit align with the 'public declaration' logic of this word?")
 
 【核心指令 3：深度思维编码 (Deep Coding)】
-1.  **contrast (必需)**: 必须指出该词在中英思维上的核心差异（例如：中文侧重结果，该词侧重过程）。
-2.  **trap (必需)**: 必须找出一个最易混淆的近义词并进行辨析。
+1.  **mnemonic (逻辑推导)**: 严禁谐音。格式必须为数学公式风：'Root(含义) + Prefix(方向) -> 核心动作 -> 抽象引申义'。**注意：不要在 mnemonic 字段里包含 Family/词族列表，Family 请单独放在 family 字段返回。**
+2.  **contrast (必需)**: 必须指出该词在中英思维上的核心差异（中文）。
+3.  **trap (必需)**: 必须找出一个最易混淆的近义词并进行辨析（中文）。
 
 【JSON 返回结构】
 {
   "sentence": "包含逻辑连接词和 <b>词块</b> 的例句...",
   "morphemes": { "prefix": "un- (not)", "root": "help", "suffix": "-ful (full of)" }, 
   "definition": "Simple English definition (CEFR B1 level).",
-  "mnemonic": "【逻辑挂钩】拒绝谐音。请提供'词源逻辑推导链'。格式：'Root(含义) + Prefix(方向) -> 核心动作 -> 引申义'。必须像数学公式一样严谨，让用户通过'计算'词根得出含义。",
-  "socratic": "【预测误差陷阱】不要直接提示。给出一个看似矛盾的逻辑谜题，迫使已有的认知模型产生'预测误差'，从而必须用该词的新含义来解决。",
+  "mnemonic": "Root(duc: 引导) + Prefix(intro: 向内) -> 核心动作: 向内引导 -> 引申义: 介绍/引入 (Introduce)",
+  "socratic": "Why does this word imply a process rather than a result?",
   "emoji": "最精准的表情符号",
-  "self_ref": "【逻辑实例化】严禁问'你的感受'。请用【英文】设计一个'思想实验'或'行为分析题'（Must be in English）。要求用户将该词的底层逻辑（如演化链或词根义）作为一个算法，去分析自己生活中的某个具体决策或社会现象。让用户觉得：'原来我的生活中到处都在运行这个单词的逻辑'。",
+  "self_ref": "Does your current study method rely on passive input, or does it follow the logic of this word to actively construct knowledge?",
   "trap": "🚫易混: [词] 💡区别: [中文简述]",
   "writing": "一个通用高分作文句型(含中文)",
   "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
@@ -888,20 +890,23 @@
 4. **线索闭环**：⚠️至关重要！虽然句子很长，但必须保证通过句内的逻辑（Contextual Clues）推导出该单词。
 
 【核心指令 2：自我参照效应 (Self-Reference)】
-1.  生成一个 "self_ref" 问题，引导用户思考该词在社会现象或个人价值观中的体现。
+1.  **Target**: Generate a philosophical or structural question in **English only**.
+2.  **Style**: Do NOT use labels. Direct, high-level inquiry.
+3.  **Content**: Challenge the user to evaluate a societal phenomenon or personal value using the word's core logic.
 
 【核心指令 3：深度思维编码 (Deep Coding)】
-1.  **contrast (必需)**: 必须指出该词在中英思维上的核心差异（例如：中文侧重结果，该词侧重过程）。
-2.  **trap (必需)**: 必须找出一个最易混淆的近义词并进行辨析。
+1.  **mnemonic**: 仅输出'物理图景'到'抽象逻辑'的演化推导链。**不要包含词族列表。**
+2.  **contrast (必需)**: 指出中英思维差异(中文)。
+3.  **trap (必需)**: 近义词辨析(中文)。
 
 【JSON 返回结构】
 {
   "sentence": "包含复杂句法和 <b>核心搭配</b> 的考研级例句...",
   "definition": "Academic English definition.",
-  "mnemonic": "【概念演化链】不要简单的拆解。请描述该词从最原始的'物理图景'（Physical Image）如何一步步隐喻演变为现代的'抽象逻辑'（Abstract Logic）。这种'演化史'能满足流体智力的模式识别需求。",
-  "socratic": "【认知冲突】提出一个反直觉的问题，让用户意识到自己当前对该词的字面理解是错误的（制造 Negative Prediction Error），从而渴望修正。",
+  "mnemonic": "物理图景: 向下按压 (Press down) -> 抽象演化: 镇压反叛或克制情绪 (Suppress)",
+  "socratic": "Why is this word used for political contexts but rarely for personal relationships?",
   "emoji": "抽象概念的具体化Emoji",
-  "self_ref": "引导深度思考的英文问题 (e.g., How does [concept] affect your daily decision...?)",
+  "self_ref": "Does the structural limitation of your environment force you to adapt, or do you actively reshape the structure?",
   "trap": "🚫易混: [近义词] 💡考点: [中文辨析]",
   "writing": "可用于考研大作文的论证句(含中文)",
   "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
