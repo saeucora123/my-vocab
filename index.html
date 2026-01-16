@@ -409,7 +409,8 @@
     <div id="inputSection" class="input-section">
         <div class="input-wrapper">
             <div class="input-row">
-                <input type="text" id="newWordInput" placeholder="Word (e.g., serendipity)" onkeypress="handleEnter(event)">
+                <!-- 修复：增加 oninput 监听，一旦用户修改单词，立即清空旧的 AI 缓存数据 -->
+                <input type="text" id="newWordInput" placeholder="Word (e.g., serendipity)" onkeypress="handleEnter(event)" oninput="resetTempData()">
                 <!-- 修改：拆分为两个按钮，分别传入 'simple' 和 'advanced' 参数，并传入 this 以便显示加载动画 -->
                 <button class="icon-btn" onclick="autoFetchContext('new', 'simple', this)" title="🌱 Simple Context (4k vocab)" style="width: auto; padding: 0 10px; font-size: 14px;">
                     🌱 简单
@@ -534,7 +535,7 @@
     </div>
 </div>
 
-<div class="watermark">该软件制作者微信 Saeuco v1.2</div>
+<div class="watermark">软件制作者微信 Saeuco v1.3</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -672,6 +673,8 @@
     let tempTrap = "";     // 新增：暂存易混辨析
     let tempWriting = "";  // 新增：暂存作文例句
     let tempContrast = ""; // 【新增】暂存思维差异
+    let tempMorphemes = null; // 【修复】添加全局变量
+    let tempFamily = "";      // 【修复】添加全局变量
 
     const p = {
         w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
@@ -833,6 +836,10 @@
 1.  生成一个 "self_ref" 问题，引导用户将该词与个人生活经历挂钩。
 2.  格式示例："When was the last time you felt...?" 或 "If you could change..., would you...?"
 
+【核心指令 3：深度思维编码 (Deep Coding)】
+1.  **contrast (必需)**: 必须指出该词在中英思维上的核心差异（例如：中文侧重结果，该词侧重过程）。
+2.  **trap (必需)**: 必须找出一个最易混淆的近义词并进行辨析。
+
 【JSON 返回结构】
 {
   "sentence": "包含逻辑连接词和 <b>词块</b> 的例句...",
@@ -860,6 +867,10 @@
 
 【核心指令 2：自我参照效应 (Self-Reference)】
 1.  生成一个 "self_ref" 问题，引导用户思考该词在社会现象或个人价值观中的体现。
+
+【核心指令 3：深度思维编码 (Deep Coding)】
+1.  **contrast (必需)**: 必须指出该词在中英思维上的核心差异（例如：中文侧重结果，该词侧重过程）。
+2.  **trap (必需)**: 必须找出一个最易混淆的近义词并进行辨析。
 
 【JSON 返回结构】
 {
@@ -895,7 +906,10 @@
             
             // 修复：DeepSeek 有时会返回 Markdown 代码块，需要过滤
             let rawContent = data.choices[0].message.content;
-            rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+            // 【修改】正则提取：只取第一个大括号及内部内容，防止 AI 废话导致解析失败
+            const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+            if (jsonMatch) rawContent = jsonMatch[0];
+            
             const result = JSON.parse(rawContent);
 
             sentenceEl.value = result.sentence;
@@ -944,6 +958,8 @@
         const sentence = sInput.value.trim();
 
         if (!word) return;
+        // 【修改】千万不要在这里重新定义 tempMorphemes，否则会清空 AI 的数据！
+        // let tempMorphemes = null; let tempFamily = "";  <-- 这一行已删除
         if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
             alert("Word already exists!");
             return;
@@ -956,11 +972,19 @@
         sInput.value = '';
         // 重置所有临时变量
         tempAutoDefinition = ""; tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; tempTrap = ""; tempWriting = ""; tempSelfRef = ""; tempContrast = "";
+        tempMorphemes = null; tempFamily = ""; // 【修改】这里才需要重置它们
         
         // 【修改】只保存当前这一张卡片到数据库
         const newCard = deck[deck.length - 1];
         db.saveCard(newCard);
         render(); // 仅刷新界面，不进行全量保存
+    }
+
+    // 【修复】新增函数：当用户修改输入框文字时，必须清空之前 AI 生成的临时数据，防止"张冠李戴"
+    function resetTempData() {
+        tempAutoDefinition = ""; tempMorphemes = null; tempFamily = ""; 
+        tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; 
+        tempTrap = ""; tempWriting = ""; tempSelfRef = ""; tempContrast = "";
     }
 
     // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
@@ -979,7 +1003,10 @@
             
             if (semanticSet.has(root)) {
                 console.log(`Semantic Interlock: Deferring '${card.word}' due to conflict.`);
-                continue; // 跳过此卡片，不放入本次复习队列
+                // 【修复】真正的推迟逻辑：必须修改数据库中的 due 时间到明天，否则刷新后它又会弹出来
+                card.due = now + 86400000; // +24小时
+                db.saveCard(card); // 写入数据库
+                continue; // 跳过此卡片
             }
             semanticSet.add(root);
             dueCards.push(card);
@@ -1825,6 +1852,9 @@
     }
 
     function openEditModal(id) {
+        // 【修复】打开编辑窗口时，必须清空上次残留的临时编辑数据，防止污染当前卡片
+        tempEditData = {}; 
+
         const card = deck.find(c => c.id === id);
         if(!card) return;
         document.getElementById('editCardId').value = card.id;
