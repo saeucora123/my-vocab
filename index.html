@@ -661,6 +661,7 @@
     };
     // ====== 这里是新增的 AI 配置 (结束) ======
     let currentCard = null;
+    let tempEditData = {};     // 【新增】专门用于暂存编辑模式下 AI 生成的数据
     let currentConfidence = 0; // 【新增】用户自信度 (1:盲猜, 2:不确定, 3:确定)
     let scaffoldLevel = 0;     // 【新增】拼写提示等级 (每错一次显示更多字母)
     let tempAutoDefinition = ""; // Store auto-fetched definition before adding
@@ -916,6 +917,16 @@
                 let aiMnemonic = result.mnemonic || "";
                 if(result.family) aiMnemonic += `\n[Family: ${result.family}]`;
                 document.getElementById('editMnemonicInput').value = aiMnemonic;
+
+                // 【新增】暂存 AI 返回的高级数据，等待保存时写入
+                tempEditData = {
+                    morphemes: result.morphemes,
+                    family: result.family,
+                    trap: result.trap,
+                    writing: result.writing,
+                    contrast: result.contrast,
+                    selfRef: result.self_ref
+                };
             }
         } catch (err) {
             console.error(err);
@@ -933,7 +944,6 @@
         const sentence = sInput.value.trim();
 
         if (!word) return;
-        let tempMorphemes = null; let tempFamily = "";
         if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
             alert("Word already exists!");
             return;
@@ -1841,6 +1851,17 @@
             deck[cardIndex].definition = newDef;
             deck[cardIndex].mnemonic = newMnemonic; // Save mnemonic
             
+            // 【新增】检查并合并编辑期间 AI 生成的新高级数据
+            if (tempEditData && Object.keys(tempEditData).length > 0) {
+                if(tempEditData.morphemes) deck[cardIndex].morphemes = tempEditData.morphemes;
+                if(tempEditData.family) deck[cardIndex].family = tempEditData.family;
+                if(tempEditData.trap) deck[cardIndex].trap = tempEditData.trap;
+                if(tempEditData.writing) deck[cardIndex].writing = tempEditData.writing;
+                if(tempEditData.contrast) deck[cardIndex].contrast = tempEditData.contrast;
+                if(tempEditData.selfRef) deck[cardIndex].selfRef = tempEditData.selfRef;
+                tempEditData = {}; // 用完即焚，清空数据
+            }
+
             // 【修改】改为单条保存
             db.saveCard(deck[cardIndex]);
             
