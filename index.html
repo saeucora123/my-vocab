@@ -520,10 +520,7 @@
                 <button class="action-btn" style="background:#34c759; color:white; flex:1;" onclick="revealAnswer(3)">😎 完全确定</button>
             </div>
 
-            <button id="exploreDetailsBtn" class="action-btn hidden" style="width:100%; margin-top:10px; background:#e5e5ea; color:#007aff; font-size:14px;" onclick="revealDeepInfo()">
-                ✨ Explore Context & Tools (Deep Dive)
-            </button>
-
+            <!-- 新增：辨析与作文扩展工具栏 -->
             <div id="deepLearningTools" class="hidden" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
                 <button class="action-btn" style="background:#6c757d; flex:1; padding:10px; font-size:12px; min-width:45%;" onclick="fetchDeepContext('trap', this)">🆚 易混辨析</button>
                 <button class="action-btn" style="background:#5856d6; flex:1; padding:10px; font-size:12px; min-width:45%;" onclick="fetchDeepContext('writing', this)">✍️ 作文神句</button>
@@ -560,7 +557,7 @@
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v1.6</div>
+<div class="watermark">软件制作者微信 Saeuco v1.8</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -614,28 +611,6 @@
 </div>
 
 <script>
-    // 【新增】渐进式揭示逻辑：点击后才显示高阶信息
-    function revealDeepInfo() {
-        // 1. 隐藏探索按钮本身
-        document.getElementById('exploreDetailsBtn').classList.add('hidden');
-        
-        // 2. 依次展开被折叠的区域
-        // 如果有助记法，显示
-        if(document.getElementById('currentMnemonic').innerText !== "无助记法") {
-            document.getElementById('mnemonicArea').classList.remove('hidden');
-        }
-        
-        // 显示自我参照
-        document.getElementById('selfRefArea').classList.remove('hidden');
-        
-        // 显示深度工具栏 (作文、辨析等)
-        document.getElementById('deepLearningTools').classList.remove('hidden');
-        
-        // 3. 滚动页面到底部，确保用户看到新出来的内容
-        setTimeout(() => {
-            document.getElementById('deepLearningTools').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
-    }
     // --- 1. Global State & FSRS Parameters ---
     let ocrWorker = null;
     let deck = [];
@@ -1208,7 +1183,6 @@
             document.getElementById('definitionArea').classList.add('hidden');
             document.getElementById('mnemonicArea').classList.add('hidden'); // 隐藏助记法
             document.getElementById('contextArea').classList.add('hidden'); 
-            document.getElementById('exploreDetailsBtn').classList.add('hidden'); // 【新增】重置探索按钮
             
             // 【修改】逻辑：复习卡隐藏，新词(New Card)立即显示 Self-Ref 以激活情景记忆
             const srArea = document.getElementById('selfRefArea');
@@ -1426,7 +1400,7 @@
                  mEl.innerText = "无助记法";
                  mEl.className = "";
              }
-             // document.getElementById('mnemonicArea').classList.remove('hidden'); // 【修改】暂不显示助记法
+             document.getElementById('mnemonicArea').classList.remove('hidden');
         }
         
         // Self-Reference (自我参照)
@@ -1444,10 +1418,10 @@
                         <div style="font-style:italic; color:#333; font-size:15px;">"${currentCard.selfRef}"</div>
                     </div>
                 </div>`;
-            // srArea.classList.remove('hidden'); // 【修改】暂不显示
+            srArea.classList.remove('hidden');
         } else {
             // 【修改】如果没有数据，不再隐藏，而是显示生成按钮
-            // srArea.classList.remove('hidden'); // 【修改】暂不显示
+            srArea.classList.remove('hidden');
             srText.className = ""; 
             srText.innerHTML = `<button class="action-btn" style="background:#fff7e6; color:#d46b08; border:1px solid #ffd591; width:100%; font-size:12px; padding:8px;" onclick="fetchMissingField('selfRef', this)">⚡ Generate Self-Reflection</button>`;
         }
@@ -1477,10 +1451,8 @@
         document.getElementById('semanticCheck').classList.add('hidden');
         document.getElementById('ratingButtons').classList.remove('hidden');
         
-        // 【修改】渐进式揭示：不直接显示工具栏，而是显示探索按钮
-        // document.getElementById('deepLearningTools').classList.remove('hidden');
-        document.getElementById('exploreDetailsBtn').classList.remove('hidden'); // <--- 显示“探索更多”按钮
-        
+        // 新增：显示深度学习工具栏
+        document.getElementById('deepLearningTools').classList.remove('hidden');
         document.getElementById('deepContent').innerHTML = ""; // 清空上次内容
 
         // 4. (Smart Feature) If no definition exists (old cards), try to fetch it now
