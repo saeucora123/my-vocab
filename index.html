@@ -1107,6 +1107,11 @@
             document.getElementById('mnemonicArea').classList.add('hidden'); // 隐藏助记法
             document.getElementById('contextArea').classList.add('hidden'); 
             
+            // 【修复】强制清空上一张卡片的残留内容
+            document.getElementById('selfRefArea').classList.add('hidden'); 
+            document.getElementById('currentSelfRef').innerHTML = ""; 
+            document.getElementById('deepLearningTools').classList.add('hidden');
+
             // 2. Hide Ratings, Show "Show Answer"
             document.getElementById('ratingButtons').classList.add('hidden');
             document.getElementById('showAnswerBtn').classList.remove('hidden');
