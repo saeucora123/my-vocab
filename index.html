@@ -181,19 +181,27 @@
         }
 
         .word-text {
-            font-size: 26px; /* ⬇️ 从 48px 改为 26px，适应长句显示 */
-            font-weight: 700; 
-            margin-bottom: 12px;
-            letter-spacing: 0; /* 恢复正常间距 */
-            line-height: 1.5; /* ⬇️ 增加行高，让多行文字呼吸感更强 */
+            font-size: 36px; /* ✅ 改大字号，手机看更爽 */
+            font-weight: 800; 
+            margin-bottom: 4px; /* ✅ 减小下方空隙，紧贴解释行 */
+            letter-spacing: 0; 
+            line-height: 1.2; /* ✅ 紧凑行高 */
             background: linear-gradient(135deg, #1d1d1f 0%, #434344 100%); 
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent; 
-            word-break: normal; /* ⬇️ 修复：保持单词完整 */
-            overflow-wrap: break-word; /* ⬇️ 只有行末放不下才换行 */
+            word-break: break-word; 
+            overflow-wrap: break-word;
             cursor: pointer;
             color: var(--text);
+            display: block; /* ✅ 强制独占一行 */
+            width: 100%;
         }
+        
+        /* ✅ 新增：下方小字的样式 */
+        .etymology-line { font-size: 13px; color: #86868b; margin-bottom: 15px; font-weight: 400; line-height: 1.4; display: block; }
+        /* ✅ 新增：Emoji 单独一行的样式 */
+        .emoji-badge { display: block; font-size: 28px; margin-bottom: 5px; }
+
 .word-text:active { color: var(--accent); transform: scale(0.98); }
 
         .pronounce-hint { font-size: 12px; color: var(--subtext); margin-bottom: 20px; min-height: 18px; } /* 增加了 min-height 防止抖动 */
@@ -1112,22 +1120,38 @@
                 wordEl.style.color = "#333"; 
             } else {
                 // 【Expert Visual】形态学合成器 (Morphological Synthesizer)
-            // 新词展示时，不再是单纯的字符串，而是拆解的“逻辑积木”
-            const emojiHtml = currentCard.emoji ? `<span class="emoji-icon">${currentCard.emoji}</span>` : "";
-            
-            if (currentCard.morphemes && currentCard.morphemes.root) {
-                const m = currentCard.morphemes;
-                // 简单的视觉拆解：前缀(粉色) + 词根(主色) + 后缀(蓝色)
-                const p = m.prefix ? `<span style="color:#d63384; opacity:0.8">${m.prefix.split(' ')[0]}</span>` : '';
-                const r = `<span style="font-weight:800; border-bottom:2px solid var(--accent)">${m.root}</span>`;
-                const s = m.suffix ? `<span style="color:#007aff; opacity:0.8">${m.suffix.split(' ')[0]}</span>` : '';
+                // 新词展示时，不再是单纯的字符串，而是拆解的“逻辑积木”
+                const emojiHtml = currentCard.emoji ? `<div class="emoji-badge">${currentCard.emoji}</div>` : "";
                 
-                wordEl.innerHTML = `${emojiHtml} <div style="display:inline-block; font-family:'Courier New', monospace; letter-spacing:-1px">${p}${r}${s}</div>`;
-            } else {
-                // 旧数据兼容
-                wordEl.innerHTML = `${emojiHtml}${currentCard.word} <span style="font-size:0.5em; opacity:0.6; margin-left:5px;">🔊</span>`;
-            }
-            wordEl.style.color = "var(--text)";
+                if (currentCard.morphemes && currentCard.morphemes.root) {
+                    const m = currentCard.morphemes;
+                    
+                    // 1. 大字部分：只提取拼写 (split截取掉解释)
+                    const pText = m.prefix ? m.prefix.split('(')[0].trim() : "";
+                    const sText = m.suffix ? m.suffix.split('(')[0].trim() : "";
+                    
+                    const p = pText ? `<span style="color:#d63384;">${pText}</span>` : '';
+                    const r = `<span style="font-weight:800; border-bottom:2px solid var(--accent); color:var(--text)">${m.root}</span>`;
+                    const s = sText ? `<span style="color:#007aff;">${sText}</span>` : '';
+                    
+                    // 2. 小字部分：显示完整的词源解释，拼接成 "un-(not) · happy · ..." 的格式
+                    let parts = [];
+                    if (m.prefix) parts.push(m.prefix);
+                    parts.push(`<b>${m.root}</b>`);
+                    if (m.suffix) parts.push(m.suffix);
+                    const etymoHtml = `<div class="etymology-line">${parts.join(' · ')}</div>`;
+
+                    // 组合显示
+                    wordEl.innerHTML = `${emojiHtml} <div style="font-family:'Courier New', monospace; letter-spacing:-1px">${p}${r}${s}</div>${etymoHtml}`;
+                    
+                    // ✅ 关键：这里要重置颜色的填充，否则大字会被 CSS 里的渐变覆盖导致看不到彩色前缀
+                    wordEl.style.webkitTextFillColor = "initial"; 
+                } else {
+                    // 旧数据兼容
+                    wordEl.innerHTML = `${emojiHtml} <div>${currentCard.word}</div>`;
+                    wordEl.style.webkitTextFillColor = "transparent"; // 恢复渐变
+                }
+                wordEl.style.color = "var(--text)";
             }
 
         // 【新增】苏格拉底提问展示
