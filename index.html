@@ -1111,19 +1111,22 @@
                 wordEl.style.color = "#333"; 
             } else {
                 // 【Expert Visual】形态学合成器 (Morphological Synthesizer)
-                // 新词展示时，不再是单纯的字符串，而是拆解的“逻辑积木”
-                const emojiHtml = currentCard.emoji ? `<span class="emoji-icon">${currentCard.emoji}</span>` : "";
+            // 新词展示时，不再是单纯的字符串，而是拆解的“逻辑积木”
+            const emojiHtml = currentCard.emoji ? `<span class="emoji-icon">${currentCard.emoji}</span>` : "";
+            
+            if (currentCard.morphemes && currentCard.morphemes.root) {
+                const m = currentCard.morphemes;
+                // 简单的视觉拆解：前缀(粉色) + 词根(主色) + 后缀(蓝色)
+                const p = m.prefix ? `<span style="color:#d63384; opacity:0.8">${m.prefix.split(' ')[0]}</span>` : '';
+                const r = `<span style="font-weight:800; border-bottom:2px solid var(--accent)">${m.root}</span>`;
+                const s = m.suffix ? `<span style="color:#007aff; opacity:0.8">${m.suffix.split(' ')[0]}</span>` : '';
                 
-                if (currentCard.morphemes && currentCard.morphemes.root) {
-                    const m = currentCard.morphemes;
-                    
-                    // 辅助函数：分离 "re- (again)" 中的 "re-" 和 "(again)"
-                    const splitMorph = (str) => {
-                        if (!str)
-                    // 旧数据兼容
-                    wordEl.innerHTML = `${emojiHtml}${currentCard.word} <span style="font-size:0.5em; opacity:0.6; margin-left:5px;">🔊</span>`;
-                }
-                wordEl.style.color = "var(--text)";
+                wordEl.innerHTML = `${emojiHtml} <div style="display:inline-block; font-family:'Courier New', monospace; letter-spacing:-1px">${p}${r}${s}</div>`;
+            } else {
+                // 旧数据兼容
+                wordEl.innerHTML = `${emojiHtml}${currentCard.word} <span style="font-size:0.5em; opacity:0.6; margin-left:5px;">🔊</span>`;
+            }
+            wordEl.style.color = "var(--text)";
             }
 
         // 【新增】苏格拉底提问展示
