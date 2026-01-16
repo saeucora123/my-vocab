@@ -181,16 +181,16 @@
         }
 
         .word-text {
-            font-size: 32px; /* ⬇️ 调小字号，既看得清又能容纳长句 */
+            font-size: 26px; /* ⬇️ 从 48px 改为 26px，适应长句显示 */
             font-weight: 700; 
             margin-bottom: 12px;
-            letter-spacing: -0.5px; /* ⬇️ 稍微放松字间距，防止挤在一起 */
-            line-height: 1.4; /* ⬇️ 增加行高，让多行文本呼吸感更强 */
+            letter-spacing: 0; /* 恢复正常间距 */
+            line-height: 1.5; /* ⬇️ 增加行高，让多行文字呼吸感更强 */
             background: linear-gradient(135deg, #1d1d1f 0%, #434344 100%); 
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent; 
-            word-break: normal; /* ⬇️ 修复：保持单词完整，不在单词中间强行切断 */
-            overflow-wrap: break-word; /* ⬇️ 新增：只有单词太长一行放不下时才换行 */
+            word-break: normal; /* ⬇️ 修复：保持单词完整 */
+            overflow-wrap: break-word; /* ⬇️ 只有行末放不下才换行 */
             cursor: pointer;
             color: var(--text);
         }
