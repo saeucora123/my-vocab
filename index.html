@@ -181,15 +181,16 @@
         }
 
         .word-text {
-            font-size: 48px; /* 进一步加大，增强冲击力 */
-            font-weight: 700; /* 稍微减重，避免笨重感 */
+            font-size: 32px; /* ⬇️ 调小字号，既看得清又能容纳长句 */
+            font-weight: 700; 
             margin-bottom: 12px;
-            letter-spacing: -1.2px; /* 更紧凑的字间距，显得更高级 */
-            line-height: 1.1;
-            background: linear-gradient(135deg, #1d1d1f 0%, #434344 100%); /* 渐变黑色文字 */
+            letter-spacing: -0.5px; /* ⬇️ 稍微放松字间距，防止挤在一起 */
+            line-height: 1.4; /* ⬇️ 增加行高，让多行文本呼吸感更强 */
+            background: linear-gradient(135deg, #1d1d1f 0%, #434344 100%); 
             -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent; /* 配合渐变背景 */
-            word-break: break-all;
+            -webkit-text-fill-color: transparent; 
+            word-break: normal; /* ⬇️ 修复：保持单词完整，不在单词中间强行切断 */
+            overflow-wrap: break-word; /* ⬇️ 新增：只有单词太长一行放不下时才换行 */
             cursor: pointer;
             color: var(--text);
         }
