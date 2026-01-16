@@ -557,7 +557,7 @@
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v1.8</div>
+<div class="watermark">软件制作者微信 Saeuco v1.6</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -798,7 +798,6 @@
             morphemes: morphemes || { prefix: "", root: word.trim(), suffix: "" }, 
             family: family ? family.trim() : "", // 词族网络
             sentence: sentence.trim(),
-            sentence: sentence.trim(),
             contrast: contrast ? contrast.trim() : "", // 【新增】存储思维差异
             definition: definition.trim(),
             mnemonic: mnemonic.trim(), 
@@ -981,15 +980,16 @@
     function addWord() {
         const wInput = document.getElementById('newWordInput');
         const sInput = document.getElementById('newSentenceInput');
-        const word = wInput.value.trim();
-        const sentence = sInput.value.trim();
+    const word = wInput.value.trim();
+    const sentence = sInput.value.trim();
 
-        if (!word) return;
-        // 【修改】千万不要在这里重新定义 tempMorphemes，否则会清空 AI 的数据！
-        // let tempMorphemes = null; let tempFamily = "";  <-- 这一行已删除
-        if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
-            alert("Word already exists!");
-            return;
+    if (!word) return;
+
+    // 逻辑修复：确保直接使用全局变量 tempMorphemes，不要在函数内重新声明(let/const)同名变量
+    
+    if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
+        alert("Word already exists!");
+        return;
         }
 
         // 修改：传入 morphemes 和 family (注意顺序要和 createCardObject 一致)
