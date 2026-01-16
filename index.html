@@ -562,7 +562,7 @@
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v2.2</div>
+<div class="watermark">软件制作者微信 Saeuco v2.3</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -1032,25 +1032,10 @@
         const now = Date.now();
         let rawDueCards = deck.filter(c => c.due <= now).sort((a, b) => a.due - b.due);
         
-        // 【Expert Kernel】语义干扰拦截器 (Semantic Interference Blocker)
-        // 简单的客户端实现：如果有两个词长得太像（例如前4个字母相同），强制把第二个推迟到明天。
-        const dueCards = [];
-        const semanticSet = new Set();
-        
-        for (const card of rawDueCards) {
-            // 提取简易词根 (前4个字母) 或使用 family 字段(如果有)
-            const root = card.word.length > 4 ? card.word.substring(0, 4).toLowerCase() : card.word.toLowerCase();
-            
-            if (semanticSet.has(root)) {
-                console.log(`Semantic Interlock: Deferring '${card.word}' due to conflict.`);
-                // 【修复】真正的推迟逻辑：必须修改数据库中的 due 时间到明天，否则刷新后它又会弹出来
-                card.due = now + 86400000; // +24小时
-                db.saveCard(card); // 写入数据库
-                continue; // 跳过此卡片
-            }
-            semanticSet.add(root);
-            dueCards.push(card);
-        }
+        // 【修改】已移除语义干扰拦截器
+        // 原有逻辑过于粗暴（误伤 apple/apply），且人为隔开形近词（adapt/adopt）反而不利于对比记忆。
+        // 直接让所有到期卡片正常显示，依靠大脑进行辨析。
+        const dueCards = rawDueCards;
 
         // 【新增】Apollo's Prophecy & CMRR Display
         // 1. 计算"明天"的整体记忆保留率 (基于所有复习过的卡片)
