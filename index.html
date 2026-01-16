@@ -544,7 +544,7 @@
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v1.4</div>
+<div class="watermark">软件制作者微信 Saeuco v1.3</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -1116,25 +1116,10 @@
                 
                 if (currentCard.morphemes && currentCard.morphemes.root) {
                     const m = currentCard.morphemes;
-                    // 优化：统一字号，移除 font-size:0.7em，使用稍淡的灰色 (#8e8e93) 表示词缀
-                    const p = m.prefix ? `<span style="color:#8e8e93; font-weight:500;">${m.prefix}</span>` : "";
                     
-                    // 核心：移除 border 和 padding，仅用颜色 (#ff3b30) 和 字重 (800) 突出词根
-                    // 增加 letter-spacing: -0.5px 让单词看起来更紧凑，符合格式塔连续性
-                    const r = `<span style="color:#ff3b30; font-weight:800; letter-spacing:-0.5px;">${m.root}</span>`;
-                    
-                    const s = m.suffix ? `<span style="color:#8e8e93; font-weight:500;">${m.suffix}</span>` : "";
-                    
-                    wordEl.innerHTML = `
-                        <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
-                            ${emojiHtml}
-                            <!-- 增大字号至 42px，flex 布局保证绝对对齐，像一个真正的单词 -->
-                            <div style="font-size:42px; line-height:1.2; display:flex; justify-content:center; align-items:baseline;">
-                                ${p}${r}${s}
-                            </div>
-                            <!-- 已删除原本在这里的蓝色虚线框 (Pre-test div)，界面更清爽 -->
-                        </div>`;
-                } else {
+                    // 辅助函数：分离 "re- (again)" 中的 "re-" 和 "(again)"
+                    const splitMorph = (str) => {
+                        if (!str)
                     // 旧数据兼容
                     wordEl.innerHTML = `${emojiHtml}${currentCard.word} <span style="font-size:0.5em; opacity:0.6; margin-left:5px;">🔊</span>`;
                 }
