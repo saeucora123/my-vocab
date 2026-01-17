@@ -268,7 +268,7 @@
         body.survival-focus .action-btn { filter: desaturate(60%); } /* 降低按钮鲜艳度 */
         body.survival-focus .footer-info, 
         body.survival-focus .edit-card-btn,
-        body.survival-focus .mastery-bar-container { opacity: 0.1; pointer-events: none; } /* 隐藏干扰项 */
+        body.survival-focus .mastery-bar-container { opacity: 0.4; pointer-events: none; } /* 隐藏干扰项 */
 
         .context-sentence {
             font-size: 19px; /* 加大字号，提升易读性 */
@@ -2184,7 +2184,7 @@
     function checkSemantic(type) {
         // 简单的视觉反馈，点击后高亮一下，然后自动显示答案
         const btns = document.querySelectorAll('#semanticCheck .action-btn');
-        btns.forEach(b => b.style.opacity = '0.5');
+        btns.forEach(b => b.style.opacity = '0.3');
         
         // 选中项高亮
         const targetBtn = Array.from(btns).find(b => b.getAttribute('onclick').includes(type));
