@@ -562,7 +562,7 @@
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v2.4</div>
+<div class="watermark">软件制作者微信 Saeuco v2.3</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -2184,7 +2184,7 @@
     function checkSemantic(type) {
         // 简单的视觉反馈，点击后高亮一下，然后自动显示答案
         const btns = document.querySelectorAll('#semanticCheck .action-btn');
-        btns.forEach(b => b.style.opacity = '0.3');
+        btns.forEach(b => b.style.opacity = '0.5');
         
         // 选中项高亮
         const targetBtn = Array.from(btns).find(b => b.getAttribute('onclick').includes(type));
