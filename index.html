@@ -598,13 +598,20 @@
             <span class="text-link" onclick="exportData()">⬇ Export</span>
             <span class="text-link" onclick="triggerImport()">⬆ Import</span>
             <span class="text-link" onclick="openSettings()">⚙️ Params</span>
+            <span class="text-link" onclick="switchAccount()">👤 User</span>
             <span class="text-link" style="color: var(--danger);" onclick="clearData()">Reset</span>
         </div>
         <input type="file" id="importJsonInput" accept=".json" onchange="handleFileImport(event)" style="display:none;">
+
+        <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
+            <button id="btnUploadCloud" onclick="syncToCloud()" style="background:#007aff; color:white; border:none; padding:8px 16px; border-radius:20px; font-size:12px; cursor:pointer;">☁️ Upload Sync</button>
+            <button id="btnDownloadCloud" onclick="syncFromCloud()" style="background:#34c759; color:white; border:none; padding:8px 16px; border-radius:20px; font-size:12px; cursor:pointer;">📥 Download Sync</button>
+        </div>
+        </div>
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v2.6</div>
+<div class="watermark">软件制作者微信 Saeuco v2.5</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -2312,6 +2319,118 @@
             btn.innerText = originalText;
         }
     }
+
+
+// ====== ☁️ 极简云同步功能 (Start) ======
+    
+    // 1. 配置你的云端密钥 (支持多账号切换)
+    // 优先读取本地存储的 ID，如果没有，就用默认的(你的ID)
+    const DEFAULT_BIN_ID = "696b87b9ae596e708fe2aa67"; // 你的默认ID
+    const USER_BIN_ID = localStorage.getItem('fsrs_user_bin_id');
+
+    const CLOUD_CONFIG = {
+        binId: USER_BIN_ID ? USER_BIN_ID : DEFAULT_BIN_ID,       
+        apiKey: "$2a$10$Yw6tMVcrl6RZaO/ZY9zyzuPXLhyvzjSDUPjH1aOXiTKBFj0ZTKl.6" // Key 你们共用一个即可
+    };
+
+    // 【新增】切换账号功能
+    function switchAccount() {
+        const currentId = CLOUD_CONFIG.binId;
+        const newId = prompt("👤 切换账号\n\n请输入新的云端 ID (Bin ID):\n(留空则恢复默认账号)", currentId);
+        
+        if (newId === null) return; // 点击取消
+
+        if (newId.trim() === "") {
+            // 恢复默认
+            localStorage.removeItem('fsrs_user_bin_id');
+            alert("已切换回【默认账号】(重启生效)");
+        } else {
+            // 切换新账号
+            localStorage.setItem('fsrs_user_bin_id', newId.trim());
+            alert("已切换到【新账号】(重启生效)\nID: " + newId);
+        }
+        // 刷新页面以应用新账号
+        location.reload();
+    }
+
+    // 2. 上传数据到云端 (覆盖云端旧数据)
+    async function syncToCloud() {
+        if (!confirm("⚠️ 确定要上传当前进度到云端吗？\n云端的旧存档将被覆盖！")) return;
+        
+        const btn = document.getElementById('btnUploadCloud');
+        const originalText = btn.innerText;
+        btn.innerText = "⏳ Uploading...";
+        
+        try {
+            // 准备要上传的数据包
+            const dataPackage = {
+                version: 2,
+                timestamp: Date.now(),
+                settings: { fsrs_weights: p.w },
+                cards: deck
+            };
+
+            const response = await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_CONFIG.binId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Master-Key': CLOUD_CONFIG.apiKey
+                },
+                body: JSON.stringify(dataPackage)
+            });
+
+            if (!response.ok) throw new Error("Upload failed");
+            alert("✅ 上传成功！你的进度已保存到云端。");
+        } catch (e) {
+            alert("❌ 上传失败: " + e.message);
+        } finally {
+            btn.innerText = originalText;
+        }
+    }
+
+    // 3. 从云端下载数据 (覆盖本地)
+    async function syncFromCloud() {
+        if (!confirm("⚠️ 确定要从云端下载进度吗？\n你当前的本地未保存进度将会丢失！")) return;
+
+        const btn = document.getElementById('btnDownloadCloud');
+        const originalText = btn.innerText;
+        btn.innerText = "⏳ Downloading...";
+
+        try {
+            // 这里的 /latest 表示获取最新版，meta=false 表示只要纯数据
+            const response = await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_CONFIG.binId}/latest?meta=false`, {
+                method: 'GET',
+                headers: {
+                    'X-Master-Key': CLOUD_CONFIG.apiKey
+                }
+            });
+
+            if (!response.ok) throw new Error("Download failed");
+            
+            const cloudData = await response.json();
+            
+            // 简单校验数据格式
+            if (!cloudData.cards) throw new Error("云端数据格式错误");
+
+            // 应用数据
+            deck = cloudData.cards;
+            if (cloudData.settings && cloudData.settings.fsrs_weights) {
+                p.w = cloudData.settings.fsrs_weights;
+                await db.saveSetting('fsrs_weights', p.w);
+            }
+            
+            await db.saveAll(deck); // 保存到本地数据库
+            render();
+            renderListContent();
+            alert(`✅ 同步成功！已加载 ${deck.length} 个单词。`);
+            
+        } catch (e) {
+            alert("❌ 下载失败: " + e.message);
+        } finally {
+            btn.innerText = originalText;
+        }
+    }
+    // ====== ☁️ 极简云同步功能 (End) ======
 
     loadDeck();
 </script>
