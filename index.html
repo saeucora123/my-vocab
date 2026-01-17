@@ -280,6 +280,8 @@
         body.survival-focus .context-sentence,
         body.survival-focus .etymology-line { 
             color: #ffffff !important; 
+            background: none !important; /* 新增：强制移除背景色 */
+            -webkit-text-fill-color: initial !important; /* 新增：强制移除文字镂空效果 */
             text-shadow: none !important; /* 核心修复：去除模糊光晕 */
             -webkit-font-smoothing: antialiased; /* iOS 字体抗锯齿优化 */
         }
@@ -1176,10 +1178,15 @@
                 const clozeHtml = `<span class="cloze-blank" style="color:#007aff; font-weight:bold; border-bottom:2px dashed #007aff;">${hintClue}___</span>`;
                 
                 const clozeSent = currentCard.sentence.replace(regex, clozeHtml);
-                wordEl.innerHTML = `<div style="font-size:22px; line-height:1.4; font-family:'Georgia';">${clozeSent}</div>`;
-                wordEl.style.color = "#333"; 
-            } else {
-                // 【Expert Visual】形态学合成器 - 极简稳定版
+            // 修改：移除 font-family 和 强制的 #333 颜色，改用 color:inherit
+            wordEl.innerHTML = `<div style="font-size:22px; line-height:1.4; color:inherit;">${clozeSent}</div>`;
+            
+            // 修改：重置背景和文字填充，防止在生存模式下看不清
+            wordEl.style.background = "none";
+            wordEl.style.webkitTextFillColor = "initial";
+            wordEl.style.color = "var(--text)"; 
+        } else {
+            // 【Expert Visual】形态学合成器 - 极简稳定版
                 // 逻辑：不再尝试用碎片拼凑单词，而是"大字显示单词，小字显示分析"
                 
                 const emojiHtml = currentCard.emoji ? `<div class="emoji-badge">${currentCard.emoji}</div>` : "";
