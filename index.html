@@ -474,7 +474,7 @@
         <div class="input-wrapper">
             <div class="input-row">
                 <!-- 修复：增加 oninput 监听，一旦用户修改单词，立即清空旧的 AI 缓存数据 -->
-                <input type="text" id="newWordInput" placeholder="Word (e.g., serendipity)" onkeypress="handleEnter(event)" oninput="resetTempData()">
+                <input type="text" id="newWordInput" placeholder="Word or Phrase (e.g., turn up)" onkeypress="handleEnter(event)" oninput="resetTempData()">
                 <!-- 修改：拆分为两个按钮，分别传入 'simple' 和 'advanced' 参数，并传入 this 以便显示加载动画 -->
                 <button class="icon-btn" onclick="autoFetchContext('new', 'simple', this)" title="🌱 Simple Context (4k vocab)" style="width: auto; padding: 0 10px; font-size: 14px;">
                     🌱 简单
@@ -890,7 +890,7 @@
         try {
             // 【Phase 2 深度优化：简单模式 Prompt】
             const promptSimple = `你是一位精通"i+1"理论的认知语言学专家，专门为词汇量约3500-4000的学生设计学习材料。
-请为单词 "${word}" 生成深度编码卡片。
+请为单词或词组 "${word}" 生成深度编码卡片。
 
 【核心指令 1：强逻辑互联例句 (Logic-Embedded Context)】
 1.  **逻辑连接词强制**：例句中**必须**包含明确的逻辑路标（如: unlike, because, caused by, similar to, despite, although）。
@@ -906,9 +906,9 @@
 3.  **Content**: Ask the user to verify the word's logic in their own life systems. (e.g., "Does your current coding habit align with the 'public declaration' logic of this word?")
 
 【核心指令 3：深度思维编码 (Deep Coding)】
-1.  **mnemonic (逻辑推导)**: 严禁谐音。格式必须为数学公式风：'Root(含义) + Prefix(方向) -> 核心动作 -> 抽象引申义'。**注意：不要在 mnemonic 字段里包含 Family/词族列表，Family 请单独放在 family 字段返回。**
+1.  **mnemonic (逻辑推导)**: 严禁谐音。若是单词，格式必须为数学公式风：'Root(含义) + Prefix(方向) -> 核心动作 -> 抽象引申义'；若是词组，请解析其字面义到实际义的隐喻逻辑。**注意：不要在 mnemonic 字段里包含 Family/词族列表，Family 请单独放在 family 字段返回。**
 2.  **contrast (必需)**: 必须指出该词在中英思维上的核心差异（中文）。
-3.  **trap (必需)**: 必须找出一个最易混淆的近义词并进行辨析（中文）。
+3.  **trap (必需)**: 必须找出一个最易混淆的近义词/形近短语并进行辨析（中文）。
 
 【JSON 返回结构】
 {
@@ -927,7 +927,7 @@
 
             // 【Phase 2 深度优化：进阶模式 Prompt】
             const promptAdvanced = `你是一位考研英语命题组长，专注于"语篇逻辑"与"长难句解析"。
-请为单词 "${word}" 生成真题级(Economist风格)的深度语料。
+请为单词或词组 "${word}" 生成真题级(Economist风格)的深度语料。
 
 【核心指令 1：句法复杂度与逻辑 (Syntactic & Logical Complexity)】
 1.  **语篇逻辑**：例句必须体现考研常见的逻辑关系（转折、让步、因果、条件）。请使用高级连接词 (e.g., Conversely, Notwithstanding, Stemming from)。
@@ -941,9 +941,9 @@
 3.  **Content**: Challenge the user to evaluate a societal phenomenon or personal value using the word's core logic.
 
 【核心指令 3：深度思维编码 (Deep Coding)】
-1.  **mnemonic**: 仅输出'物理图景'到'抽象逻辑'的演化推导链。**不要包含词族列表。**
+1.  **mnemonic**: 仅输出'物理图景'到'抽象逻辑'的演化推导链（若是词组则侧重解析来源或比喻义）。**不要包含词族列表。**
 2.  **contrast (必需)**: 指出中英思维差异(中文)。
-3.  **trap (必需)**: 近义词辨析(中文)。
+3.  **trap (必需)**: 近义词/短语辨析(中文)。
 
 【JSON 返回结构】
 {
