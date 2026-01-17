@@ -1028,6 +1028,18 @@
     }
 
     // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
+    // 【新增】安全工具函数：防止恶意脚本注入，但允许 <b> 和 <i> 标签
+    function sanitizeHTML(str) {
+        if (!str) return "";
+        const div = document.createElement('div');
+        div.innerText = str; // 让浏览器自动转义
+        let escaped = div.innerHTML;
+        // 白名单还原：只允许粗体 <b> 和斜体 <i>
+        escaped = escaped.replace(/&lt;b&gt;/g, '<b>').replace(/&lt;\/b&gt;/g, '</b>');
+        escaped = escaped.replace(/&lt;i&gt;/g, '<i>').replace(/&lt;\/i&gt;/g, '</i>');
+        return escaped;
+    }
+
     function render() {
         const now = Date.now();
         let rawDueCards = deck.filter(c => c.due <= now).sort((a, b) => a.due - b.due);
@@ -1102,7 +1114,8 @@
             
             // 【新增】隐藏自信度按钮，显示看答案按钮
             document.getElementById('confidenceSelector').classList.add('hidden');
-            document.getElementById('showAnswerBtn').classList.remove('hidden');
+            // 【修改】强制预测模式：默认隐藏 Show Answer，强迫用户使用语义按钮(Semantic Check)来翻牌
+            document.getElementById('showAnswerBtn').classList.add('hidden');
 
             // === 核心逻辑修改：实现挖空模式 ===
             const wordEl = document.getElementById('currentWord');
@@ -1132,7 +1145,9 @@
                 const emojiHtml = currentCard.emoji ? `<div class="emoji-badge">${currentCard.emoji}</div>` : "";
                 
                 // 1. 核心：大字永远只显示原始单词 (Safe & Clean)
-                const mainWordHtml = `<div style="font-size:32px; font-weight:800; color:var(--text); letter-spacing:0.5px;">${currentCard.word}</div>`;
+                // 【修改】使用 sanitizeHTML 包裹 currentCard.word，防止恶意代码
+                const safeWord = sanitizeHTML(currentCard.word);
+                const mainWordHtml = `<div style="font-size:32px; font-weight:800; color:var(--text); letter-spacing:0.5px;">${safeWord}</div>`;
 
                 // 2. 辅助：如果有词根数据，在下方生成一条彩色的分析链
                 let analysisHtml = "";
@@ -1148,8 +1163,12 @@
                     parts.push(`<span style="font-weight:bold; border-bottom:2px solid #007aff; color:var(--text);">${clean(m.root)}</span>`);
                     if (m.suffix) parts.push(`<span style="color:#007aff">${clean(m.suffix)}</span>`);
                     
-                    // 用 "+" 号连接，看起来像数学公式，清晰明了
-                    analysisHtml = `<div class="etymology-line" style="margin-top:8px; font-family:'Courier New', monospace; font-size:13px; opacity:0.8;">
+                    // 【Pedagogy Fix】复习模式默认模糊 (Blur)，点击揭示，防止“看答案”错觉
+                    const isReview = currentCard.reps > 0;
+                    const blurClass = isReview ? "cognitive-blur" : ""; 
+                    const clickAction = isReview ? "this.classList.remove('cognitive-blur')" : "";
+
+                    analysisHtml = `<div class="etymology-line ${blurClass}" onclick="${clickAction}" style="margin-top:8px; font-family:'Courier New', monospace; font-size:13px; opacity:0.8; transition: all 0.3s; cursor: pointer;">
                         ${parts.join(' + ')}
                     </div>`;
                 }
@@ -1222,7 +1241,8 @@
             const sentenceEl = document.getElementById('currentSentence');
             const noCtxMsg = document.getElementById('noContextMsg');
             if (currentCard.sentence) {
-                sentenceEl.innerHTML = currentCard.sentence; // ✅ 改成 innerHTML，<b> 就会变成粗体
+                // 【修改】使用 sanitizeHTML 函数，既能显示粗体，又能防病毒
+                sentenceEl.innerHTML = sanitizeHTML(currentCard.sentence); 
                 document.getElementById('contextContent').classList.remove('hidden');
                 noCtxMsg.classList.add('hidden');
             } else {
@@ -1287,6 +1307,20 @@
 
             updateButtonLabels(currentCard);
         } else {
+            // 【新增】智能等待逻辑：如果暂时没卡片，但 10 分钟内有即将到期的（比如刚才点了Again的），就开启倒计时自动刷新
+            const nextCard = deck.sort((a, b) => a.due - b.due).find(c => c.due > now);
+            
+            if (nextCard && (nextCard.due - now) < 600000) { // 10分钟内有卡片
+                 const waitTime = Math.max(1000, nextCard.due - now);
+                 empty.innerHTML = `<p>🎉 All caught up!</p><p style="font-size:12px; color:gray">Next review in ${Math.ceil(waitTime/1000)}s...</p>`;
+                 
+                 // 清除旧定时器并设置新定时器
+                 if (window.nextReviewTimer) clearTimeout(window.nextReviewTimer);
+                 window.nextReviewTimer = setTimeout(render, waitTime);
+            } else {
+                 empty.innerHTML = `<p>🎉 All caught up!</p>`;
+            }
+
             currentCard = null;
             revContainer.classList.add('hidden');
             empty.classList.remove('hidden');
@@ -1443,7 +1477,7 @@
         // 2. Show Context (Context)
         const ctxArea = document.getElementById('contextArea');
         const ctxContent = document.getElementById('contextContent');
-        // ctxArea.classList.remove('hidden'); // 🚫 禁止自动弹出例句
+        ctxArea.classList.remove('hidden'); // ✅ 【修改】遵循专家建议：自动弹出例句区域以供验证
         
         // 【新增】初始化控制栏状态 (如果有数据，按钮才可用)
         const dBar = document.getElementById('disclosureBar');
@@ -1552,21 +1586,10 @@
             d = nextDifficulty(d, g);
             s = nextStability(s, d, g, r);
 
-            // 1. 正向预测误差 (Positive RPE): "我以为我忘了(R低)，结果记住了(Rating high)"
-            // 效果：多巴胺激增，大幅提升稳定性
-            if (currentR < 0.3 && g >= 3) {
-                 const boost = 1.5 + (0.3 - currentR); // R越低，奖励倍率越高
-                 s = s * boost;
-                 console.log(`🚀 Positive RPE Triggered! S boosted by ${boost.toFixed(2)}x`);
-            }
-
-            // 2. 负向预测误差 (Negative RPE): "我以为我记得(R高)，结果全忘了(Rating low)"
-            // 效果：认知失调，大幅增加难度 D，迫使短期内高频复习
-            if (currentR > 0.9 && g === 1) {
-                 d = Math.min(10, d + 2.0); // 难度激增
-                 s = s * 0.5; // 稳定性惩罚
-                 console.log(`⚠️ Negative RPE! Difficulty spiked.`);
-            }
+            // 【Logic Fix】移除 RPE 动态数学修改
+            // 专家的审计指出：手动修改 s 和 d 会破坏 FSRS 算法的数学收敛性。
+            // 我们保留下方的“视觉特效”来提供多巴胺，但在“数学调度”上严格遵守 FSRS 标准公式。
+            
         }
 
         // 【Expert Gamification】变比强化系统 (Variable Ratio Reinforcement)
@@ -1629,11 +1652,8 @@
 
             currentCard.due = now + againInterval;
             
-            // 修复：设置一个定时器，当 Again 时间到了自动刷新页面，让卡片重新弹出来
-            setTimeout(() => {
-                // 仅当当前显示为空状态时才刷新，避免打断用户操作
-                if(!currentCard) render(); 
-            }, againInterval + 500); 
+            // 【逻辑修改】移除了此处不稳定的 setTimeout。
+            // 现在改由 render() 函数统一管理“自动刷新”，避免逻辑冲突。
 
         } else {
             const days = getInterval(s);
