@@ -260,15 +260,28 @@
         /* 废弃旧的 .blur-mask，统一使用 .cognitive-blur */
         .blur-hint { position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:#007aff; font-weight:bold; font-size:12px; pointer-events:none; text-transform: uppercase; letter-spacing: 1px; }
 
-        /* 【新增】生存模式 (Survival Mode) - 视觉降噪 */
-        /* 当 body 拥有此 class 时，隐藏非核心元素，降低色彩饱和度 */
-        body.survival-focus { background: #1c1c1e; color: #e5e5ea; transition: background 0.5s; }
-        body.survival-focus .card-display { background: #2c2c2e; box-shadow: none; border: 1px solid #3a3a3c; }
-        body.survival-focus .word-text { color: #fff; }
-        body.survival-focus .action-btn { filter: desaturate(60%); } /* 降低按钮鲜艳度 */
+        /* 【新增】生存模式 (Survival Mode) - 视觉降噪 (亮度优化版) */
+        /* 1. 背景提亮：改为深蓝灰 (Gunmetal)，比纯黑更护眼，不再显得"太暗" */
+        body.survival-focus { background: #353b48; color: #f5f6fa; transition: background 0.5s; }
+        
+        /* 2. 卡片层次：稍微深一点，形成"聚光灯"效果，但保留投影 */
+        body.survival-focus .card-display { background: #2f3640; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid #718093; }
+        
+        /* 3. 核心修复：强制例句、释义、词源等文字变白，修复"看不清"的问题 */
+        body.survival-focus .word-text,
+        body.survival-focus .context-sentence,
+        body.survival-focus .def-text,
+        body.survival-focus .etymology-line { 
+            color: #ffffff !important; 
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8); /* 增加文字投影，让字在深色背景上更立体 */
+        }
+
+        body.survival-focus .action-btn { opacity: 0.9; } /* 按钮保持可见 */
+        
+        /* 彻底隐藏干扰项，让注意力绝对聚焦 */
         body.survival-focus .footer-info, 
         body.survival-focus .edit-card-btn,
-        body.survival-focus .mastery-bar-container { opacity: 0.4; pointer-events: none; } /* 隐藏干扰项 */
+        body.survival-focus .mastery-bar-container { opacity: 0; pointer-events: none; }
 
         .context-sentence {
             font-size: 19px; /* 加大字号，提升易读性 */
@@ -562,7 +575,7 @@
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v2.5</div>
+<div class="watermark">软件制作者微信 Saeuco v2.3</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
