@@ -1173,9 +1173,11 @@
                 const escapedWord = currentCard.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const regex = new RegExp(`(${escapedWord})`, 'gi');
                 
-                // 线索生成逻辑：提取前2个字母作为微弱线索
-                const hintClue = currentCard.word.substring(0, 2); 
-                const clozeHtml = `<span class="cloze-blank" style="color:#007aff; font-weight:bold; border-bottom:2px dashed #007aff;">${hintClue}___</span>`;
+                // 线索生成逻辑：【修复】移除首字母提示。
+                // 认知科学原理：在 reps>=3 阶段，给出首字母会触发 "Orthographic Cueing" (字形线索)，
+                // 导致大脑直接通过拼写补全单词，而不是通过上下文逻辑(Semantic Logic)去提取含义。
+                // 这被称为 "Bypassing the Retrieval Attempt" (绕过提取尝试)。
+                const clozeHtml = `<span class="cloze-blank" style="color:#007aff; font-weight:bold; border-bottom:2px dashed #007aff;">[ ... ]</span>`;
                 
                 const clozeSent = currentCard.sentence.replace(regex, clozeHtml);
             // 修改：移除 font-family 和 强制的 #333 颜色，改用 color:inherit
@@ -1188,11 +1190,13 @@
         } else {
             // 【Expert Visual】形态学合成器 - 极简稳定版
                 // 逻辑：不再尝试用碎片拼凑单词，而是"大字显示单词，小字显示分析"
-                
-                const emojiHtml = currentCard.emoji ? `<div class="emoji-badge">${currentCard.emoji}</div>` : "";
-                
-                // 1. 核心：大字永远只显示原始单词 (Safe & Clean)
-                // 【修改】使用 sanitizeHTML 包裹 currentCard.word，防止恶意代码
+            
+            // 【修改】复习模式(reps>0)隐藏Emoji，只有新卡片才显示，防止线索依赖
+            const isReview = currentCard.reps > 0;
+            const emojiHtml = (currentCard.emoji && !isReview) ? `<div class="emoji-badge">${currentCard.emoji}</div>` : "";
+            
+            // 1. 核心：大字永远只显示原始单词 (Safe & Clean)
+            // 【修改】使用 sanitizeHTML 包裹 currentCard.word，防止恶意代码
                 const safeWord = sanitizeHTML(currentCard.word);
                 const mainWordHtml = `<div style="font-size:32px; font-weight:800; color:var(--text); letter-spacing:0.5px;">${safeWord}</div>`;
 
@@ -1458,7 +1462,8 @@
 
         // 0. 还原单词显示 (如果是挖空状态，这里要显示回单词)
         const wordEl = document.getElementById('currentWord');
-        const emojiHtml = currentCard.emoji ? `<span class="emoji-icon">${currentCard.emoji}</span>` : "";
+        // 【修改】看答案时强制显示大号 Emoji，作为多巴胺奖励
+        const emojiHtml = currentCard.emoji ? `<div class="emoji-badge" style="animation: popUp 0.5s ease;">${currentCard.emoji}</div>` : "";
         wordEl.innerHTML = `${emojiHtml}${currentCard.word}`;
         wordEl.style.color = "var(--accent)"; // 高亮显示
 
