@@ -620,7 +620,7 @@
     </div>
 </div>
 
-<div class="watermark">软件制作者微信 Saeuco v2.8</div>
+<div class="watermark">软件制作者微信 Saeuco v2.7</div>
 
 <div id="wordListModal" class="modal-overlay hidden">
     <div class="modal-content">
@@ -1419,8 +1419,8 @@
     async function revealAnswer(confidenceVal = null) {
         // --- 1. 强制拼写与脚手架逻辑 (Scaffolding) ---
         const spellingInput = document.getElementById('spellingInput');
-        // 只有当输入框存在，且尚未通过验证时才检查
-        if (spellingInput && !spellingInput.disabled && !document.getElementById('showAnswerBtn').classList.contains('hidden')) {
+        // 只有当输入框存在，且尚未通过验证时才检查 (⚠️修复：删除了检查按钮是否隐藏的代码，防止逻辑死锁)
+        if (spellingInput && !spellingInput.disabled) {
             const userSpelling = spellingInput.value.trim().toLowerCase();
             const correctSpelling = currentCard.word.trim().toLowerCase();
             
