@@ -612,6 +612,8 @@
             <span class="text-link" onclick="exportData()">⬇ Export</span>
             <span class="text-link" onclick="triggerImport()">⬆ Import</span>
             <span class="text-link" onclick="openSettings()">⚙️ Params</span>
+            <!-- 【新增】强制刷新按钮，true 表示忽略缓存从服务器重载 -->
+            <span class="text-link" onclick="window.location.reload(true)">↻ Refresh</span>
             <span class="text-link" style="color: var(--danger);" onclick="clearData()">Reset</span>
         </div>
         <input type="file" id="importJsonInput" accept=".json" onchange="handleFileImport(event)" style="display:none;">
