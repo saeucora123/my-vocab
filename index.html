@@ -2076,8 +2076,8 @@
         }
     }
     
-    // --- 8. Speech (Updated with Edge TTS Logic) ---
-    
+// --- 8. Speech (Updated with Edge TTS Logic) ---
+
     // 【新增】白噪音生成器 (Web Audio API)
     let audioCtx = null;
     function playWhiteNoise(durationSec) {
@@ -2085,96 +2085,56 @@
         const bufferSize = audioCtx.sampleRate * durationSec;
         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.15; // 0.15是音量(噪音不要太响)
+        for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.15; // 0.15是音量
 
         const noise = audioCtx.createBufferSource();
         noise.buffer = buffer;
         noise.connect(audioCtx.destination);
         noise.start();
-        return noise; // 返回对象以便控制停止
+        return noise; 
     }
 
-    // 【修改】增加 withInterference 参数
+    // 【修改】修复版语音函数
     function speakCurrentCard(withInterference = false) {
         if (!currentCard || !currentCard.word) return;
         
-        // 如果是干扰模式，播放 10秒白噪音（或者直到读完）
+        // 1. 如果是干扰模式，播放 10秒白噪音
         if (withInterference === true) {
             playWhiteNoise(10); 
-            // 提示：真实环境下的白噪音不需要精确同步停止，稍微多响一点点更有压迫感
         }
 
-        // 1. 智能语音选择 (兼容 iOS Safari 和 PC Edge)
+        // 2. 智能语音选择
         const voices = speechSynthesis.getVoices();
-        // 优先级：微软在线(PC) > 苹果高清语音(Samantha/Ava) > Google语音 > 任意英语
         const bestVoice = voices.find(v => v.name.includes("Microsoft") && v.name.includes("Online") && v.name.includes("United States")) 
-                       || voices.find(v => v.name === "Samantha") // iOS 经典高质量女声
-                       || voices.find(v => v.name === "Ava")      // iOS 新版高质量语音
+                       || voices.find(v => v.name === "Samantha")
+                       || voices.find(v => v.name === "Ava")
                        || voices.find(v => v.name.includes("Google US English"))
                        || voices.find(v => v.lang === 'en-US');
 
         const speakText = (text, rate = 1.0) => {
             const u = new SpeechSynthesisUtterance(text);
             u.lang = 'en-US';
-            u.rate = rate; // 语速
+            u.rate = rate; 
             if (bestVoice) u.voice = bestVoice;
             speechSynthesis.speak(u);
         };
 
         speechSynthesis.cancel();
         
-        // 2. 朗读单词
+        // 3. 朗读单词
         speakText(currentCard.word, 1.0);
         
-        // 3. 朗读例句 (双重编码优化：词 -> 0.5s静音 -> 句)
-        // 只有当例句区域可见时才播放例句
+        // 4. 朗读例句 (只有在例句区域显示时才读)
         if(!document.getElementById('contextArea').classList.contains('hidden')) {
             const cleanSentence = document.getElementById('currentSentence').innerText;
-            
             if (cleanSentence && cleanSentence.length > 0) {
-                // 【Phase 2 优化】使用 500ms 黄金静音间隔，给予大脑切换处理通道的时间
                 setTimeout(() => {
-                    // 再次检查页面状态，防止用户已经切走了
                     if(!document.getElementById('contextArea').classList.contains('hidden')) {
-                        speakText(cleanSentence, 0.85); // 语速稍慢(0.85)，利于听力解码
+                        speakText(cleanSentence, 0.85); 
                     }
                 }, 500);
             }
         }
-    }
-
-    // 【新增】RSVP 极速阅览逻辑
-    async function startRSVPMode() {
-        // 1. 获取句子内容 (移除 HTML 标签)
-        const rawSentence = document.getElementById('currentSentence').innerText;
-        if (!rawSentence || rawSentence === "No context.") return alert("没有例句！");
-
-        const rsvpEl = document.getElementById('rsvpDisplay');
-        const wordEl = document.getElementById('currentWord');
-        
-        // 2. 准备 UI
-        rsvpEl.classList.remove('hidden'); // 显示遮罩
-        wordEl.style.opacity = "0";        // 隐藏原单词，减少干扰
-        
-        // 3. 分词与播放
-        const words = rawSentence.split(/\s+/);
-        const baseSpeed = 350; // 350ms/词
-
-        for (let word of words) {
-            rsvpEl.innerText = word;
-            
-            // 智能变速：长难词或标点符号处，稍微停顿久一点
-            let delay = baseSpeed;
-            if (word.length > 8 || word.includes(',') || word.includes('.')) delay = baseSpeed * 1.4;
-            
-            await new Promise(r => setTimeout(r, delay));
-        }
-
-        // 4. 结束还原
-        rsvpEl.innerText = "✅ Done";
-        await new Promise(r => setTimeout(r, 800));
-        rsvpEl.classList.add('hidden');
-        wordEl.style.opacity = "1";
     }
     
     // 初始化语音列表 (Chrome/Edge 需要)
