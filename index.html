@@ -370,15 +370,6 @@
         }
         .text-link { color: var(--accent); cursor: pointer; text-decoration: underline; }
 
-        /* 【新增】RSVP 极速阅览模式样式 */
-        #rsvpDisplay {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            background: var(--card); border-radius: var(--radius); z-index: 10;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 48px; font-weight: 800; color: var(--text); padding: 20px;
-            text-align: center; pointer-events: none; /* 防止遮挡点击 */
-        }
-
         /* Modal Styles */
         .modal-overlay {
             position: fixed;
@@ -468,6 +459,10 @@
         
         #deepLearningTools .action-btn:active { transform: scale(0.96); filter: brightness(0.95); }
         @keyframes popUp { from { transform: translate(-50%, -40%) scale(0.5); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+
+        /* 【新增】RSVP 极速阅读模式样式 */
+        .rsvp-active-word { font-size: 32px; font-weight: 800; color: var(--text); text-align: center; margin: 20px 0; animation: popUp 0.1s; }
+        .noise-active { background: #ff3b30 !important; color: white !important; border-color: #ff3b30 !important; }
     </style>
 </head>
 <body>
@@ -522,9 +517,6 @@
         <div class="card-display">
             <button class="edit-card-btn" onclick="openEditModal(currentCard.id)">✏️</button>
             
-            <!-- 【新增】RSVP 极速显示层 (默认隐藏) -->
-            <div id="rsvpDisplay" class="hidden"></div>
-            
             <div class="word-text" id="currentWord" onclick="speakCurrentCard()">Word</div>
             <div class="pronounce-hint">Tap word to listen</div>
             
@@ -533,12 +525,12 @@
                 <div id="currentDefinition" class="def-text"></div>
             </div>
 
-            <div id="disclosureBar" class="hidden" style="display:flex; justify-content:center; gap:15px; margin:15px 0; flex-wrap: wrap;">
-                <button class="icon-btn" id="btnToggleCtx" onclick="toggleSection('contextArea', this)" style="font-size:14px; padding:8px 16px; background:#f2f2f7; width:auto;">📖 Context</button>
-                <button class="icon-btn" id="btnToggleMne" onclick="toggleSection('mnemonicArea', this)" style="font-size:14px; padding:8px 16px; background:#f2f2f7; width:auto;">🧠 Logic</button>
-                <!-- 【新增】RSVP 和 干扰听力按钮 -->
-                <button class="icon-btn" onclick="startRSVPMode()" style="font-size:14px; padding:8px 16px; background:#e3f2fd; color:#007aff; width:auto;">⚡ RSVP</button>
-                <button class="icon-btn" onclick="speakCurrentCard(true)" style="font-size:14px; padding:8px 16px; background:#fff3e0; color:#ff9800; width:auto;">🍸 Party</button>
+            <div id="disclosureBar" class="hidden" style="display:flex; justify-content:center; gap:8px; margin:15px 0; flex-wrap:wrap;">
+                <button class="icon-btn" id="btnToggleCtx" onclick="toggleSection('contextArea', this)" style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;">📖 Context</button>
+                <button class="icon-btn" onclick="startRSVP()" style="font-size:14px; padding:8px 12px; background:#e5e5ea; width:auto;" title="Rapid Serial Visual Presentation">⚡ RSVP</button>
+                <button class="icon-btn" id="btnNoiseToggle" onclick="toggleNoiseMode(this)" style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;" title="Cocktail Party Effect">🔊 Noise: OFF</button>
+                <button class="icon-btn" id="btnToggleMne" onclick="toggleSection('mnemonicArea', this)" style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;">🧠 Logic</button>
+                <button class="icon-btn" id="btnToggleRef" onclick="toggleSection('selfRefArea', this)" style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;">🪞 Self</button>
             </div>
             
             <div id="mnemonicArea" class="mnemonic-box hidden">
@@ -612,8 +604,6 @@
             <span class="text-link" onclick="exportData()">⬇ Export</span>
             <span class="text-link" onclick="triggerImport()">⬆ Import</span>
             <span class="text-link" onclick="openSettings()">⚙️ Params</span>
-            <!-- 【新增】强制刷新按钮，true 表示忽略缓存从服务器重载 -->
-            <span class="text-link" onclick="window.location.reload(true)">↻ Refresh</span>
             <span class="text-link" style="color: var(--danger);" onclick="clearData()">Reset</span>
         </div>
         <input type="file" id="importJsonInput" accept=".json" onchange="handleFileImport(event)" style="display:none;">
@@ -749,6 +739,8 @@
     let currentCard = null;
     let tempEditData = {};     // 【新增】专门用于暂存编辑模式下 AI 生成的数据
     let currentConfidence = 0; // 【新增】用户自信度 (1:盲猜, 2:不确定, 3:确定)
+    let audioContext = null;   // 【新增】Web Audio API 上下文
+    let isNoiseMode = false;   // 【新增】是否开启白噪音干扰
     let scaffoldLevel = 0;     // 【新增】拼写提示等级 (每错一次显示更多字母)
     let tempAutoDefinition = ""; // Store auto-fetched definition before adding
     let tempMnemonic = ""; // 新增：暂存助记法
@@ -1172,8 +1164,8 @@
             
             // 【新增】隐藏自信度按钮，显示看答案按钮
             document.getElementById('confidenceSelector').classList.add('hidden');
-            // 【修复】恢复 Show Answer 按钮显示，否则 revealAnswer 中的拼写检查逻辑会被跳过，导致评级按钮无法出现
-            document.getElementById('showAnswerBtn').classList.remove('hidden');
+            // 【修改】强制预测模式：默认隐藏 Show Answer，强迫用户使用语义按钮(Semantic Check)来翻牌
+            document.getElementById('showAnswerBtn').classList.add('hidden');
 
             // === 核心逻辑修改：实现挖空模式 ===
             const wordEl = document.getElementById('currentWord');
@@ -1419,8 +1411,8 @@
     async function revealAnswer(confidenceVal = null) {
         // --- 1. 强制拼写与脚手架逻辑 (Scaffolding) ---
         const spellingInput = document.getElementById('spellingInput');
-        // 只有当输入框存在，且尚未通过验证时才检查 (⚠️修复：删除了检查按钮是否隐藏的代码，防止逻辑死锁)
-        if (spellingInput && !spellingInput.disabled) {
+        // 只有当输入框存在，且尚未通过验证时才检查
+        if (spellingInput && !spellingInput.disabled && !document.getElementById('showAnswerBtn').classList.contains('hidden')) {
             const userSpelling = spellingInput.value.trim().toLowerCase();
             const correctSpelling = currentCard.word.trim().toLowerCase();
             
@@ -2077,33 +2069,9 @@
     }
     
     // --- 8. Speech (Updated with Edge TTS Logic) ---
-    
-    // 【新增】白噪音生成器 (Web Audio API)
-    let audioCtx = null;
-    function playWhiteNoise(durationSec) {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const bufferSize = audioCtx.sampleRate * durationSec;
-        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.15; // 0.15是音量(噪音不要太响)
-
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = buffer;
-        noise.connect(audioCtx.destination);
-        noise.start();
-        return noise; // 返回对象以便控制停止
-    }
-
-    // 【修改】增加 withInterference 参数
-    function speakCurrentCard(withInterference = false) {
+    function speakCurrentCard() {
         if (!currentCard || !currentCard.word) return;
         
-        // 如果是干扰模式，播放 10秒白噪音（或者直到读完）
-        if (withInterference === true) {
-            playWhiteNoise(10); 
-            // 提示：真实环境下的白噪音不需要精确同步停止，稍微多响一点点更有压迫感
-        }
-
         // 1. 智能语音选择 (兼容 iOS Safari 和 PC Edge)
         const voices = speechSynthesis.getVoices();
         // 优先级：微软在线(PC) > 苹果高清语音(Samantha/Ava) > Google语音 > 任意英语
@@ -2123,6 +2091,11 @@
 
         speechSynthesis.cancel();
         
+        // 【新增】鸡尾酒会效应：白噪音干扰 (Web Audio API)
+        if (isNoiseMode) {
+            playWhiteNoise(4.0); // 默认播放4秒噪音，覆盖单词+例句
+        }
+
         // 2. 朗读单词
         speakText(currentCard.word, 1.0);
         
@@ -2142,43 +2115,81 @@
             }
         }
     }
-
-    // 【新增】RSVP 极速阅览逻辑
-    async function startRSVPMode() {
-        // 1. 获取句子内容 (移除 HTML 标签)
-        const rawSentence = document.getElementById('currentSentence').innerText;
-        if (!rawSentence || rawSentence === "No context.") return alert("没有例句！");
-
-        const rsvpEl = document.getElementById('rsvpDisplay');
-        const wordEl = document.getElementById('currentWord');
-        
-        // 2. 准备 UI
-        rsvpEl.classList.remove('hidden'); // 显示遮罩
-        wordEl.style.opacity = "0";        // 隐藏原单词，减少干扰
-        
-        // 3. 分词与播放
-        const words = rawSentence.split(/\s+/);
-        const baseSpeed = 350; // 350ms/词
-
-        for (let word of words) {
-            rsvpEl.innerText = word;
-            
-            // 智能变速：长难词或标点符号处，稍微停顿久一点
-            let delay = baseSpeed;
-            if (word.length > 8 || word.includes(',') || word.includes('.')) delay = baseSpeed * 1.4;
-            
-            await new Promise(r => setTimeout(r, delay));
-        }
-
-        // 4. 结束还原
-        rsvpEl.innerText = "✅ Done";
-        await new Promise(r => setTimeout(r, 800));
-        rsvpEl.classList.add('hidden');
-        wordEl.style.opacity = "1";
-    }
     
     // 初始化语音列表 (Chrome/Edge 需要)
     speechSynthesis.onvoiceschanged = () => {};
+
+    // 【新增】功能1：RSVP 极速阅读模式
+    function startRSVP() {
+        if (!currentCard || !currentCard.sentence) return alert("No context sentence to RSVP!");
+        
+        const displayEl = document.getElementById('currentSentence');
+        const originalContent = displayEl.innerHTML; // 保存原始内容
+        const ctxArea = document.getElementById('contextArea');
+        
+        // 确保区域可见
+        ctxArea.classList.remove('hidden');
+        document.getElementById('contextContent').classList.remove('cognitive-blur');
+        
+        // 提取纯文本并分词
+        const div = document.createElement('div');
+        div.innerHTML = currentCard.sentence;
+        const text = div.textContent || div.innerText || "";
+        const words = text.trim().split(/\s+/);
+        
+        let i = 0;
+        displayEl.innerHTML = `<div class="rsvp-active-word">READY...</div>`;
+        
+        // 350ms/词 的极速闪现
+        const interval = setInterval(() => {
+            if (i >= words.length) {
+                clearInterval(interval);
+                displayEl.innerHTML = originalContent; // 恢复原句
+                return;
+            }
+            displayEl.innerHTML = `<div class="rsvp-active-word">${words[i]}</div>`;
+            i++;
+        }, 350);
+    }
+
+    // 【新增】功能2：白噪音/听力干扰模式控制
+    function toggleNoiseMode(btn) {
+        isNoiseMode = !isNoiseMode;
+        if (isNoiseMode) {
+            btn.innerHTML = "🔊 Noise: ON";
+            btn.classList.add('noise-active');
+            // 初始化 AudioContext (必须由用户交互触发)
+            if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === 'suspended') audioContext.resume();
+        } else {
+            btn.innerHTML = "🔊 Noise: OFF";
+            btn.classList.remove('noise-active');
+        }
+    }
+
+    // 生成并播放白噪音
+    function playWhiteNoise(duration) {
+        if (!audioContext) return;
+        const bufferSize = audioContext.sampleRate * duration;
+        const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        // 生成随机白噪音
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noiseSource = audioContext.createBufferSource();
+        noiseSource.buffer = buffer;
+        
+        // 增益节点控制音量 (0.1 - 0.2 比较合适，不至于完全盖过TTS)
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 0.15; 
+        
+        noiseSource.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        noiseSource.start();
+    }
 
     // --- 新增：手动设置 FSRS 参数 ---
     function openSettings() {
