@@ -2115,7 +2115,17 @@
                 setTimeout(() => {
                     // 再次检查页面状态，防止用户已经切走了
                     if(!document.getElementById('contextArea').classList.contains('hidden')) {
-                        speakText(cleanSentence, 1.2); // 语速稍慢(0.85)，利于听力解码
+                        // 【最高效率优化】自适应语速算法
+                        // 1. 生词/难词 (0.95x): 确保听清连读细节
+                        // 2. 熟词 (1.25x): 超过内心翻译速度，强迫听音会意
+                        let rate = 1.15; // 默认：巩固期 (略快)
+                        if (currentCard.reps < 2 || currentCard.difficulty > 7) {
+                            rate = 0.95; // 编码期：清晰优先
+                        } else if (currentCard.reps > 5) {
+                            rate = 1.25; // 精通期：母语级极速
+                        }
+                        
+                        speakText(cleanSentence, rate);
                     }
                 }, 500);
             }
