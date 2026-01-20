@@ -461,7 +461,8 @@
         @keyframes popUp { from { transform: translate(-50%, -40%) scale(0.5); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
 
         /* 【新增】RSVP 极速阅读模式样式 */
-        .rsvp-active-word { font-size: 32px; font-weight: 800; color: var(--text); text-align: center; margin: 20px 0; animation: popUp 0.1s; }
+        /* 修改：移除 animation 动画，增加固定高度防止抖动 */
+        .rsvp-active-word { font-size: 36px; font-weight: 800; color: var(--text); text-align: center; margin: 20px 0; height: 60px; display: flex; justify-content: center; align-items: center; }
         .noise-active { background: #ff3b30 !important; color: white !important; border-color: #ff3b30 !important; }
     </style>
 </head>
@@ -600,6 +601,7 @@
     <div class="footer-info">
         <div id="deckInfo">Cards: 0 | Due: 0</div>
         <div class="data-tools">
+            <span class="text-link" onclick="window.location.reload()">🔄 Refresh</span>
             <span class="text-link" onclick="toggleWordList()">📖 View List</span>
             <span class="text-link" onclick="exportData()">⬇ Export</span>
             <span class="text-link" onclick="triggerImport()">⬆ Import</span>
@@ -737,6 +739,7 @@
     };
     // ====== 这里是新增的 AI 配置 (结束) ======
     let currentCard = null;
+    let rsvpTimer = null;      // 【新增】RSVP 全局计时器句柄，防止翻页后文字继续跳动
     let tempEditData = {};     // 【新增】专门用于暂存编辑模式下 AI 生成的数据
     let currentConfidence = 0; // 【新增】用户自信度 (1:盲猜, 2:不确定, 3:确定)
     let audioContext = null;   // 【新增】Web Audio API 上下文
@@ -1080,6 +1083,9 @@
     // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
     // 【新增】安全工具函数：防止恶意脚本注入，但允许 <b> 和 <i> 标签
     function sanitizeHTML(str) {
+        // 【新增】安全补丁：任何时候重新渲染页面（比如翻页），必须强制杀掉 RSVP 计时器
+        if (rsvpTimer) { clearTimeout(rsvpTimer); rsvpTimer = null; }
+
         if (!str) return "";
         const div = document.createElement('div');
         div.innerText = str; // 让浏览器自动转义
@@ -2109,7 +2115,7 @@
                 setTimeout(() => {
                     // 再次检查页面状态，防止用户已经切走了
                     if(!document.getElementById('contextArea').classList.contains('hidden')) {
-                        speakText(cleanSentence, 0.85); // 语速稍慢(0.85)，利于听力解码
+                        speakText(cleanSentence, 1.2); // 语速稍慢(0.85)，利于听力解码
                     }
                 }, 500);
             }
@@ -2119,14 +2125,26 @@
     // 初始化语音列表 (Chrome/Edge 需要)
     speechSynthesis.onvoiceschanged = () => {};
 
-    // 【新增】功能1：RSVP 极速阅读模式
+    // 【新增】功能1：RSVP 极速阅读模式 (优化版：动态语速+安全清理)
     function startRSVP() {
         if (!currentCard || !currentCard.sentence) return alert("No context sentence to RSVP!");
         
         const displayEl = document.getElementById('currentSentence');
-        const originalContent = displayEl.innerHTML; // 保存原始内容
-        const ctxArea = document.getElementById('contextArea');
         
+        // 1. 切换逻辑：如果已经在运行，再次点击则停止并恢复
+        if (rsvpTimer) {
+            clearTimeout(rsvpTimer);
+            rsvpTimer = null;
+            if (displayEl.dataset.original) displayEl.innerHTML = displayEl.dataset.original;
+            return;
+        }
+
+        // 2. 保存原始内容 (仅当还没开始时)
+        if (!displayEl.querySelector('.rsvp-active-word')) {
+            displayEl.dataset.original = displayEl.innerHTML;
+        }
+
+        const ctxArea = document.getElementById('contextArea');
         // 确保区域可见
         ctxArea.classList.remove('hidden');
         document.getElementById('contextContent').classList.remove('cognitive-blur');
@@ -2138,18 +2156,31 @@
         const words = text.trim().split(/\s+/);
         
         let i = 0;
-        displayEl.innerHTML = `<div class="rsvp-active-word">READY...</div>`;
+        displayEl.innerHTML = `<div class="rsvp-active-word" style="color:#007aff">READY...</div>`;
         
-        // 350ms/词 的极速闪现
-        const interval = setInterval(() => {
+        // 递归执行函数，实现可变速度
+        const nextStep = () => {
             if (i >= words.length) {
-                clearInterval(interval);
-                displayEl.innerHTML = originalContent; // 恢复原句
+                displayEl.innerHTML = displayEl.dataset.original; // 恢复
+                rsvpTimer = null;
                 return;
             }
-            displayEl.innerHTML = `<div class="rsvp-active-word">${words[i]}</div>`;
+            
+            const word = words[i];
+            displayEl.innerHTML = `<div class="rsvp-active-word">${word}</div>`;
+            
+            // 🧠 动态语速算法
+            let delay = 350; // 基础速度
+            if (word.length > 7) delay += (word.length - 7) * 30; // 长词减速
+            if (word.includes('.') || word.includes('?') || word.includes('!')) delay += 400; // 句末停顿
+            else if (word.includes(',') || word.includes(';')) delay += 200; // 逗号停顿
+            
             i++;
-        }, 350);
+            rsvpTimer = setTimeout(nextStep, delay);
+        };
+
+        // 800ms 后开始播放第一个词
+        rsvpTimer = setTimeout(nextStep, 800);
     }
 
     // 【新增】功能2：白噪音/听力干扰模式控制
