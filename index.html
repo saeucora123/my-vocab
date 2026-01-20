@@ -370,6 +370,15 @@
         }
         .text-link { color: var(--accent); cursor: pointer; text-decoration: underline; }
 
+        /* 【新增】RSVP 极速阅览模式样式 */
+        #rsvpDisplay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--card); border-radius: var(--radius); z-index: 10;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 48px; font-weight: 800; color: var(--text); padding: 20px;
+            text-align: center; pointer-events: none; /* 防止遮挡点击 */
+        }
+
         /* Modal Styles */
         .modal-overlay {
             position: fixed;
@@ -513,6 +522,9 @@
         <div class="card-display">
             <button class="edit-card-btn" onclick="openEditModal(currentCard.id)">✏️</button>
             
+            <!-- 【新增】RSVP 极速显示层 (默认隐藏) -->
+            <div id="rsvpDisplay" class="hidden"></div>
+            
             <div class="word-text" id="currentWord" onclick="speakCurrentCard()">Word</div>
             <div class="pronounce-hint">Tap word to listen</div>
             
@@ -521,10 +533,12 @@
                 <div id="currentDefinition" class="def-text"></div>
             </div>
 
-            <div id="disclosureBar" class="hidden" style="display:flex; justify-content:center; gap:15px; margin:15px 0;">
+            <div id="disclosureBar" class="hidden" style="display:flex; justify-content:center; gap:15px; margin:15px 0; flex-wrap: wrap;">
                 <button class="icon-btn" id="btnToggleCtx" onclick="toggleSection('contextArea', this)" style="font-size:14px; padding:8px 16px; background:#f2f2f7; width:auto;">📖 Context</button>
                 <button class="icon-btn" id="btnToggleMne" onclick="toggleSection('mnemonicArea', this)" style="font-size:14px; padding:8px 16px; background:#f2f2f7; width:auto;">🧠 Logic</button>
-                <button class="icon-btn" id="btnToggleRef" onclick="toggleSection('selfRefArea', this)" style="font-size:14px; padding:8px 16px; background:#f2f2f7; width:auto;">🪞 Self</button>
+                <!-- 【新增】RSVP 和 干扰听力按钮 -->
+                <button class="icon-btn" onclick="startRSVPMode()" style="font-size:14px; padding:8px 16px; background:#e3f2fd; color:#007aff; width:auto;">⚡ RSVP</button>
+                <button class="icon-btn" onclick="speakCurrentCard(true)" style="font-size:14px; padding:8px 16px; background:#fff3e0; color:#ff9800; width:auto;">🍸 Party</button>
             </div>
             
             <div id="mnemonicArea" class="mnemonic-box hidden">
@@ -2061,9 +2075,33 @@
     }
     
     // --- 8. Speech (Updated with Edge TTS Logic) ---
-    function speakCurrentCard() {
+    
+    // 【新增】白噪音生成器 (Web Audio API)
+    let audioCtx = null;
+    function playWhiteNoise(durationSec) {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const bufferSize = audioCtx.sampleRate * durationSec;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.15; // 0.15是音量(噪音不要太响)
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        noise.connect(audioCtx.destination);
+        noise.start();
+        return noise; // 返回对象以便控制停止
+    }
+
+    // 【修改】增加 withInterference 参数
+    function speakCurrentCard(withInterference = false) {
         if (!currentCard || !currentCard.word) return;
         
+        // 如果是干扰模式，播放 10秒白噪音（或者直到读完）
+        if (withInterference === true) {
+            playWhiteNoise(10); 
+            // 提示：真实环境下的白噪音不需要精确同步停止，稍微多响一点点更有压迫感
+        }
+
         // 1. 智能语音选择 (兼容 iOS Safari 和 PC Edge)
         const voices = speechSynthesis.getVoices();
         // 优先级：微软在线(PC) > 苹果高清语音(Samantha/Ava) > Google语音 > 任意英语
@@ -2101,6 +2139,40 @@
                 }, 500);
             }
         }
+    }
+
+    // 【新增】RSVP 极速阅览逻辑
+    async function startRSVPMode() {
+        // 1. 获取句子内容 (移除 HTML 标签)
+        const rawSentence = document.getElementById('currentSentence').innerText;
+        if (!rawSentence || rawSentence === "No context.") return alert("没有例句！");
+
+        const rsvpEl = document.getElementById('rsvpDisplay');
+        const wordEl = document.getElementById('currentWord');
+        
+        // 2. 准备 UI
+        rsvpEl.classList.remove('hidden'); // 显示遮罩
+        wordEl.style.opacity = "0";        // 隐藏原单词，减少干扰
+        
+        // 3. 分词与播放
+        const words = rawSentence.split(/\s+/);
+        const baseSpeed = 350; // 350ms/词
+
+        for (let word of words) {
+            rsvpEl.innerText = word;
+            
+            // 智能变速：长难词或标点符号处，稍微停顿久一点
+            let delay = baseSpeed;
+            if (word.length > 8 || word.includes(',') || word.includes('.')) delay = baseSpeed * 1.4;
+            
+            await new Promise(r => setTimeout(r, delay));
+        }
+
+        // 4. 结束还原
+        rsvpEl.innerText = "✅ Done";
+        await new Promise(r => setTimeout(r, 800));
+        rsvpEl.classList.add('hidden');
+        wordEl.style.opacity = "1";
     }
     
     // 初始化语音列表 (Chrome/Edge 需要)
