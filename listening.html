@@ -519,9 +519,9 @@
             if (filledCount > 0) {
                 flashFeedback(">> ASSIST: " + filledCount + " WORDS REVEALED", false);
             } else {
-                loadSentence(currentIndex + 1); // 全对后Tab跳下一题
+                // [V5.2 修复] 填满后不直接跳，而是执行检查，进入“确认暂停”状态
+                checkInput(); 
             }
-            
         }
         
     // [新增] 监听 ? 键打开手册 (这行代码必须在 Tab 键判断的后面，但在 }); 之前)
