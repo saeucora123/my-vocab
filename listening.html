@@ -34,9 +34,14 @@
         #status-bar { width: 100%; display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 0.8rem; color: var(--dim); border-bottom: 1px dashed var(--dim); padding-bottom: 5px; }
         
         /* 核心显示 */
-        #target-text { font-size: 1.5rem; letter-spacing: 2px; margin-bottom: 20px; min-height: 2rem; filter: blur(8px); transition: filter 0.2s; user-select: none; }
+        /* [V6.0 修复] 增加 line-height: 2.5 防止多行时输入框上下重叠 */
+        #target-text { font-size: 1.5rem; letter-spacing: 2px; margin-bottom: 20px; min-height: 2rem; filter: blur(8px); transition: filter 0.2s; user-select: none; line-height: 2.8; }
         #target-text.revealed { filter: blur(0); }
         
+        /* [V6.0 修复] 强制增加单词间距，解决黏连问题 */
+        .cloze-input { margin-right: 15px !important; margin-left: 5px !important; text-align: center; }
+        span.word-token { margin-right: 10px !important; }
+
         #user-input { background: transparent; border: none; border-bottom: 2px solid var(--fg); color: #fff; font-size: 1.5rem; width: 100%; text-align: center; outline: none; font-family: var(--font); caret-color: var(--fg); }
         
         /* 反馈 */
