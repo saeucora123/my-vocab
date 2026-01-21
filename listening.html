@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- [V5.0 升级] 移动端视口适配 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neuro-Echo: High-Efficiency Listening Terminal</title>
+    <style>
+        :root { --bg: #0d1117; --fg: #00ff41; --dim: #008f11; --err: #ff0040; --font: 'Courier New', monospace; }
+        body { background-color: var(--bg); color: var(--fg); font-family: var(--font); margin: 0; padding: 10px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; }
+        
+        /* [V5.0 升级] 移动端响应式修正 */
+        @media (max-width: 600px) {
+            body { padding: 5px; font-size: 14px; }
+            h3 { font-size: 1.2rem; margin: 5px 0; }
+            #target-text { font-size: 1.2rem; line-height: 1.8; }
+            .cloze-input { font-size: 1.2rem; border-width: 1px; border-radius: 0; }
+            #help { display: none; } /* 手机上隐藏键盘快捷键提示 */
+            /* 手机按钮栏 */
+            #mobile-toolbar { display: flex !important; gap: 5px; margin-top: 20px; width: 100%; }
+            #mobile-toolbar button { flex: 1; padding: 15px 0; font-size: 1rem; border-radius: 4px; touch-action: manipulation; }
+        }
+
+        /* 布局 */
+        #terminal { flex: 1; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; width: 100%; overflow-y: auto; }
+        
+        /* 输入区 */
+        #input-area { margin-bottom: 2rem; border-bottom: 1px solid var(--dim); padding-bottom: 1rem; }
+        textarea { width: 100%; background: #000; color: var(--dim); border: 1px solid var(--dim); padding: 10px; font-family: var(--font); resize: none; height: 100px; outline: none; }
+        textarea:focus { border-color: var(--fg); color: var(--fg); }
+        
+        /* 训练区 */
+        #training-area { flex: 1; display: none; flex-direction: column; justify-content: center; align-items: center; position: relative; }
+        #status-bar { width: 100%; display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 0.8rem; color: var(--dim); border-bottom: 1px dashed var(--dim); padding-bottom: 5px; }
+        
+        /* 核心显示 */
+        #target-text { font-size: 1.5rem; letter-spacing: 2px; margin-bottom: 20px; min-height: 2rem; filter: blur(8px); transition: filter 0.2s; user-select: none; }
+        #target-text.revealed { filter: blur(0); }
+        
+        #user-input { background: transparent; border: none; border-bottom: 2px solid var(--fg); color: #fff; font-size: 1.5rem; width: 100%; text-align: center; outline: none; font-family: var(--font); caret-color: var(--fg); }
+        
+        /* 反馈 */
+        #feedback { margin-top: 1rem; font-size: 1rem; height: 1.5rem; color: var(--err); }
+        
+        /* 帮助 */
+        #help { position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: var(--dim); text-align: right; }
+        .key { border: 1px solid var(--dim); padding: 2px 5px; border-radius: 3px; }
+        
+        button { background: var(--bg); color: var(--fg); border: 1px solid var(--fg); padding: 10px 20px; cursor: pointer; font-family: var(--font); margin-top: 10px; }
+        button:hover { background: var(--fg); color: var(--bg); }
+
+        /* [新增] 操作手册模态窗口样式 */
+        #manual-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999; justify-content: center; align-items: center; }
+        #manual-box { width: 80%; max-width: 800px; max-height: 85vh; border: 2px solid var(--fg); background: #0d1117; padding: 2rem; overflow-y: auto; box-shadow: 0 0 20px var(--dim); position: relative; }
+        #manual-box h2 { border-bottom: 1px dashed var(--fg); padding-bottom: 10px; margin-top: 0; }
+        #manual-box h4 { margin-bottom: 5px; color: #fff; background: var(--dim); display: inline-block; padding: 2px 5px; border-radius: 3px; }
+        #manual-box ul { padding-left: 20px; color: #ddd; font-size: 0.9rem; line-height: 1.6; }
+        #manual-box li { margin-bottom: 8px; }
+        .close-btn { position: absolute; top: 10px; right: 10px; background: transparent; border: 1px solid var(--err); color: var(--err); padding: 5px 10px; font-size: 0.8rem; }
+        .close-btn:hover { background: var(--err); color: #fff; }
+        
+        /* 滚动条美化 */
+        #manual-box::-webkit-scrollbar { width: 8px; }
+        #manual-box::-webkit-scrollbar-thumb { background: var(--dim); }
+
+        /* [新增] 返回背单词基地的按钮样式 */
+        .home-link { position: fixed; top: 10px; right: 10px; font-size: 1.5rem; text-decoration: none; z-index: 1001; opacity: 0.5; transition: opacity 0.2s; filter: grayscale(100%); }
+        .home-link:hover { opacity: 1; filter: grayscale(0%); text-shadow: 0 0 8px var(--fg); }
+    </style>
+</head>
+<body>
+
+<!-- [新增] 返回背单词主页 (对应 index.html) -->
+<a href="index.html" class="home-link" title="Return to Vocabulary Base">🏠</a>
+
+<div id="terminal">
+    <div id="input-area">
+        <h3>// SOURCE_INPUT</h3>
+        <p style="color:var(--dim); font-size: 0.8rem;">Paste your CET-6 article or any text here based on standard English.</p>
+        <textarea id="source-text" placeholder="Paste English text here..."></textarea>
+        <div style="display:flex; gap:10px; align-items: center;">
+            <button onclick="initSystem()">> INITIALIZE_NEURO_LINK</button>
+            <label style="font-size: 0.8rem; color: var(--dim)">Speed: <input type="number" id="rate" value="1.0" step="0.1" min="0.5" max="2.0" style="width: 40px; background:black; color:green; border:1px solid green;"></label>
+            <button onclick="toggleManual()" style="margin-left: auto; border-color: var(--dim); color: var(--dim);">? MANUAL</button>
+        </div>
+    </div>
+
+    <div id="training-area">
+        <div id="status-bar">
+            <span>UNIT: <span id="current-index">0</span>/<span id="total-count">0</span></span>
+            <span>MODE: BLIND_ECHO</span>
+        </div>
+
+        <div id="target-text">Waiting for stream...</div>
+        <!-- 旧输入框保留但隐藏 -->
+        <input type="text" id="user-input" placeholder="Type what you hear..." autocomplete="off" spellcheck="false" style="display:none">
+        <div id="feedback"></div>
+
+        <!-- [V5.0 升级] 移动端触控栏 (默认隐藏，CSS控制小屏显示) -->
+        <div id="mobile-toolbar" style="display: none;">
+            <button onclick="speak(sentences[currentIndex])" style="border-color:#008f11">🔊 REPLAY</button>
+            <button onclick="triggerHint()" style="border-color:#ffff00; color:#ffff00">💡 HINT</button>
+            <button onclick="checkInput()" style="border-color:#00ff41; background:var(--dim); color:white">✅ CHECK</button>
+        </div>
+    </div>
+</div>
+
+<div id="help">
+    [?] Manual | [CTRL+Enter] Replay | [Enter] Check/Next | [Tab] Reveal
+</div>
+
+<!-- [新增] 操作手册内容结构 -->
+<div id="manual-overlay" onclick="if(event.target === this) toggleManual()">
+    <div id="manual-box">
+        <button class="close-btn" onclick="toggleManual()">X CLOSE</button>
+        <h2>// NEURO-ECHO OPERATIONAL MANUAL v3.0</h2>
+        
+        <h4>01. CORE PHILOSOPHY (核心理念)</h4>
+        <ul>
+            <li><strong>听写重构 (Reconstruction):</strong> 不仅仅是听，而是迫使大脑通过“预测-验证”回路重构语言流。</li>
+            <li><strong>即时反馈 (Immediate Loop):</strong> 每一个单词的校验都在毫秒级完成，利用多巴胺强化正确记忆。</li>
+        </ul>
+
+        <h4>02. WORKFLOW (训练流程)</h4>
+        <ul>
+            <li><strong>Initialization:</strong> 在首页粘贴一段英文文本（推荐 CET-6/雅思/原版新闻）。点击 INITIALIZE 启动。</li>
+            <li><strong>Blind Echo:</strong> 系统会朗读整句，你需要填入挖空的实词（动词、名词等），虚词会自动显示。</li>
+            <li><strong>Completion:</strong> 全对后进入“影子跟读 (Shadowing)”模式，利用 3.5秒 模仿原声发音。</li>
+        </ul>
+
+        <h4>03. NEURAL CODES (视觉反馈)</h4>
+        <ul>
+            <li><span style="color:var(--fg)">GREEN (Solid):</span> <strong>完美匹配</strong>。突触连接已建立。</li>
+            <li><span style="color:#ffff00; border-bottom:1px dashed #ffff00">YELLOW (Dashed):</span> <strong>模糊匹配</strong>。拼写有微瑕（如单复数/时态错误），但系统判定听力理解正确。</li>
+            <li><span style="color:var(--err)">RED (Solid):</span> <strong>连接中断</strong>。单词错误，请重新聆听。</li>
+        </ul>
+
+        <h4>04. ADVANCED TOOLS (高级功能)</h4>
+        <ul>
+            <li><strong>Double Click (声学隔离):</strong> 双击任何输入框，系统将<strong>单独朗读</strong>该单词。用于攻克连读弱读。</li>
+            <li><strong>Smart Tab (智能提示):</strong> 
+                <br>- 按第1次：<strong>听觉提示</strong>（播放该词读音）。
+                <br>- 按第2次：<strong>视觉提示</strong>（显示首字母）。
+            </li>
+            <li><strong>Auto-Scaffolding (自适应脚手架):</strong> 如果错误率过高，系统会自动将语速降至 0.8x 或 0.6x，直到你掌握为止。</li>
+        </ul>
+
+        <h4>05. SHORTCUTS (键盘指令)</h4>
+        <ul>
+            <li><span class="key">Enter</span> : 提交检查 / 跳至下一空 / 下一句</li>
+            <li><span class="key">Ctrl</span> + <span class="key">Enter</span> : 重播整句 (Replay)</li>
+            <li><span class="key">Tab</span> : 请求提示 (Hint)</li>
+            <li><span class="key">?</span> (Shift+/) : 打开/关闭本手册</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+    // 核心状态
+    let sentences = [];
+    let currentIndex = 0;
+    let synth = window.speechSynthesis;
+    let isRevealed = false;
+
+    // [V2.0 升级] 编辑距离算法：用于允许轻微拼写错误
+    function levenshtein(a, b) {
+        const matrix = [];
+        for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+        for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) matrix[i][j] = matrix[i - 1][j - 1];
+                else matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+            }
+        }
+        return matrix[b.length][a.length];
+    }
+
+    // [新增] 虚词表：用于识别哪些词直接显示，哪些词需要挖空
+    const functionWords = new Set(["the","be","to","of","and","a","in","that","have","i","it","for","not","on","with","he","as","you","do","at","this","but","his","by","from","they","we","say","her","she","or","an","will","my","one","all","would","there","their","what","so","up","out","if","about","who","get","which","go","me","when","make","can","like","time","no","just","him","know","take","people","into","year","your","good","some","could","them","see","other","than","then","now","look","only","come","its","over","think","also","back","after","use","two","how","our","work","first","well","way","even","new","want","because","any","these","give","day","most","us","is","are","was","were"]);
+
+    // 文本处理：利用正则进行 NLP 级别的分句
+    function parseText(text) {
+        // 移除多余换行，按标点分句，但保留标点
+        return text.replace(/\s+/g, ' ').match(/[^.?!]+[.?!]+["']?|[^.?!]+$/g) || [];
+    }
+
+    function initSystem() {
+        const rawText = document.getElementById('source-text').value;
+        if (!rawText.trim()) return alert("ERROR: NO_DATA_STREAM");
+
+        sentences = parseText(rawText).map(s => s.trim()).filter(s => s.length > 0);
+        
+        document.getElementById('input-area').style.display = 'none';
+        document.getElementById('training-area').style.display = 'flex';
+        document.getElementById('total-count').innerText = sentences.length;
+        
+        loadSentence(0);
+    }
+
+    // [新增] 定义一个全局标记：是否正在等待用户确认下一句
+    let isWaitingForNext = false;
+
+    function loadSentence(index) {
+        // 每次加载新句子时，重置等待状态
+        isWaitingForNext = false; 
+
+        if (index >= sentences.length) {
+            alert("SESSION_COMPLETE. REFRESH_TO_RESET.");
+            return;
+        }
+        currentIndex = index;
+        document.getElementById('current-index').innerText = currentIndex + 1;
+        
+        const target = sentences[currentIndex];
+        const displayEl = document.getElementById('target-text');
+        const inputEl = document.getElementById('user-input'); // 旧输入框
+        
+        // 1. 界面初始化
+        inputEl.style.display = 'none'; // 隐藏旧输入框
+        displayEl.innerHTML = '';       // 清空显示区
+        displayEl.style.filter = 'none'; // 取消模糊
+        
+        // 2. 文本切分与卡拉OK游标初始化
+        // 按单词和标点切分，保留分隔符
+        const tokens = target.split(/([ \t\n\r,.?!:;"'-]+)/).filter(t => t.trim().length > 0);
+        let charCursor = 0; // 用于记录当前单词在语音流中的字符位置
+
+        // 3. 循环生成填空题
+        tokens.forEach(token => {
+            const lower = token.toLowerCase().replace(/[^a-z]/g, '');
+            const startIndex = charCursor;
+            const endIndex = charCursor + token.length;
+            charCursor += token.length; // 游标累加
+
+            // 判断：是实词（且不在虚词表中）-> 生成输入框
+            // 判断：是虚词或标点 -> 生成文本显示
+            const isContentWord = lower.length > 2 && !functionWords.has(lower);
+
+            if (isContentWord) {
+                // === 生成输入框 ===
+                const input = document.createElement('input');
+                input.className = 'cloze-input word-token'; // 加上 word-token 用于高亮
+                input.dataset.answer = lower; 
+                input.dataset.start = startIndex; // 卡拉OK开始时间
+                input.dataset.end = endIndex;     // 卡拉OK结束时间
+                
+                // 样式设置
+                input.style.width = (token.length * 14) + 'px';
+                input.style.background = 'transparent';
+                input.style.border = 'none';
+                input.style.borderBottom = '1px solid var(--dim)';
+                input.style.color = 'var(--fg)';
+                input.style.textAlign = 'center';
+                input.style.fontFamily = 'inherit';
+                input.style.fontSize = 'inherit';
+                input.style.outline = 'none';
+                input.autocomplete = 'off';
+                
+                // [V3.0 新增] 科学功能：即时反馈与声学隔离
+                // 1. 微观反馈：离开输入框立即检查，强化记忆回路
+                input.addEventListener('blur', function() {
+                    const val = this.value.trim().toLowerCase();
+                    const ans = this.dataset.answer;
+                    const dist = levenshtein(val, ans);
+                    // 逻辑复用：简单判断对错
+                    if (val.length === 0) {
+                        this.style.borderBottom = '1px solid var(--dim)'; // 空值复原
+                    } else if (dist === 0) {
+                        this.style.borderBottom = '2px solid var(--fg)'; 
+                        this.style.color = 'var(--fg)';
+                    } else if (dist <= (ans.length > 5 ? 2 : 1)) {
+                        this.style.borderBottom = '2px dashed #ffff00'; 
+                        this.style.color = '#ffff00';
+                    } else {
+                        this.style.borderBottom = '2px solid var(--err)';
+                        this.style.color = 'var(--err)';
+                    }
+                });
+
+                // 2. 声学隔离：双击输入框，只读这一个词 (Bottom-up Processing)
+                input.addEventListener('dblclick', function() {
+                    speak(this.dataset.answer);
+                    this.focus(); // 保持焦点
+                });
+
+                displayEl.appendChild(input);
+            } else {
+                // === 生成文本显示 ===
+                const span = document.createElement('span');
+                span.innerText = token; 
+                span.className = 'word-token'; // 加上 word-token 用于高亮
+                span.dataset.start = startIndex;
+                span.dataset.end = endIndex;
+                
+                // 样式设置
+                span.style.color = 'var(--dim)';
+                span.style.marginRight = '4px'; // 微调间距
+                displayEl.appendChild(span);
+            }
+        });
+
+        isRevealed = false;
+        document.getElementById('feedback').innerText = '';
+        
+        // 4. 自动聚焦第一个输入框
+        const firstInput = displayEl.querySelector('input');
+        if(firstInput) firstInput.focus();
+        
+        // 5. 播放语音
+        speak(target);
+    }
+    function speak(text) {
+        if (synth.speaking) synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        // 尝试获取高质量语音
+        const voices = synth.getVoices();
+        // 优先选 Microsoft/Google 的英文
+        const enVoice = voices.find(v => v.name.includes("Microsoft") && v.lang.includes("en")) || 
+                        voices.find(v => v.lang.includes("en-US"));
+        if (enVoice) utterance.voice = enVoice;
+        
+        utterance.rate = parseFloat(document.getElementById('rate').value);
+        
+        // [激活] 卡拉OK 高亮逻辑
+        utterance.onboundary = (event) => {
+            if (event.name !== 'word') return;
+            const charIndex = event.charIndex;
+            
+            // 移除所有旧的高亮
+            document.querySelectorAll('.active-word').forEach(el => {
+                el.style.background = 'transparent';
+                el.style.color = el.tagName === 'INPUT' ? 'var(--fg)' : 'var(--dim)';
+                el.classList.remove('active-word');
+            });
+
+            // 查找当前读到的元素
+            const els = document.querySelectorAll('.word-token');
+            for (let el of els) {
+                const start = parseInt(el.dataset.start);
+                const end = parseInt(el.dataset.end);
+                // 如果 TTS 的游标落在该单词范围内
+                if (charIndex >= start && charIndex < end + 2) { 
+                    // [V2.0 升级] 视觉引导：背景色高亮，保持排版稳定
+                    el.style.background = 'var(--dim)';
+                    el.style.color = '#000'; // 反色显示
+                    el.style.borderRadius = '2px';
+                    el.classList.add('active-word');
+                    break;
+                }
+            }
+        };
+
+        synth.speak(utterance);
+    }
+
+    // 极客逻辑：Levenshtein Distance 并不是必须的，我们需要的是精准匹配
+    // 但为了学习效率，我们允许忽略大小写和标点的 "Fuzzy Match"
+    function checkInput() {
+        // [修改] 逐词校验逻辑
+        const inputs = document.querySelectorAll('.cloze-input');
+        let allCorrect = true;
+
+        inputs.forEach(input => {
+            const val = input.value.trim().toLowerCase();
+            const ans = input.dataset.answer;
+            
+            // [V2.0 升级] 容错逻辑：允许 1-2 个字母的拼写误差
+            const dist = levenshtein(val, ans);
+            const tolerance = ans.length > 5 ? 2 : 1; // 长词允许错2个，短词允许错1个
+
+            if (dist === 0) {
+                // 完美正确
+                input.style.borderBottom = '2px solid var(--fg)'; 
+                input.style.color = 'var(--fg)';
+            } else if (dist <= tolerance && val.length > 0) {
+                // 拼写微瑕 (Fuzzy Match) - 视为正确但给黄色警告
+                input.style.borderBottom = '2px dashed #ffff00'; // 黄色虚线
+                input.style.color = '#ffff00';
+            } else {
+                // 严重错误
+                input.style.borderBottom = '2px solid var(--err)'; 
+                allCorrect = false;
+            }
+        });
+        
+        const speedInput = document.getElementById('rate');
+
+        if (allCorrect) {
+            // [新增] 影子跟读环节 (Shadowing Phase)
+            speedInput.value = "1.0"; 
+            
+            // 播放音频
+            speak(sentences[currentIndex]);
+
+            // [V4.0 升级] 认知闭合：暂停并显示完整答案，等待用户确认
+            isWaitingForNext = true; // 开启等待状态
+            
+            // 禁用所有输入框，防止用户误触
+            document.querySelectorAll('.cloze-input').forEach(el => el.disabled = true);
+
+            // 在反馈区显示完整句子 (使用换行符让排版更清晰)
+            const fullSentence = sentences[currentIndex];
+            const msg = ">> CORRECT! FULL TEXT:\n" + fullSentence + "\n>> [PRESS ENTER TO NEXT]";
+            
+            const el = document.getElementById('feedback');
+            el.innerText = msg;
+            el.style.color = 'var(--fg)';
+            el.style.height = 'auto'; // 允许高度自动撑开以显示长句
+            el.style.whiteSpace = 'pre-wrap'; // 保留换行格式
+            
+        } else {
+            // [新增] 认知负荷管理 (Auto-Slowdown)
+            const currentSpeed = parseFloat(speedInput.value);
+            
+            // 逻辑：如果速度太快，就降低一档并重播；如果已经很慢，只给提示
+            if (currentSpeed > 0.8) {
+                speedInput.value = "0.8";
+                flashFeedback(">> TOO FAST? SLOWING TO 0.8x... LISTEN AGAIN", false);
+                speak(sentences[currentIndex]); 
+            } else if (currentSpeed > 0.6 && currentSpeed <= 0.8) {
+                speedInput.value = "0.6";
+                flashFeedback(">> STILL FAST? SLOWING TO 0.6x... LISTEN AGAIN", false);
+                speak(sentences[currentIndex]);
+            } else {
+                // 已经是慢速了，不再自动重播，避免挫败感
+                flashFeedback(">> MISMATCH: CHECK RED FIELDS OR USE [TAB]", false);
+            }
+        }
+    }
+
+    function flashFeedback(msg, success) {
+        const el = document.getElementById('feedback');
+        el.innerText = msg;
+        el.style.color = success ? 'var(--fg)' : 'var(--err)';
+    }
+
+    function shakeInput() {
+        const input = document.getElementById('user-input');
+        input.animate([
+            { transform: 'translateX(0)' },
+            { transform: 'translateX(-10px)' },
+            { transform: 'translateX(10px)' },
+            { transform: 'translateX(0)' }
+        ], { duration: 200 });
+    }
+
+    // 键盘监听 (Vim-like efficiency)
+    document.addEventListener('keydown', (e) => {
+        if (document.getElementById('training-area').style.display === 'none') return;
+
+        // CTRL + Enter: 重播 (Replay)
+        if (e.ctrlKey && e.key === 'Enter') {
+            speak(sentences[currentIndex]);
+            return;
+        }
+
+        // Enter: 智能导航 (Auto-Nav)
+        if (!e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault(); // 阻止默认提交
+
+            // [新增] 确认模式：如果已经显示了答案，按 Enter 进入下一句
+            if (isWaitingForNext) {
+                loadSentence(currentIndex + 1);
+                return;
+            }
+
+            const current = document.activeElement;
+            
+            // 如果焦点在输入框里
+            if (current.classList.contains('cloze-input')) {
+                const inputs = Array.from(document.querySelectorAll('.cloze-input'));
+                const idx = inputs.indexOf(current);
+                
+                // 如果不是最后一个框，跳到下一个
+                if (idx < inputs.length - 1) {
+                    inputs[idx + 1].focus();
+                    return; 
+                }
+            }
+            // 如果是最后一个框，或者焦点不在框里，才执行检查
+            checkInput();
+        }
+
+        // Tab: 偷看/放弃 (Reveal)
+        if (e.key === 'Tab') {
+            e.preventDefault(); // 阻止切焦
+            // [修改] 智能辅助：自动填入错误或空的词
+            const inputs = document.querySelectorAll('.cloze-input');
+            let filledCount = 0;
+            inputs.forEach(input => {
+                const ans = input.dataset.answer;
+                const currentVal = input.value.toLowerCase();
+                
+                // [V3.0 升级] 多模态提示：优先听觉，其次视觉
+                if (currentVal !== ans) {
+                    // 策略：如果当前框是空的，或者完全错误的，先播放声音（听觉提示）
+                    // 只有当用户已经填了一部分但卡住时，才提示字母
+                    if (currentVal.length === 0 && !input.dataset.hasPlayedAudioHint) {
+                        speak(ans);
+                        input.dataset.hasPlayedAudioHint = "true"; // 标记已提示过声音
+                        flashFeedback(">> HINT: LISTEN CAREFULLY...", true);
+                        filledCount++; // 计入操作数以阻止跳题
+                        return; // 本次Tab只播放声音，不填字
+                    }
+
+                    // 如果已经听过声音了，或者已经写了一半，则提供视觉提示（填字母）
+                    let correctLen = 0;
+                    while (correctLen < currentVal.length && currentVal[correctLen] === ans[correctLen]) {
+                        correctLen++;
+                    }
+                    // 填入下一个正确的字母
+                    input.value = ans.substring(0, correctLen + 1);
+                    input.style.color = 'var(--dim)'; 
+                    filledCount++;
+                }
+            });
+            
+            if (filledCount > 0) {
+                flashFeedback(">> ASSIST: " + filledCount + " WORDS REVEALED", false);
+            } else {
+                loadSentence(currentIndex + 1); // 全对后Tab跳下一题
+            }
+            
+        }
+        
+    // [新增] 监听 ? 键打开手册 (这行代码必须在 Tab 键判断的后面，但在 }); 之前)
+        if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+            toggleManual();
+        }
+    });
+
+    // [新增] 手册开关函数 (这个函数必须放在监听器 }); 的外面)
+    function toggleManual() {
+        const el = document.getElementById('manual-overlay');
+        // 判断当前是显示还是隐藏
+        const isHidden = el.style.display === 'none' || el.style.display === '';
+        
+        if (isHidden) {
+            el.style.display = 'flex'; // 显示
+        } else {
+            el.style.display = 'none'; // 隐藏
+        }
+    }
+
+    // [V5.0 升级] 提取提示逻辑，供手机按钮调用
+    function triggerHint() {
+        // 如果处于等待确认下一句的状态，点击提示无意义
+        if (typeof isWaitingForNext !== 'undefined' && isWaitingForNext) return;
+
+        const inputs = document.querySelectorAll('.cloze-input');
+        let filledCount = 0;
+
+        inputs.forEach(input => {
+            const ans = input.dataset.answer;
+            const currentVal = input.value.toLowerCase();
+            
+            // 多模态提示逻辑复用
+            if (currentVal !== ans) {
+                // 1. 优先听觉提示
+                if (currentVal.length === 0 && !input.dataset.hasPlayedAudioHint) {
+                    speak(ans);
+                    input.dataset.hasPlayedAudioHint = "true";
+                    flashFeedback(">> HINT: LISTEN CAREFULLY...", true);
+                    filledCount++;
+                    return; 
+                }
+                // 2. 其次视觉提示
+                let correctLen = 0;
+                while (correctLen < currentVal.length && currentVal[correctLen] === ans[correctLen]) {
+                    correctLen++;
+                }
+                input.value = ans.substring(0, correctLen + 1);
+                input.style.color = 'var(--dim)'; 
+                input.focus(); // 手机上聚焦，方便接着打字
+                filledCount++;
+            }
+        });
+
+        if (filledCount === 0) {
+            // 如果没东西可提示了，说明全对或者没填，尝试检查
+            checkInput();
+        }
+    }
+
+    // 预加载语音列表
+    window.speechSynthesis.onvoiceschanged = () => {};
+</script>
+</body>
+</html>
