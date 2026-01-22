@@ -344,9 +344,12 @@
             const endIndex = charCursor + token.length;
             charCursor += token.length; // 游标累加
 
-            // 判断：是实词（且不在虚词表中）-> 生成输入框
-            // [V10.0 精度提升] 允许2字母单词(如 'go', 'do', 'ox')被挖空，只要它不在虚词表中
-            const isContentWord = lower.length > 1 && !functionWords.has(lower);
+            // [V13.0 智能稀疏算法] 解决"填空疲劳"的核心逻辑：
+            // 1. 基础筛选：排除虚词和单字母。
+            const isCandidate = lower.length > 1 && !functionWords.has(lower);
+            // 2. 动态掩码：长难词(>6字母) 100% 挖空；短实词 50% 概率随机挖空。
+            // 既保证了核心词汇的训练，又大幅减少了机械打字的工作量。
+            const isContentWord = isCandidate && (lower.length > 6 || Math.random() > 0.5);
 
             if (isContentWord) {
                 // [V7.0] 统计总题目数量
