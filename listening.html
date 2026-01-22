@@ -90,6 +90,16 @@
         #manual-box::-webkit-scrollbar { width: 8px; }
         #manual-box::-webkit-scrollbar-thumb { background: var(--dim); }
 
+        /* [V7.0 新增] 结算卡片样式 */
+        #summary-card { display: none; text-align: center; animation: fadeIn 0.5s ease; width: 100%; }
+        .stat-box { background: #F5F5F7; padding: 20px; border-radius: 16px; margin: 20px auto; max-width: 200px; }
+        .stat-number { font-size: 3rem; font-weight: 800; color: var(--accent); letter-spacing: -1px; }
+        .stat-label { color: var(--dim); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        #missed-words-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 20px; }
+        .missed-tag { background: rgba(255, 59, 48, 0.1); color: var(--err); padding: 8px 16px; border-radius: 99px; font-weight: 600; font-size: 1rem; border: 1px solid rgba(255, 59, 48, 0.2); transition: 0.2s; }
+        .missed-tag:hover { background: var(--err); color: #fff; transform: scale(1.05); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
         /* [新增] 返回背单词基地的按钮样式 */
         .home-link { position: fixed; top: 10px; right: 10px; font-size: 1.5rem; text-decoration: none; z-index: 1001; opacity: 0.5; transition: opacity 0.2s; filter: grayscale(100%); }
         .home-link:hover { opacity: 1; filter: grayscale(0%); text-shadow: 0 0 8px var(--fg); }
@@ -131,6 +141,24 @@
             <button onclick="speak(sentences[currentIndex])" style="border-color:#008f11">🔊 REPLAY</button>
             <button onclick="triggerHint()" style="border-color:#ffff00; color:#ffff00">💡 HINT</button>
             <button onclick="checkInput()" style="border-color:#00ff41; background:var(--dim); color:white">✅ CHECK</button>
+        </div>
+
+        <!-- [V7.0 新增] 结算界面容器 -->
+        <div id="summary-card">
+            <h2 style="margin-bottom: 5px;">Session Complete</h2>
+            <p style="color:var(--dim); margin-top:0;">Training Data Analysis</p>
+            
+            <div class="stat-box">
+                <div class="stat-number" id="accuracy-score">0%</div>
+                <div class="stat-label">Accuracy Rate</div>
+            </div>
+
+            <div style="text-align: left; margin-top: 30px; max-width: 600px; margin-left: auto; margin-right: auto;">
+                <p class="stat-label" style="text-align:center">NEURAL GAPS (Words to Review):</p>
+                <div id="missed-words-list"></div>
+            </div>
+
+            <button onclick="location.reload()" style="margin-top: 40px; padding-left: 40px; padding-right: 40px;">START NEW SESSION</button>
         </div>
     </div>
 </div>
@@ -192,6 +220,11 @@
     let synth = window.speechSynthesis;
     let isRevealed = false;
 
+    // [V7.0 新增] 错误追踪变量
+    let missedWords = new Set(); 
+    let sessionMistakes = 0;
+    let totalBlanks = 0;
+
     // [V2.0 升级] 编辑距离算法：用于允许轻微拼写错误
     function levenshtein(a, b) {
         const matrix = [];
@@ -206,8 +239,8 @@
         return matrix[b.length][a.length];
     }
 
-    // [新增] 虚词表：用于识别哪些词直接显示，哪些词需要挖空
-    const functionWords = new Set(["the","be","to","of","and","a","in","that","have","i","it","for","not","on","with","he","as","you","do","at","this","but","his","by","from","they","we","say","her","she","or","an","will","my","one","all","would","there","their","what","so","up","out","if","about","who","get","which","go","me","when","make","can","like","time","no","just","him","know","take","people","into","year","your","good","some","could","them","see","other","than","then","now","look","only","come","its","over","think","also","back","after","use","two","how","our","work","first","well","way","even","new","want","because","any","these","give","day","most","us","is","are","was","were"]);
+    // [新增] 虚词表：已剔除实义动词(say, get, go, make等)，保留真正的语法功能词
+    const functionWords = new Set(["the","be","to","of","and","a","in","that","have","i","it","for","not","on","with","he","as","you","do","at","this","but","his","by","from","they","we","her","she","or","an","will","my","all","would","there","their","what","so","up","out","if","about","who","which","me","when","can","like","no","him","into","your","some","could","them","other","than","then","now","only","its","over","also","after","how","our","well","way","even","because","any","these","most","us","is","are","was","were","am"]);
 
     // 文本处理：利用正则进行 NLP 级别的分句
     function parseText(text) {
@@ -225,6 +258,11 @@
         document.getElementById('training-area').style.display = 'flex';
         document.getElementById('total-count').innerText = sentences.length;
         
+        // [V7.0] 每次开始新会话时重置数据
+        missedWords.clear();
+        sessionMistakes = 0;
+        totalBlanks = 0;
+
         loadSentence(0);
     }
 
@@ -235,8 +273,38 @@
         // 每次加载新句子时，重置等待状态
         isWaitingForNext = false; 
 
+        // [V7.0] 替换 Alert 为结算卡片显示逻辑
         if (index >= sentences.length) {
-            alert("SESSION_COMPLETE. REFRESH_TO_RESET.");
+            document.getElementById('target-text').style.display = 'none';
+            document.getElementById('status-bar').style.display = 'none';
+            document.getElementById('mobile-toolbar').style.display = 'none';
+            
+            const summary = document.getElementById('summary-card');
+            summary.style.display = 'block';
+            
+            // 计算正确率
+            const accuracy = Math.max(0, 100 - Math.floor((sessionMistakes / Math.max(1, totalBlanks)) * 100));
+            document.getElementById('accuracy-score').innerText = accuracy + "%";
+            
+            // 渲染错词墙
+            const list = document.getElementById('missed-words-list');
+            list.innerHTML = '';
+            if (missedWords.size === 0) {
+                list.innerHTML = '<span style="color:var(--success)">Perfect Run! No gaps detected.</span>';
+            } else {
+                missedWords.forEach(word => {
+                    const tag = document.createElement('span');
+                    tag.className = 'missed-tag';
+                    tag.innerText = word;
+                    // [核心功能] 声学显微镜：点击错词时，强制降低语速到 0.75x 播放
+                    tag.onclick = () => {
+                        document.getElementById('rate').value = "0.75"; 
+                        speak(word);
+                    };
+                    tag.style.cursor = 'pointer';
+                    list.appendChild(tag);
+                });
+            }
             return;
         }
         currentIndex = index;
@@ -268,10 +336,13 @@
             charCursor += token.length; // 游标累加
 
             // 判断：是实词（且不在虚词表中）-> 生成输入框
-            // 判断：是虚词或标点 -> 生成文本显示
-            const isContentWord = lower.length > 2 && !functionWords.has(lower);
+            // [V10.0 精度提升] 允许2字母单词(如 'go', 'do', 'ox')被挖空，只要它不在虚词表中
+            const isContentWord = lower.length > 1 && !functionWords.has(lower);
 
             if (isContentWord) {
+                // [V7.0] 统计总题目数量
+                totalBlanks++;
+
                 // === 生成输入框 ===
                 const input = document.createElement('input');
                 input.className = 'cloze-input word-token'; // 加上 word-token 用于高亮
@@ -280,7 +351,14 @@
                 input.dataset.end = endIndex;     // 卡拉OK结束时间
                 
                 // 样式设置
-                input.style.width = (token.length * 14) + 'px';
+                // [V11.0 核心逻辑] 视觉长度去耦：使用分档宽度，消除"数格子猜词"的作弊可能
+                // 3字以内用短框，4-7字用中框，8字以上用长框。增加认知模糊度，强迫依赖听觉。
+                const len = token.length;
+                let visualWidth = 60; // Base width (px)
+                if (len > 3 && len <= 7) visualWidth = 100;
+                if (len > 7) visualWidth = 160;
+                
+                input.style.width = visualWidth + 'px';
                 input.style.background = 'transparent';
                 input.style.border = 'none';
                 input.style.borderBottom = '1px solid var(--dim)';
@@ -337,9 +415,11 @@
         isRevealed = false;
         document.getElementById('feedback').innerText = '';
         
-        // 4. 自动聚焦第一个输入框
-        const firstInput = displayEl.querySelector('input');
-        if(firstInput) firstInput.focus();
+        // 4. 自动聚焦第一个输入框 (已移至 speak onend 处理)
+        // [V9.0 核心逻辑] 盲听协议：在声音播放前，强制隐藏所有视觉线索
+        // 防止用户根据输入框长度或虚词位置进行"视觉猜题"
+        displayEl.style.opacity = '0';
+        displayEl.style.transition = 'opacity 0.3s';
         
         // 5. 播放语音
         speak(target);
@@ -355,6 +435,33 @@
         if (enVoice) utterance.voice = enVoice;
         
         utterance.rate = parseFloat(document.getElementById('rate').value);
+
+        // [V8.0 核心机制] 语音回路锁定：播放时禁止输入，强迫启用短时记忆
+        utterance.onstart = () => {
+            document.querySelectorAll('.cloze-input').forEach(el => {
+                el.disabled = true; // 锁定输入
+                el.style.opacity = '0.7'; // 视觉降噪
+            });
+        };
+
+        // 播放结束：释放输入控制权
+        utterance.onend = () => {
+            // [V9.0] 听觉暂留结束，视觉层显影 (Visual Reveal)
+            document.getElementById('target-text').style.opacity = '1';
+
+            // 只有在非结算状态下才重新激活输入框
+            if (!isWaitingForNext) {
+                const inputs = document.querySelectorAll('.cloze-input');
+                inputs.forEach(el => {
+                    el.disabled = false;
+                    el.style.opacity = '1';
+                });
+                
+                // 智能聚焦：自动定位到第一个还没填完的空
+                const firstEmpty = Array.from(inputs).find(i => i.value.trim() === '') || inputs[0];
+                if (firstEmpty) firstEmpty.focus();
+            }
+        };
         
         // [激活] 卡拉OK 高亮逻辑
         utterance.onboundary = (event) => {
@@ -421,6 +528,10 @@
                 // 严重错误
                 input.style.borderBottom = '2px solid var(--err)'; 
                 allCorrect = false;
+                
+                // [V7.0] 记录错词（排除未填写的空）
+                if(val.length > 0) missedWords.add(ans);
+                if(val.length > 0) sessionMistakes++;
             }
         });
         
@@ -467,8 +578,9 @@
                 flashFeedback(">> STILL FAST? SLOWING TO 0.6x... LISTEN AGAIN", false);
                 speak(sentences[currentIndex]);
             } else {
-                // 已经是慢速了，不再自动重播，避免挫败感
-                flashFeedback(">> MISMATCH: CHECK RED FIELDS OR USE [TAB]", false);
+                // [V8.1 修正] 强制输入回路：只要有错，必须重听。禁止在无声环境下纯靠视觉改错。
+                flashFeedback(">> PERSISTENCE MODE: LISTEN AGAIN...", false);
+                speak(sentences[currentIndex]); 
             }
         }
     }
@@ -601,6 +713,9 @@
             
             // 多模态提示逻辑复用
             if (currentVal !== ans) {
+                // [V7.0] 请求提示也视为掌握不熟练，加入复习列表
+                missedWords.add(ans);
+
                 // 1. 优先听觉提示
                 if (currentVal.length === 0 && !input.dataset.hasPlayedAudioHint) {
                     speak(ans);
