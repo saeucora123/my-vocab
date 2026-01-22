@@ -9,21 +9,30 @@
         /* Apple Design System Colors (Refined) */
         :root { 
             --bg: #F5F5F7; 
-            --card-bg: #FFFFFF; 
+            --card-bg: rgba(255, 255, 255, 0.85); /* 增加透明度以支持模糊 */
             --fg: #1D1D1F; 
             --dim: #86868B; 
-            --accent: #007AFF; /* iOS Blue */
-            --accent-hover: #0062CC;
+            --accent: #0071E3; /* 更深邃的 Apple Blue */
+            --accent-hover: #0077ED;
+            --err: #FF3B30; 
+            --warning: #FF9500;
+            --success: #34C759; 
+            --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif; 
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
+            --shadow-md: 0 12px 24px rgba(0,0,0,0.06);
+            --glass: blur(20px) saturate(180%);
+            --radius: 24px; /* 更圆润的角 */
+        }
             --err: #FF3B30; 
             --warning: #FF9500;
             --success: #34C759; 
             --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; 
             --shadow-sm: 0 4px 12px rgba(0,0,0,0.03);
             --shadow-md: 0 12px 32px rgba(0,0,0,0.06);
-            --radius: 20px;
+            --radius: 24px;
         }
         
-        body { background-color: var(--bg); color: var(--fg); font-family: var(--font); margin: 0; padding: 40px 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; -webkit-font-smoothing: antialiased; }
+        body { background-color: var(--bg); background-image: radial-gradient(circle at 50% 0%, #fff 0%, transparent 70%); color: var(--fg); font-family: var(--font); margin: 0; padding: 40px 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
         
         /* [V5.0 升级] 移动端响应式修正 */
         @media (max-width: 600px) {
@@ -41,10 +50,10 @@
         #terminal { flex: 1; display: flex; flex-direction: column; max-width: 800px; margin: 0 auto; width: 100%; overflow-y: auto; padding-bottom: 80px; }
         
         /* 输入区 - 卡片式设计 */
-        #input-area { background: var(--card-bg); padding: 40px; border-radius: var(--radius); box-shadow: var(--shadow-md); margin-bottom: 2rem; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); border: 1px solid rgba(255,255,255,0.5); }
-        #input-area:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(0,0,0,0.08); }
-        textarea { width: 100%; background: var(--bg); color: var(--fg); border: 1px solid transparent; border-radius: 14px; padding: 18px; font-family: var(--font); font-size: 1.05rem; line-height: 1.6; resize: none; height: 140px; outline: none; transition: 0.2s; box-sizing: border-box; margin-top: 10px; }
-        textarea:focus { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,122,255,0.15); }
+        #input-area { background: var(--card-bg); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); padding: 40px; border-radius: var(--radius); box-shadow: var(--shadow-md); margin-bottom: 2rem; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.4); }
+        #input-area:hover { transform: translateY(-4px); box-shadow: 0 20px 50px rgba(0,0,0,0.1); }
+        textarea { width: 100%; background: #F2F2F7; color: var(--fg); border: none; border-radius: 16px; padding: 20px; font-family: var(--font); font-size: 1.1rem; line-height: 1.6; resize: none; height: 140px; outline: none; transition: all 0.3s ease; box-sizing: border-box; margin-top: 10px; }
+        textarea:focus { background: #fff; box-shadow: 0 0 0 4px rgba(0,113,227,0.15); transform: scale(1.005); }
         
         /* 训练区 */
         #training-area { flex: 1; display: none; flex-direction: column; justify-content: center; align-items: center; position: relative; }
@@ -56,9 +65,9 @@
         #target-text.revealed { filter: blur(0); }
         
         /* [V6.0 修复] 强制增加单词间距，解决黏连问题 */
-        .cloze-input { margin: 0 4px !important; text-align: center; border-radius: 6px; transition: all 0.2s; font-weight: 600; border: none; border-bottom: 2px solid #E5E5EA; background: transparent; padding-bottom: 2px; min-width: 30px; }
-        .cloze-input:focus { border-bottom-color: var(--accent) !important; background: rgba(0,122,255,0.05); }
-        span.word-token { margin-right: 6px !important; padding: 2px 4px; border-radius: 6px; transition: all 0.2s; }
+        .cloze-input { margin: 0 5px !important; text-align: center; border-radius: 8px; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); font-weight: 600; border: 1px solid transparent; background: #E5E5EA; color: var(--fg); padding: 4px 0; min-width: 30px; height: 1.4em; vertical-align: middle; box-shadow: inset 0 1px 3px rgba(0,0,0,0.03); }
+        .cloze-input:focus { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 0 0 2px rgba(0,113,227,0.3); transform: translateY(-1px); }
+        span.word-token { margin-right: 6px !important; padding: 4px 6px; border-radius: 8px; transition: all 0.2s; }
         
         /* 激活单词样式重写 */
         .active-word { background: var(--accent) !important; color: #fff !important; box-shadow: 0 2px 8px rgba(0,122,255,0.3); transform: scale(1.05); z-index: 10; display: inline-block; }
@@ -70,11 +79,11 @@
         
         /* 帮助 */
         #help { position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: var(--dim); text-align: right; }
-        .key { background: #fff; border: 1px solid #d2d2d7; color: #1d1d1f; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .key { background: #fff; border: 1px solid #d2d2d7; color: #1d1d1f; padding: 2px 6px; border-radius: 6px; font-size: 0.9em; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         
-        button { background: var(--accent); color: #fff; border: none; padding: 14px 28px; cursor: pointer; font-family: var(--font); margin-top: 10px; border-radius: 99px; font-weight: 600; font-size: 1rem; transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); box-shadow: 0 4px 12px rgba(0,122,255,0.25); letter-spacing: 0.3px; }
-        button:hover { background: var(--accent-hover); transform: scale(1.02) translateY(-1px); box-shadow: 0 6px 16px rgba(0,122,255,0.35); }
-        button:active { transform: scale(0.96); }
+        button { background: var(--accent); color: #fff; border: none; padding: 12px 24px; cursor: pointer; font-family: var(--font); margin-top: 10px; border-radius: 99px; font-weight: 500; font-size: 1rem; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 2px 6px rgba(0,113,227,0.2); letter-spacing: -0.2px; }
+        button:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,113,227,0.3); }
+        button:active { transform: scale(0.98); box-shadow: 0 2px 4px rgba(0,113,227,0.2); }
 
         /* [新增] 操作手册模态窗口样式 - 玻璃拟态 */
         #manual-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.6); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); z-index: 999; justify-content: center; align-items: center; }
@@ -350,19 +359,28 @@
                 input.dataset.start = startIndex; // 卡拉OK开始时间
                 input.dataset.end = endIndex;     // 卡拉OK结束时间
                 
+                // [V12.0 体验优化] 移动端防遮挡：聚焦时自动滚动到屏幕垂直居中位置
+                input.addEventListener('focus', function() {
+                    setTimeout(() => {
+                        this.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 300); // 延时300ms等待键盘完全弹起
+                });
+
                 // 样式设置
                 // [V11.0 核心逻辑] 视觉长度去耦：使用分档宽度，消除"数格子猜词"的作弊可能
                 // 3字以内用短框，4-7字用中框，8字以上用长框。增加认知模糊度，强迫依赖听觉。
                 const len = token.length;
-                let visualWidth = 60; // Base width (px)
-                if (len > 3 && len <= 7) visualWidth = 100;
-                if (len > 7) visualWidth = 160;
+                // [V11.0 优化] 动态拟合算法：基于字符宽度的流体布局
+                // 基础宽度 30px + 每个字符约 11px (适配 SF Pro 字体)，上限 200px
+                // 既保留了长度提示，又比分档式更美观
+                const dynamicWidth = Math.min(200, Math.max(40, 30 + (len * 11)));
                 
-                input.style.width = visualWidth + 'px';
-                input.style.background = 'transparent';
-                input.style.border = 'none';
-                input.style.borderBottom = '1px solid var(--dim)';
-                input.style.color = 'var(--fg)';
+                input.style.width = dynamicWidth + 'px';
+                // [视觉重构] 移除 JS 内联样式，交由 CSS .cloze-input 类统一管理胶囊样式
+                // input.style.background = 'transparent'; // 删除此行
+                input.style.border = 'none'; // 保持
+                // input.style.borderBottom = '1px solid var(--dim)'; // 删除此行，胶囊不需要底边框
+                // input.style.color = 'var(--fg)'; // 删除此行
                 input.style.textAlign = 'center';
                 input.style.fontFamily = 'inherit';
                 input.style.fontSize = 'inherit';
@@ -377,16 +395,21 @@
                     const dist = levenshtein(val, ans);
                     // 逻辑复用：简单判断对错
                     if (val.length === 0) {
-                        this.style.borderBottom = '2px solid #E5E5EA'; // 空值复原为浅灰
+                        // [V12.0 修复] 恢复默认胶囊样式 (浅灰背景，黑色字)
+                        this.style.background = '#E5E5EA'; 
+                        this.style.color = 'var(--fg)';
                     } else if (dist === 0) {
-                        this.style.borderBottom = '2px solid var(--success)'; 
-                        this.style.color = 'var(--success)';
+                        // 正确：绿底白字
+                        this.style.background = 'var(--success)'; 
+                        this.style.color = '#fff';
                     } else if (dist <= (ans.length > 5 ? 2 : 1)) {
-                        this.style.borderBottom = '2px dashed var(--warning)'; 
-                        this.style.color = 'var(--warning)';
+                        // 模糊：黄底白字
+                        this.style.background = 'var(--warning)'; 
+                        this.style.color = '#fff';
                     } else {
-                        this.style.borderBottom = '2px solid var(--err)';
-                        this.style.color = 'var(--err)';
+                        // 错误：红底白字
+                        this.style.background = 'var(--err)';
+                        this.style.color = '#fff';
                     }
                 });
 
@@ -418,8 +441,11 @@
         // 4. 自动聚焦第一个输入框 (已移至 speak onend 处理)
         // [V9.0 核心逻辑] 盲听协议：在声音播放前，强制隐藏所有视觉线索
         // 防止用户根据输入框长度或虚词位置进行"视觉猜题"
-        displayEl.style.opacity = '0';
-        displayEl.style.transition = 'opacity 0.3s';
+        // [V9.0 修正] Apple Design: 保持毛玻璃模糊状态，而非完全隐藏
+        // 让用户感知句子结构（长短），但看不清内容，建立心理预期
+        displayEl.classList.remove('revealed'); // 移除清晰态类，回归CSS默认的blur(12px)
+        displayEl.style.filter = ''; // 清除内联样式干扰，把控制权还给CSS
+        displayEl.style.opacity = '1'; // 保持可见
         
         // 5. 播放语音
         speak(target);
@@ -447,7 +473,8 @@
         // 播放结束：释放输入控制权
         utterance.onend = () => {
             // [V9.0] 听觉暂留结束，视觉层显影 (Visual Reveal)
-            document.getElementById('target-text').style.opacity = '1';
+            // 添加 revealed 类，触发 CSS 中的 filter: blur(0) 动画
+            document.getElementById('target-text').classList.add('revealed');
 
             // 只有在非结算状态下才重新激活输入框
             if (!isWaitingForNext) {
@@ -517,16 +544,17 @@
             const tolerance = ans.length > 5 ? 2 : 1; // 长词允许错2个，短词允许错1个
 
             if (dist === 0) {
-                // 完美正确
-                input.style.borderBottom = '2px solid var(--success)'; 
-                input.style.color = 'var(--success)';
+                // 完美正确 - 变为绿色背景胶囊，白色文字
+                input.style.background = 'var(--success)'; 
+                input.style.color = '#fff';
             } else if (dist <= tolerance && val.length > 0) {
-                // 拼写微瑕 (Fuzzy Match) - 视为正确但给黄色警告
-                input.style.borderBottom = '2px dashed var(--warning)'; 
-                input.style.color = 'var(--warning)';
+                // 拼写微瑕 - 变为黄色背景
+                input.style.background = 'var(--warning)'; 
+                input.style.color = '#fff';
             } else {
-                // 严重错误
-                input.style.borderBottom = '2px solid var(--err)'; 
+                // 严重错误 - 变为红色背景
+                input.style.background = 'var(--err)'; 
+                input.style.color = '#fff';
                 allCorrect = false;
                 
                 // [V7.0] 记录错词（排除未填写的空）
@@ -548,7 +576,15 @@
             isWaitingForNext = true; // 开启等待状态
             
             // 禁用所有输入框，防止用户误触
-            document.querySelectorAll('.cloze-input').forEach(el => el.disabled = true);
+            document.querySelectorAll('.cloze-input').forEach(el => {
+                el.disabled = true;
+                // [V12.0 视觉融合] 通关后，移除胶囊样式，使文字与背景融合，回归阅读本质
+                el.style.background = 'transparent';
+                el.style.color = 'var(--fg)'; // 变回黑色
+                el.style.boxShadow = 'none';
+                el.style.borderBottom = '2px solid var(--success)'; // 仅保留一条优雅的绿线表示通过
+                el.style.transition = 'all 0.5s ease';
+            });
 
             // 在反馈区显示完整句子 (使用换行符让排版更清晰)
             const fullSentence = sentences[currentIndex];
@@ -667,7 +703,9 @@
                     }
                     // 填入下一个正确的字母
                     input.value = ans.substring(0, correctLen + 1);
-                    input.style.color = 'var(--dim)'; 
+                    // [V12.0 修复] 胶囊模式下，提示文字需要保持高对比度
+                    input.style.color = 'var(--accent)'; // 使用蓝色表示这是"系统提示"的文字
+                    input.style.fontWeight = 'bold';
                     filledCount++;
                 }
             });
