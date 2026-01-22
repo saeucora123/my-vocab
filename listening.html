@@ -34,13 +34,13 @@
         
         body { background-color: var(--bg); background-image: radial-gradient(circle at 50% 0%, #fff 0%, transparent 70%); color: var(--fg); font-family: var(--font); margin: 0; padding: 40px 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
         
-        /* [V5.0 升级] 移动端响应式修正 */
-        @media (max-width: 600px) {
-            body { padding: 5px; font-size: 14px; }
-            h3 { font-size: 1.2rem; margin: 5px 0; }
-            #target-text { font-size: 1.2rem; line-height: 1.8; }
-            .cloze-input { font-size: 1.2rem; border-width: 1px; border-radius: 0; }
-            #help { display: none; } /* 手机上隐藏键盘快捷键提示 */
+        /* [V5.1 升级] iPad & 移动端全触控适配 (扩大响应范围至 1180px) */
+        @media (max-width: 1180px) {
+            body { padding: 20px; font-size: 15px; } /* iPad 给予适度呼吸感 */
+            h3 { font-size: 1.3rem; margin: 5px 0; }
+            #target-text { font-size: 1.5rem; line-height: 2.0; }
+            .cloze-input { font-size: 1.3rem; border-width: 1px; } /* 保留圆角设计 */
+            #help { display: none; } /* 触控设备隐藏键盘提示 */
             /* 手机按钮栏 - 悬浮底座风格 */
             #mobile-toolbar { display: flex !important; gap: 12px; position: fixed; bottom: 20px; left: 20px; right: 20px; width: auto; z-index: 100; background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); padding: 10px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.5); }
             #mobile-toolbar button { flex: 1; padding: 12px 0; font-size: 0.9rem; border-radius: 12px; margin: 0; box-shadow: none; }
@@ -272,6 +272,9 @@
         sessionMistakes = 0;
         totalBlanks = 0;
 
+        // [V5.1 iPad 优化] 解决 iOS Safari 首次播放音频需要用户手势的问题
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+
         loadSentence(0);
     }
 
@@ -389,6 +392,10 @@
                 input.style.fontSize = 'inherit';
                 input.style.outline = 'none';
                 input.autocomplete = 'off';
+                // [V5.1 iPad 优化] 彻底禁用 iOS 键盘的自动纠错与大写，还原纯粹听写体验
+                input.setAttribute('autocorrect', 'off');
+                input.setAttribute('autocapitalize', 'off');
+                input.setAttribute('spellcheck', 'false');
                 
                 // [V3.0 新增] 科学功能：即时反馈与声学隔离
                 // 1. 微观反馈：离开输入框立即检查，强化记忆回路
