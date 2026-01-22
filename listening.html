@@ -6,8 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neuro-Echo: High-Efficiency Listening Terminal</title>
     <style>
-        :root { --bg: #0d1117; --fg: #00ff41; --dim: #008f11; --err: #ff0040; --font: 'Courier New', monospace; }
-        body { background-color: var(--bg); color: var(--fg); font-family: var(--font); margin: 0; padding: 10px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; }
+        /* Apple Design System Colors */
+        :root { --bg: #f5f5f7; --card-bg: #ffffff; --fg: #1d1d1f; --dim: #86868b; --accent: #0071e3; --err: #ff3b30; --success: #34c759; --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        
+        body { background-color: var(--bg); color: var(--fg); font-family: var(--font); margin: 0; padding: 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; -webkit-font-smoothing: antialiased; }
         
         /* [V5.0 升级] 移动端响应式修正 */
         @media (max-width: 600px) {
@@ -16,43 +18,46 @@
             #target-text { font-size: 1.2rem; line-height: 1.8; }
             .cloze-input { font-size: 1.2rem; border-width: 1px; border-radius: 0; }
             #help { display: none; } /* 手机上隐藏键盘快捷键提示 */
-            /* 手机按钮栏 */
-            #mobile-toolbar { display: flex !important; gap: 5px; margin-top: 20px; width: 100%; }
-            #mobile-toolbar button { flex: 1; padding: 15px 0; font-size: 1rem; border-radius: 4px; touch-action: manipulation; }
+            /* 手机按钮栏 - 悬浮底座风格 */
+            #mobile-toolbar { display: flex !important; gap: 12px; position: fixed; bottom: 20px; left: 20px; right: 20px; width: auto; z-index: 100; background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); padding: 10px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.5); }
+            #mobile-toolbar button { flex: 1; padding: 12px 0; font-size: 0.9rem; border-radius: 12px; margin: 0; box-shadow: none; }
         }
 
         /* 布局 */
-        #terminal { flex: 1; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; width: 100%; overflow-y: auto; }
+        #terminal { flex: 1; display: flex; flex-direction: column; max-width: 800px; margin: 0 auto; width: 100%; overflow-y: auto; padding-bottom: 80px; }
         
-        /* 输入区 */
-        #input-area { margin-bottom: 2rem; border-bottom: 1px solid var(--dim); padding-bottom: 1rem; }
-        textarea { width: 100%; background: #000; color: var(--dim); border: 1px solid var(--dim); padding: 10px; font-family: var(--font); resize: none; height: 100px; outline: none; }
-        textarea:focus { border-color: var(--fg); color: var(--fg); }
+        /* 输入区 - 卡片式设计 */
+        #input-area { background: var(--card-bg); padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 2rem; transition: all 0.3s ease; }
+        #input-area:hover { box-shadow: 0 15px 40px rgba(0,0,0,0.08); }
+        textarea { width: 100%; background: var(--bg); color: var(--fg); border: 1px solid transparent; border-radius: 12px; padding: 15px; font-family: var(--font); font-size: 1rem; resize: none; height: 120px; outline: none; transition: 0.2s; box-sizing: border-box; }
+        textarea:focus { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,113,227,0.1); }
         
         /* 训练区 */
         #training-area { flex: 1; display: none; flex-direction: column; justify-content: center; align-items: center; position: relative; }
         #status-bar { width: 100%; display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 0.8rem; color: var(--dim); border-bottom: 1px dashed var(--dim); padding-bottom: 5px; }
         
-        /* 核心显示 */
+        /* 核心显示 - 杂志级排版 */
         /* [V6.0 修复] 增加 line-height: 2.5 防止多行时输入框上下重叠 */
-        #target-text { font-size: 1.5rem; letter-spacing: 2px; margin-bottom: 20px; min-height: 2rem; filter: blur(8px); transition: filter 0.2s; user-select: none; line-height: 2.8; }
+        #target-text { font-size: 1.6rem; font-weight: 500; letter-spacing: 0.5px; margin-bottom: 30px; min-height: 2rem; filter: blur(12px); transition: filter 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); user-select: none; line-height: 2.8; color: var(--fg); }
         #target-text.revealed { filter: blur(0); }
         
         /* [V6.0 修复] 强制增加单词间距，解决黏连问题 */
-        .cloze-input { margin-right: 15px !important; margin-left: 5px !important; text-align: center; }
-        span.word-token { margin-right: 10px !important; }
+        .cloze-input { margin-right: 10px !important; margin-left: 2px !important; text-align: center; border-radius: 4px; transition: all 0.2s; font-weight: 600; }
+        .cloze-input:focus { background: rgba(0,113,227,0.1) !important; border-bottom-color: var(--accent) !important; }
+        span.word-token { margin-right: 8px !important; padding: 2px 4px; border-radius: 4px; transition: background 0.2s; }
 
-        #user-input { background: transparent; border: none; border-bottom: 2px solid var(--fg); color: #fff; font-size: 1.5rem; width: 100%; text-align: center; outline: none; font-family: var(--font); caret-color: var(--fg); }
+        #user-input { background: transparent; border: none; border-bottom: 2px solid var(--accent); color: var(--fg); font-size: 1.5rem; width: 100%; text-align: center; outline: none; font-family: var(--font); caret-color: var(--accent); }
         
         /* 反馈 */
         #feedback { margin-top: 1rem; font-size: 1rem; height: 1.5rem; color: var(--err); }
         
         /* 帮助 */
         #help { position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: var(--dim); text-align: right; }
-        .key { border: 1px solid var(--dim); padding: 2px 5px; border-radius: 3px; }
+        .key { background: #fff; border: 1px solid #d2d2d7; color: #1d1d1f; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         
-        button { background: var(--bg); color: var(--fg); border: 1px solid var(--fg); padding: 10px 20px; cursor: pointer; font-family: var(--font); margin-top: 10px; }
-        button:hover { background: var(--fg); color: var(--bg); }
+        button { background: var(--accent); color: #fff; border: none; padding: 12px 24px; cursor: pointer; font-family: var(--font); margin-top: 10px; border-radius: 99px; font-weight: 500; font-size: 0.9rem; transition: transform 0.1s, opacity 0.2s; box-shadow: 0 2px 5px rgba(0,113,227,0.3); }
+        button:hover { opacity: 0.9; transform: scale(1.02); }
+        button:active { transform: scale(0.96); }
 
         /* [新增] 操作手册模态窗口样式 */
         #manual-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999; justify-content: center; align-items: center; }
@@ -226,6 +231,10 @@
         displayEl.innerHTML = '';       // 清空显示区
         displayEl.style.filter = 'none'; // 取消模糊
         
+        // [V6.1 修复] 移动端：加载新句时，将按钮重置为 CHECK
+        const mobileCheckBtn = document.querySelector('#mobile-toolbar button:last-child');
+        if (mobileCheckBtn) mobileCheckBtn.innerHTML = '✅ CHECK';
+
         // 2. 文本切分与卡拉OK游标初始化
         // 按单词和标点切分，保留分隔符
         const tokens = target.split(/([ \t\n\r,.?!:;"'-]+)/).filter(t => t.trim().length > 0);
@@ -362,6 +371,12 @@
     // 极客逻辑：Levenshtein Distance 并不是必须的，我们需要的是精准匹配
     // 但为了学习效率，我们允许忽略大小写和标点的 "Fuzzy Match"
     function checkInput() {
+        // [V6.1 修复] 移动端：如果是等待状态，点击此按钮直接进入下一句
+        if (typeof isWaitingForNext !== 'undefined' && isWaitingForNext) {
+            loadSentence(currentIndex + 1);
+            return;
+        }
+
         // [修改] 逐词校验逻辑
         const inputs = document.querySelectorAll('.cloze-input');
         let allCorrect = true;
@@ -380,8 +395,8 @@
                 input.style.color = 'var(--fg)';
             } else if (dist <= tolerance && val.length > 0) {
                 // 拼写微瑕 (Fuzzy Match) - 视为正确但给黄色警告
-                input.style.borderBottom = '2px dashed #ffff00'; // 黄色虚线
-                input.style.color = '#ffff00';
+                input.style.borderBottom = '2px dashed #ff9500'; 
+                input.style.color = '#ff9500';
             } else {
                 // 严重错误
                 input.style.borderBottom = '2px solid var(--err)'; 
@@ -414,6 +429,10 @@
             el.style.height = 'auto'; // 允许高度自动撑开以显示长句
             el.style.whiteSpace = 'pre-wrap'; // 保留换行格式
             
+            // [V6.1 修复] 移动端：全对后，将按钮文字改为 NEXT
+            const mobileCheckBtn = document.querySelector('#mobile-toolbar button:last-child');
+            if (mobileCheckBtn) mobileCheckBtn.innerHTML = '⏭ NEXT';
+
         } else {
             // [新增] 认知负荷管理 (Auto-Slowdown)
             const currentSpeed = parseFloat(speedInput.value);
