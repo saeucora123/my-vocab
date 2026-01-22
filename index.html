@@ -923,9 +923,13 @@
 6.句子中**必须**包含明确的逻辑线索（如同义词复现、反义词对比、因果解释），让学生即使没见过这个词，读了句子也能猜出这个空应该填什么意思。
 
 【核心指令 2：自我参照效应 (Self-Reference)】
-1.  **Target**: Generate a sharp, analytical question in **English only**.
-2.  **Style**: Do NOT use labels like "Logic Application" or "Self-Reflection". Go straight to the question.
-3.  **Content**: Ask the user to verify the word's logic in their own life systems. (e.g., "Does your current coding habit align with the 'public declaration' logic of this word?")
+1.  **Target**: Create a "Concrete Memory Anchor" (具象记忆锚点).
+2.  **Core Rule**: The user MUST understand the word's definition to answer.
+3.  **Strategy**: Randomly pick one specific anchor:
+    - [Specific Person]: "Who is the most [word] person you know?" (e.g., for 'stubborn')
+    - [Specific Object]: "Look around your room. Which item represents [word]?" (e.g., for 'obsolete')
+    - [Specific Time]: "Think of next Weekend. How could you use [word] to change your plan?"
+4.  **Constraint**: Keep the vocabulary simple (Grade 4 level). Do not be abstract.
 
 【核心指令 3：深度思维编码 (Deep Coding)】
 1.  **mnemonic (逻辑推导)**: 严禁谐音。若是单词，格式必须为数学公式风：'Root(含义) + Prefix(方向) -> 核心动作 -> 抽象引申义'；若是词组，请解析其字面义到实际义的隐喻逻辑。**注意：不要在 mnemonic 字段里包含 Family/词族列表，Family 请单独放在 family 字段返回。**
@@ -958,9 +962,13 @@
 4. **线索闭环**：⚠️至关重要！虽然句子很长，但必须保证通过句内的逻辑（Contextual Clues）推导出该单词。
 
 【核心指令 2：自我参照效应 (Self-Reference)】
-1.  **Target**: Generate a philosophical or structural question in **English only**.
-2.  **Style**: Do NOT use labels. Direct, high-level inquiry.
-3.  **Content**: Challenge the user to evaluate a societal phenomenon or personal value using the word's core logic.
+1.  **Target**: Create a "Cognitive Transfer" (认知迁移).
+2.  **Core Rule**: Force the user to apply the *logic* of the word to a different domain (Career/Study/Society).
+3.  **Strategy**:
+    - [Trade-off]: "If you prioritize [word] in your career, what must you sacrifice?"
+    - [Hypothesis]: "If this concept didn't exist, how would your major/field collapse?"
+    - [Diagnosis]: "Is your current stress caused by a lack of [word] or too much of it?"
+4.  **Style**: Analytical but personal. Like a mentor asking a tough career question.
 
 【核心指令 3：深度思维编码 (Deep Coding)】
 1.  **mnemonic**: 仅输出'物理图景'到'抽象逻辑'的演化推导链（若是词组则侧重解析来源或比喻义）。**不要包含词族列表。**
@@ -2418,11 +2426,13 @@
         const originalText = btn.innerText;
         btn.innerHTML = '<div class="spinner" style="border-top-color:#d46b08"></div> Thinking...';
         
-        const prompt = `针对单词 "${currentCard.word}"，生成一个能引发"自我参照效应(Self-Reference Effect)"的英文提问。
-        要求：
-        1. 引导用户将该词与自己的个人经历、价值观或记忆联系起来。
-        2. 格式示例：When was the last time you felt...?
-        3. 只返回问题本身，不要其他废话。`;
+        const prompt = `Generate a "Self-Reference" question for the word "${currentCard.word}".
+        Goal: Connect the word's definition to the user's *real life* to aid memory.
+        Rules:
+        1. If the word is a physical object/action, ask "When/Where/Who" (Concrete).
+        2. If the word is an abstract concept, ask "How does this apply to your goals?" (Abstract).
+        3. The question must be answerable in 5 seconds.
+        4. English only. One sentence.`;
 
         try {
             const response = await fetch(AI_CONFIG.baseUrl, {
