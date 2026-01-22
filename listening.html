@@ -425,12 +425,28 @@
                 });
 
                 // 2. 声学隔离：双击输入框，只读这一个词 (Bottom-up Processing)
-                // [V16.0 交互优化] 替换双击为：电脑右键 / iPad长按 (符合触控直觉)
+                // [V18.0 终极触控] 手写触控引擎：解决iPad系统冲突，防止滑动误触
+                // 电脑端：保持右键点击
                 input.addEventListener('contextmenu', function(e) {
-                    e.preventDefault(); // 阻止默认的复制/粘贴菜单弹出
-                    speak(this.dataset.answer);
-                    this.focus(); // 保持焦点，方便听完直接改
+                    e.preventDefault(); speak(this.dataset.answer); this.focus();
                 });
+                
+                // 移动端：自定义长按 (500ms)
+                let pressTimer;
+                const startPress = () => {
+                    pressTimer = setTimeout(() => {
+                        // 触发长按逻辑
+                        speak(this.dataset.answer);
+                        this.style.transform = "scale(1.2)"; // 视觉反馈：膨胀一下
+                        setTimeout(() => this.style.transform = "scale(1)", 200);
+                        if (navigator.vibrate) navigator.vibrate(50); // 触觉反馈
+                    }, 500); // 500ms 阈值，既不易误触也不用等太久
+                };
+                const cancelPress = () => clearTimeout(pressTimer);
+
+                input.addEventListener('touchstart', startPress, {passive: true});
+                input.addEventListener('touchend', cancelPress);
+                input.addEventListener('touchmove', cancelPress); // 关键：手指一滑动，马上取消长按，防止误触
 
                 displayEl.appendChild(input);
             } else {
@@ -463,20 +479,28 @@
         // 5. 播放语音
         speak(target);
     }
+    
+    // [V18.0 iPad修复] 将 utterance 提权为全局变量，防止被 iOS 内存回收导致卡顿
+    let globalUtterance = null;
+
     function speak(text) {
         if (synth.speaking) synth.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        // 尝试获取高质量语音
-        const voices = synth.getVoices();
-        // 优先选 Microsoft/Google 的英文
-        const enVoice = voices.find(v => v.name.includes("Microsoft") && v.lang.includes("en")) || 
-                        voices.find(v => v.lang.includes("en-US"));
-        if (enVoice) utterance.voice = enVoice;
         
-        utterance.rate = parseFloat(document.getElementById('rate').value);
+        globalUtterance = new SpeechSynthesisUtterance(text);
+        
+        // [V18.0 语音优选] 针对 iOS/iPad 优化语音选择顺序
+        const voices = synth.getVoices();
+        const enVoice = voices.find(v => v.name.includes("Microsoft") && v.lang.includes("en")) || // Windows 优先
+                        voices.find(v => v.name.includes("Samantha")) || // iOS 高品质女声
+                        voices.find(v => v.name.includes("Daniel")) ||   // iOS 高品质男声
+                        voices.find(v => v.lang.includes("en-US"));      // 通用兜底
+        
+        if (enVoice) globalUtterance.voice = enVoice;
+        
+        globalUtterance.rate = parseFloat(document.getElementById('rate').value);
 
         // [V8.0 核心机制] 语音回路锁定：播放时禁止输入，强迫启用短时记忆
-        utterance.onstart = () => {
+        globalUtterance.onstart = () => {
             document.querySelectorAll('.cloze-input').forEach(el => {
                 el.disabled = true; // 锁定输入
                 el.style.opacity = '0.7'; // 视觉降噪
@@ -484,7 +508,7 @@
         };
 
         // 播放结束：释放输入控制权
-        utterance.onend = () => {
+        globalUtterance.onend = () => {
             // [V9.0] 听觉暂留结束，视觉层显影 (Visual Reveal)
             // 添加 revealed 类，触发 CSS 中的 filter: blur(0) 动画
             document.getElementById('target-text').classList.add('revealed');
@@ -504,7 +528,7 @@
         };
         
         // [激活] 卡拉OK 高亮逻辑
-        utterance.onboundary = (event) => {
+        globalUtterance.onboundary = (event) => {
             if (event.name !== 'word') return;
             const charIndex = event.charIndex;
             
@@ -532,7 +556,7 @@
             }
         };
 
-        synth.speak(utterance);
+        synth.speak(globalUtterance);
     }
 
     // 极客逻辑：Levenshtein Distance 并不是必须的，我们需要的是精准匹配
@@ -563,7 +587,6 @@
                 input.style.color = '#fff';
             } else if ((dist <= tolerance || input.dataset.wasHinted) && val.length > 0) {
                 // 拼写微瑕 或 使用了提示 - 变为黄色背景
-                input.style.background = 'var(--warning)';
                 input.style.background = 'var(--warning)'; 
                 input.style.color = '#fff';
             } else {
