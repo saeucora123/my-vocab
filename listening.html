@@ -553,12 +553,14 @@
             const dist = levenshtein(val, ans);
             const tolerance = ans.length > 5 ? 2 : 1; // 长词允许错2个，短词允许错1个
 
-            if (dist === 0) {
+            // [V14.0 严谨逻辑] 如果用了提示(wasHinted)，即使全对也不给绿牌，强制显示为黄色(Warning)
+            if (dist === 0 && !input.dataset.wasHinted) {
                 // 完美正确 - 变为绿色背景胶囊，白色文字
                 input.style.background = 'var(--success)'; 
                 input.style.color = '#fff';
-            } else if (dist <= tolerance && val.length > 0) {
-                // 拼写微瑕 - 变为黄色背景
+            } else if ((dist <= tolerance || input.dataset.wasHinted) && val.length > 0) {
+                // 拼写微瑕 或 使用了提示 - 变为黄色背景
+                input.style.background = 'var(--warning)';
                 input.style.background = 'var(--warning)'; 
                 input.style.color = '#fff';
             } else {
@@ -686,44 +688,50 @@
 
         // Tab: 偷看/放弃 (Reveal)
         if (e.key === 'Tab') {
-            e.preventDefault(); // 阻止切焦
-            // [修改] 智能辅助：自动填入错误或空的词
-            const inputs = document.querySelectorAll('.cloze-input');
-            let filledCount = 0;
-            inputs.forEach(input => {
-                const ans = input.dataset.answer;
-                const currentVal = input.value.toLowerCase();
-                
-                // [V3.0 升级] 多模态提示：优先听觉，其次视觉
-                if (currentVal !== ans) {
-                    // 策略：如果当前框是空的，或者完全错误的，先播放声音（听觉提示）
-                    // 只有当用户已经填了一部分但卡住时，才提示字母
-                    if (currentVal.length === 0 && !input.dataset.hasPlayedAudioHint) {
-                        speak(ans);
-                        input.dataset.hasPlayedAudioHint = "true"; // 标记已提示过声音
-                        flashFeedback(">> HINT: LISTEN CAREFULLY...", true);
-                        filledCount++; // 计入操作数以阻止跳题
-                        return; // 本次Tab只播放声音，不填字
-                    }
+            e.preventDefault(); 
+            
+            // [V15.0 科学重构] 聚焦提示逻辑：只提示当前关注的，或者第一个不懂的
+            const activeEl = document.activeElement;
+            const allInputs = Array.from(document.querySelectorAll('.cloze-input'));
+            
+            // 确定目标：如果当前聚焦在输入框且未完成，就选当前；否则选第一个错的
+            let targetInput = null;
+            if (activeEl.classList.contains('cloze-input') && activeEl.value.toLowerCase() !== activeEl.dataset.answer) {
+                targetInput = activeEl;
+            } else {
+                targetInput = allInputs.find(i => i.value.toLowerCase() !== i.dataset.answer);
+            }
 
-                    // 如果已经听过声音了，或者已经写了一半，则提供视觉提示（填字母）
+            if (targetInput) {
+                const ans = targetInput.dataset.answer;
+                const currentVal = targetInput.value.toLowerCase();
+                
+                // [V14.0] 只要用了提示，强制加入错词本，并打上"偷看"标记
+                missedWords.add(ans);
+                targetInput.dataset.wasHinted = "true";
+
+                // 1. 听觉提示
+                if (currentVal.length === 0 && !targetInput.dataset.hasPlayedAudioHint) {
+                    speak(ans);
+                    targetInput.dataset.hasPlayedAudioHint = "true";
+                    flashFeedback(">> FOCUS HINT: LISTEN...", true);
+                } 
+                // 2. 视觉提示
+                else {
                     let correctLen = 0;
                     while (correctLen < currentVal.length && currentVal[correctLen] === ans[correctLen]) {
                         correctLen++;
                     }
-                    // 填入下一个正确的字母
-                    input.value = ans.substring(0, correctLen + 1);
-                    // [V12.0 修复] 胶囊模式下，提示文字需要保持高对比度
-                    input.style.color = 'var(--accent)'; // 使用蓝色表示这是"系统提示"的文字
-                    input.style.fontWeight = 'bold';
-                    filledCount++;
+                    targetInput.value = ans.substring(0, correctLen + 1);
+                    targetInput.style.color = 'var(--accent)'; 
+                    targetInput.style.fontWeight = 'bold';
+                    flashFeedback(">> LETTER REVEALED", false);
                 }
-            });
-            
-            if (filledCount > 0) {
-                flashFeedback(">> ASSIST: " + filledCount + " WORDS REVEALED", false);
+                
+                // 保持或夺回焦点
+                targetInput.focus();
             } else {
-                // [V5.2 修复] 填满后不直接跳，而是执行检查，进入“确认暂停”状态
+                // 全对了，尝试提交
                 checkInput(); 
             }
         }
@@ -749,44 +757,48 @@
 
     // [V5.0 升级] 提取提示逻辑，供手机按钮调用
     function triggerHint() {
-        // 如果处于等待确认下一句的状态，点击提示无意义
         if (typeof isWaitingForNext !== 'undefined' && isWaitingForNext) return;
 
-        const inputs = document.querySelectorAll('.cloze-input');
-        let filledCount = 0;
+        // [V15.0 统一逻辑] 移动端同样使用聚焦提示
+        const activeEl = document.activeElement;
+        const allInputs = Array.from(document.querySelectorAll('.cloze-input'));
+        
+        // 寻找目标：优先当前焦点，其次第一个错题
+        let targetInput = null;
+        if (activeEl.classList.contains('cloze-input') && activeEl.value.toLowerCase() !== activeEl.dataset.answer) {
+            targetInput = activeEl;
+        } else {
+            targetInput = allInputs.find(i => i.value.toLowerCase() !== i.dataset.answer);
+        }
 
-        inputs.forEach(input => {
-            const ans = input.dataset.answer;
-            const currentVal = input.value.toLowerCase();
+        if (targetInput) {
+            const ans = targetInput.dataset.answer;
+            const currentVal = targetInput.value.toLowerCase();
             
-            // 多模态提示逻辑复用
-            if (currentVal !== ans) {
-                // [V7.0] 请求提示也视为掌握不熟练，加入复习列表
-                missedWords.add(ans);
+            // [V14.0] 标记错题
+            missedWords.add(ans);
+            targetInput.dataset.wasHinted = "true";
 
-                // 1. 优先听觉提示
-                if (currentVal.length === 0 && !input.dataset.hasPlayedAudioHint) {
-                    speak(ans);
-                    input.dataset.hasPlayedAudioHint = "true";
-                    flashFeedback(">> HINT: LISTEN CAREFULLY...", true);
-                    filledCount++;
-                    return; 
-                }
-                // 2. 其次视觉提示
+            // 1. 听觉
+            if (currentVal.length === 0 && !targetInput.dataset.hasPlayedAudioHint) {
+                speak(ans);
+                targetInput.dataset.hasPlayedAudioHint = "true";
+            } 
+            // 2. 视觉
+            else {
                 let correctLen = 0;
                 while (correctLen < currentVal.length && currentVal[correctLen] === ans[correctLen]) {
                     correctLen++;
                 }
-                input.value = ans.substring(0, correctLen + 1);
-                input.style.color = 'var(--dim)'; 
-                // [优化] 移除自动聚焦：防止手机键盘弹出遮挡视线，把控制权还给用户
-                // input.focus(); 
-                filledCount++;
+                targetInput.value = ans.substring(0, correctLen + 1);
+                targetInput.style.color = 'var(--accent)'; 
+                targetInput.style.fontWeight = 'bold';
             }
-        });
-
-        if (filledCount === 0) {
-            // 如果没东西可提示了，说明全对或者没填，尝试检查
+            
+            // [移动端优化] 滚动并聚焦，方便接着输入
+            targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetInput.focus();
+        } else {
             checkInput();
         }
     }
