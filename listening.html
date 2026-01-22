@@ -6,10 +6,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neuro-Echo: High-Efficiency Listening Terminal</title>
     <style>
-        /* Apple Design System Colors */
-        :root { --bg: #f5f5f7; --card-bg: #ffffff; --fg: #1d1d1f; --dim: #86868b; --accent: #0071e3; --err: #ff3b30; --success: #34c759; --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        /* Apple Design System Colors (Refined) */
+        :root { 
+            --bg: #F5F5F7; 
+            --card-bg: #FFFFFF; 
+            --fg: #1D1D1F; 
+            --dim: #86868B; 
+            --accent: #007AFF; /* iOS Blue */
+            --accent-hover: #0062CC;
+            --err: #FF3B30; 
+            --warning: #FF9500;
+            --success: #34C759; 
+            --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; 
+            --shadow-sm: 0 4px 12px rgba(0,0,0,0.03);
+            --shadow-md: 0 12px 32px rgba(0,0,0,0.06);
+            --radius: 20px;
+        }
         
-        body { background-color: var(--bg); color: var(--fg); font-family: var(--font); margin: 0; padding: 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; -webkit-font-smoothing: antialiased; }
+        body { background-color: var(--bg); color: var(--fg); font-family: var(--font); margin: 0; padding: 40px 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; -webkit-font-smoothing: antialiased; }
         
         /* [V5.0 升级] 移动端响应式修正 */
         @media (max-width: 600px) {
@@ -27,10 +41,10 @@
         #terminal { flex: 1; display: flex; flex-direction: column; max-width: 800px; margin: 0 auto; width: 100%; overflow-y: auto; padding-bottom: 80px; }
         
         /* 输入区 - 卡片式设计 */
-        #input-area { background: var(--card-bg); padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 2rem; transition: all 0.3s ease; }
-        #input-area:hover { box-shadow: 0 15px 40px rgba(0,0,0,0.08); }
-        textarea { width: 100%; background: var(--bg); color: var(--fg); border: 1px solid transparent; border-radius: 12px; padding: 15px; font-family: var(--font); font-size: 1rem; resize: none; height: 120px; outline: none; transition: 0.2s; box-sizing: border-box; }
-        textarea:focus { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,113,227,0.1); }
+        #input-area { background: var(--card-bg); padding: 40px; border-radius: var(--radius); box-shadow: var(--shadow-md); margin-bottom: 2rem; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); border: 1px solid rgba(255,255,255,0.5); }
+        #input-area:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(0,0,0,0.08); }
+        textarea { width: 100%; background: var(--bg); color: var(--fg); border: 1px solid transparent; border-radius: 14px; padding: 18px; font-family: var(--font); font-size: 1.05rem; line-height: 1.6; resize: none; height: 140px; outline: none; transition: 0.2s; box-sizing: border-box; margin-top: 10px; }
+        textarea:focus { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,122,255,0.15); }
         
         /* 训练区 */
         #training-area { flex: 1; display: none; flex-direction: column; justify-content: center; align-items: center; position: relative; }
@@ -38,13 +52,16 @@
         
         /* 核心显示 - 杂志级排版 */
         /* [V6.0 修复] 增加 line-height: 2.5 防止多行时输入框上下重叠 */
-        #target-text { font-size: 1.6rem; font-weight: 500; letter-spacing: 0.5px; margin-bottom: 30px; min-height: 2rem; filter: blur(12px); transition: filter 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); user-select: none; line-height: 2.8; color: var(--fg); }
+        #target-text { font-size: 1.8rem; font-weight: 500; letter-spacing: -0.01em; margin-bottom: 30px; min-height: 2rem; filter: blur(12px); transition: filter 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); user-select: none; line-height: 2.4; color: var(--fg); text-align: left; }
         #target-text.revealed { filter: blur(0); }
         
         /* [V6.0 修复] 强制增加单词间距，解决黏连问题 */
-        .cloze-input { margin-right: 10px !important; margin-left: 2px !important; text-align: center; border-radius: 4px; transition: all 0.2s; font-weight: 600; }
-        .cloze-input:focus { background: rgba(0,113,227,0.1) !important; border-bottom-color: var(--accent) !important; }
-        span.word-token { margin-right: 8px !important; padding: 2px 4px; border-radius: 4px; transition: background 0.2s; }
+        .cloze-input { margin: 0 4px !important; text-align: center; border-radius: 6px; transition: all 0.2s; font-weight: 600; border: none; border-bottom: 2px solid #E5E5EA; background: transparent; padding-bottom: 2px; min-width: 30px; }
+        .cloze-input:focus { border-bottom-color: var(--accent) !important; background: rgba(0,122,255,0.05); }
+        span.word-token { margin-right: 6px !important; padding: 2px 4px; border-radius: 6px; transition: all 0.2s; }
+        
+        /* 激活单词样式重写 */
+        .active-word { background: var(--accent) !important; color: #fff !important; box-shadow: 0 2px 8px rgba(0,122,255,0.3); transform: scale(1.05); z-index: 10; display: inline-block; }
 
         #user-input { background: transparent; border: none; border-bottom: 2px solid var(--accent); color: var(--fg); font-size: 1.5rem; width: 100%; text-align: center; outline: none; font-family: var(--font); caret-color: var(--accent); }
         
@@ -55,19 +72,19 @@
         #help { position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: var(--dim); text-align: right; }
         .key { background: #fff; border: 1px solid #d2d2d7; color: #1d1d1f; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         
-        button { background: var(--accent); color: #fff; border: none; padding: 12px 24px; cursor: pointer; font-family: var(--font); margin-top: 10px; border-radius: 99px; font-weight: 500; font-size: 0.9rem; transition: transform 0.1s, opacity 0.2s; box-shadow: 0 2px 5px rgba(0,113,227,0.3); }
-        button:hover { opacity: 0.9; transform: scale(1.02); }
+        button { background: var(--accent); color: #fff; border: none; padding: 14px 28px; cursor: pointer; font-family: var(--font); margin-top: 10px; border-radius: 99px; font-weight: 600; font-size: 1rem; transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); box-shadow: 0 4px 12px rgba(0,122,255,0.25); letter-spacing: 0.3px; }
+        button:hover { background: var(--accent-hover); transform: scale(1.02) translateY(-1px); box-shadow: 0 6px 16px rgba(0,122,255,0.35); }
         button:active { transform: scale(0.96); }
 
-        /* [新增] 操作手册模态窗口样式 */
-        #manual-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999; justify-content: center; align-items: center; }
-        #manual-box { width: 80%; max-width: 800px; max-height: 85vh; border: 2px solid var(--fg); background: #0d1117; padding: 2rem; overflow-y: auto; box-shadow: 0 0 20px var(--dim); position: relative; }
-        #manual-box h2 { border-bottom: 1px dashed var(--fg); padding-bottom: 10px; margin-top: 0; }
-        #manual-box h4 { margin-bottom: 5px; color: #fff; background: var(--dim); display: inline-block; padding: 2px 5px; border-radius: 3px; }
-        #manual-box ul { padding-left: 20px; color: #ddd; font-size: 0.9rem; line-height: 1.6; }
-        #manual-box li { margin-bottom: 8px; }
-        .close-btn { position: absolute; top: 10px; right: 10px; background: transparent; border: 1px solid var(--err); color: var(--err); padding: 5px 10px; font-size: 0.8rem; }
-        .close-btn:hover { background: var(--err); color: #fff; }
+        /* [新增] 操作手册模态窗口样式 - 玻璃拟态 */
+        #manual-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.6); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); z-index: 999; justify-content: center; align-items: center; }
+        #manual-box { width: 80%; max-width: 700px; max-height: 80vh; border: 1px solid rgba(0,0,0,0.05); background: #fff; padding: 3rem; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.1); border-radius: 30px; position: relative; color: var(--fg); }
+        #manual-box h2 { border-bottom: 1px solid #F2F2F7; padding-bottom: 20px; margin-top: 0; font-size: 1.6rem; letter-spacing: -0.5px; }
+        #manual-box h4 { margin-bottom: 8px; color: var(--accent); background: rgba(0,122,255,0.1); display: inline-block; padding: 4px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; }
+        #manual-box ul { padding-left: 20px; color: var(--fg); font-size: 1rem; line-height: 1.8; opacity: 0.9; }
+        #manual-box li { margin-bottom: 12px; }
+        .close-btn { position: absolute; top: 20px; right: 20px; background: #F2F2F7; border: none; color: var(--dim); padding: 8px 16px; font-size: 0.85rem; border-radius: 8px; font-weight: 600; }
+        .close-btn:hover { background: #E5E5EA; color: var(--fg); }
         
         /* 滚动条美化 */
         #manual-box::-webkit-scrollbar { width: 8px; }
@@ -85,13 +102,16 @@
 
 <div id="terminal">
     <div id="input-area">
-        <h3>// SOURCE_INPUT</h3>
-        <p style="color:var(--dim); font-size: 0.8rem;">Paste your CET-6 article or any text here based on standard English.</p>
+        <h3 style="margin-top:0; font-weight:700; font-size:1.4rem; letter-spacing:-0.5px;">Import Content</h3>
+        <p style="color:var(--dim); font-size: 0.95rem; margin-bottom: 20px; line-height:1.4;">Paste your English article, transcript, or study material here. The system will process it for deep listening training.</p>
         <textarea id="source-text" placeholder="Paste English text here..."></textarea>
-        <div style="display:flex; gap:10px; align-items: center;">
-            <button onclick="initSystem()">> INITIALIZE_NEURO_LINK</button>
-            <label style="font-size: 0.8rem; color: var(--dim)">Speed: <input type="number" id="rate" value="1.0" step="0.1" min="0.5" max="2.0" style="width: 40px; background:black; color:green; border:1px solid green;"></label>
-            <button onclick="toggleManual()" style="margin-left: auto; border-color: var(--dim); color: var(--dim);">? MANUAL</button>
+        <div style="display:flex; gap:12px; align-items: center; margin-top: 20px;">
+            <button onclick="initSystem()">Start Session</button>
+            <div style="display:flex; align-items:center; background:#F2F2F7; padding:4px 12px; border-radius:99px; height: 44px; box-sizing: border-box;">
+                 <label style="font-size: 0.75rem; color: var(--dim); font-weight:700; margin-right:8px; letter-spacing:0.5px;">SPEED</label>
+                 <input type="number" id="rate" value="1.0" step="0.1" min="0.5" max="2.0" style="width: 40px; background:transparent; color:var(--fg); border:none; font-weight:bold; font-size:1rem; outline:none; text-align:center;">
+            </div>
+            <button onclick="toggleManual()" style="margin-left: auto; background: transparent; color: var(--accent); box-shadow: none; padding: 0;">How it works</button>
         </div>
     </div>
 
@@ -279,13 +299,13 @@
                     const dist = levenshtein(val, ans);
                     // 逻辑复用：简单判断对错
                     if (val.length === 0) {
-                        this.style.borderBottom = '1px solid var(--dim)'; // 空值复原
+                        this.style.borderBottom = '2px solid #E5E5EA'; // 空值复原为浅灰
                     } else if (dist === 0) {
-                        this.style.borderBottom = '2px solid var(--fg)'; 
-                        this.style.color = 'var(--fg)';
+                        this.style.borderBottom = '2px solid var(--success)'; 
+                        this.style.color = 'var(--success)';
                     } else if (dist <= (ans.length > 5 ? 2 : 1)) {
-                        this.style.borderBottom = '2px dashed #ffff00'; 
-                        this.style.color = '#ffff00';
+                        this.style.borderBottom = '2px dashed var(--warning)'; 
+                        this.style.color = 'var(--warning)';
                     } else {
                         this.style.borderBottom = '2px solid var(--err)';
                         this.style.color = 'var(--err)';
@@ -391,12 +411,12 @@
 
             if (dist === 0) {
                 // 完美正确
-                input.style.borderBottom = '2px solid var(--fg)'; 
-                input.style.color = 'var(--fg)';
+                input.style.borderBottom = '2px solid var(--success)'; 
+                input.style.color = 'var(--success)';
             } else if (dist <= tolerance && val.length > 0) {
                 // 拼写微瑕 (Fuzzy Match) - 视为正确但给黄色警告
-                input.style.borderBottom = '2px dashed #ff9500'; 
-                input.style.color = '#ff9500';
+                input.style.borderBottom = '2px dashed var(--warning)'; 
+                input.style.color = 'var(--warning)';
             } else {
                 // 严重错误
                 input.style.borderBottom = '2px solid var(--err)'; 
