@@ -616,7 +616,8 @@
                 }
                 input.value = ans.substring(0, correctLen + 1);
                 input.style.color = 'var(--dim)'; 
-                input.focus(); // 手机上聚焦，方便接着打字
+                // [优化] 移除自动聚焦：防止手机键盘弹出遮挡视线，把控制权还给用户
+                // input.focus(); 
                 filledCount++;
             }
         });
