@@ -23,14 +23,6 @@
             --glass: blur(20px) saturate(180%);
             --radius: 24px; /* 更圆润的角 */
         }
-            --err: #FF3B30; 
-            --warning: #FF9500;
-            --success: #34C759; 
-            --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; 
-            --shadow-sm: 0 4px 12px rgba(0,0,0,0.03);
-            --shadow-md: 0 12px 32px rgba(0,0,0,0.06);
-            --radius: 24px;
-        }
         
         body { background-color: var(--bg); background-image: radial-gradient(circle at 50% 0%, #fff 0%, transparent 70%); color: var(--fg); font-family: var(--font); margin: 0; padding: 40px 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
         
@@ -147,10 +139,11 @@
         <div id="feedback"></div>
 
         <!-- [V5.0 升级] 移动端触控栏 (默认隐藏，CSS控制小屏显示) -->
+        <!-- [V19.0 交互修复] 增加 onmousedown/ontouchstart 阻止默认行为，防止点击按钮时输入框失焦导致键盘收起 -->
         <div id="mobile-toolbar" style="display: none;">
-            <button onclick="speak(sentences[currentIndex])" style="border-color:#008f11">🔊 REPLAY</button>
-            <button onclick="triggerHint()" style="border-color:#ffff00; color:#ffff00">💡 HINT</button>
-            <button onclick="checkInput()" style="border-color:#00ff41; background:var(--dim); color:white">✅ CHECK</button>
+            <button onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="speak(sentences[currentIndex])" style="border-color:#008f11">🔊 REPLAY</button>
+            <button onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="triggerHint()" style="border-color:#ffff00; color:#ffff00">💡 HINT</button>
+            <button onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="checkInput()" style="border-color:#00ff41; background:var(--dim); color:white">✅ CHECK</button>
         </div>
 
         <!-- [V7.0 新增] 结算界面容器 -->
@@ -425,28 +418,39 @@
                 });
 
                 // 2. 声学隔离：双击输入框，只读这一个词 (Bottom-up Processing)
-                // [V18.0 终极触控] 手写触控引擎：解决iPad系统冲突，防止滑动误触
                 // 电脑端：保持右键点击
                 input.addEventListener('contextmenu', function(e) {
                     e.preventDefault(); speak(this.dataset.answer); this.focus();
                 });
                 
-                // 移动端：自定义长按 (500ms)
-                let pressTimer;
-                const startPress = () => {
-                    pressTimer = setTimeout(() => {
-                        // 触发长按逻辑
+                // [V19.0 触控重构] 移动端/iPad：改为“双击”触发 (Double Tap)
+                // 解决痛点：长按(Long Press)在 iOS 上会触发系统放大镜/复制菜单，干扰极大。双击更符合直觉。
+                let lastTap = 0;
+                input.addEventListener('touchend', function(e) {
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTap;
+                    
+                    // 检测 300ms 内的第二次点击
+                    if (tapLength < 300 && tapLength > 0) {
+                        e.preventDefault(); // 核心：阻止 iOS 默认的双击缩放功能
+                        
+                        // 触发发音
                         speak(this.dataset.answer);
-                        this.style.transform = "scale(1.2)"; // 视觉反馈：膨胀一下
-                        setTimeout(() => this.style.transform = "scale(1)", 200);
-                        if (navigator.vibrate) navigator.vibrate(50); // 触觉反馈
-                    }, 500); // 500ms 阈值，既不易误触也不用等太久
-                };
-                const cancelPress = () => clearTimeout(pressTimer);
-
-                input.addEventListener('touchstart', startPress, {passive: true});
-                input.addEventListener('touchend', cancelPress);
-                input.addEventListener('touchmove', cancelPress); // 关键：手指一滑动，马上取消长按，防止误触
+                        
+                        // 视觉反馈：瞬间高亮脉冲，让用户知道触发成功
+                        this.style.transition = "all 0.1s ease";
+                        this.style.transform = "scale(1.15)";
+                        this.style.boxShadow = "0 0 0 4px var(--accent)";
+                        
+                        setTimeout(() => {
+                            this.style.transform = "scale(1)";
+                            this.style.boxShadow = "inset 0 1px 3px rgba(0,0,0,0.06)";
+                            // 保持焦点在当前框，方便继续输入
+                            this.focus();
+                        }, 200);
+                    }
+                    lastTap = currentTime;
+                });
 
                 displayEl.appendChild(input);
             } else {
@@ -821,9 +825,9 @@
                 targetInput.style.fontWeight = 'bold';
             }
             
-            // [移动端优化] 滚动并聚焦，方便接着输入
+            // [移动端优化] 仅滚动到可视区域，不再强制聚焦(focus)，防止键盘遮挡屏幕
             targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            targetInput.focus();
+            // targetInput.focus(); // 已注释：把键盘控制权还给用户
         } else {
             checkInput();
         }
