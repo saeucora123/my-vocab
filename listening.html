@@ -23,6 +23,14 @@
             --glass: blur(20px) saturate(180%);
             --radius: 24px; /* 更圆润的角 */
         }
+            --err: #FF3B30; 
+            --warning: #FF9500;
+            --success: #34C759; 
+            --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; 
+            --shadow-sm: 0 4px 12px rgba(0,0,0,0.03);
+            --shadow-md: 0 12px 32px rgba(0,0,0,0.06);
+            --radius: 24px;
+        }
         
         body { background-color: var(--bg); background-image: radial-gradient(circle at 50% 0%, #fff 0%, transparent 70%); color: var(--fg); font-family: var(--font); margin: 0; padding: 40px 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
         
@@ -102,6 +110,10 @@
         .missed-tag:hover { background: var(--err); color: #fff; transform: scale(1.05); }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
+        /* [V19.0 新增] iOS Dynamic Toast (动态提示浮窗) */
+        #hint-toast { position: fixed; top: 15%; left: 50%; transform: translate(-50%, 20px); background: rgba(29, 29, 31, 0.85); color: #fff; padding: 12px 24px; border-radius: 99px; z-index: 2000; opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); font-weight: 600; font-size: 1.1rem; box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+        #hint-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
         /* [新增] 返回背单词基地的按钮样式 */
         .home-link { position: fixed; top: 10px; right: 10px; font-size: 1.5rem; text-decoration: none; z-index: 1001; opacity: 0.5; transition: opacity 0.2s; filter: grayscale(100%); }
         .home-link:hover { opacity: 1; filter: grayscale(0%); text-shadow: 0 0 8px var(--fg); }
@@ -139,12 +151,15 @@
         <div id="feedback"></div>
 
         <!-- [V5.0 升级] 移动端触控栏 (默认隐藏，CSS控制小屏显示) -->
-        <!-- [V19.0 交互修复] 增加 onmousedown/ontouchstart 阻止默认行为，防止点击按钮时输入框失焦导致键盘收起 -->
         <div id="mobile-toolbar" style="display: none;">
-            <button onmousedown="event.preventDefault();" onclick="speak(sentences[currentIndex])" style="border-color:#008f11">🔊 REPLAY</button>
-            <button onmousedown="event.preventDefault();" onclick="triggerHint()" style="border-color:#ffff00; color:#ffff00">💡 HINT</button>
-            <button onmousedown="event.preventDefault();" onclick="checkInput()" style="border-color:#00ff41; background:var(--dim); color:white">✅ CHECK</button>
+            <button onclick="speak(sentences[currentIndex])" style="font-size:0.8rem; padding:12px 0;">🔁 ALL</button>
+            <button onclick="speakCurrentTarget()" style="border-color:#0071E3; color:#fff; background:var(--accent); font-size:0.8rem; padding:12px 0;">🗣️ WORD</button>
+            <button onclick="triggerHint()" style="border-color:#ffff00; color:#ffff00; font-size:0.8rem; padding:12px 0;">💡 HINT</button>
+            <button onclick="checkInput()" style="border-color:#00ff41; background:var(--dim); color:white; font-size:0.8rem; padding:12px 0;">✅ CHECK</button>
         </div>
+
+        <!-- [V19.0] 动态提示浮窗容器 -->
+        <div id="hint-toast"></div>
 
         <!-- [V7.0 新增] 结算界面容器 -->
         <div id="summary-card">
@@ -376,6 +391,15 @@
                 const dynamicWidth = Math.min(200, Math.max(40, 30 + (len * 11)));
                 
                 input.style.width = dynamicWidth + 'px';
+
+                // [V19.0 焦点追踪] 记录当前激活的输入框，以便"单词播放"按钮知道读哪个词
+                input.addEventListener('focus', function() {
+                    window.activeInput = this; // 全局变量记录
+                    // [体验优化] 聚焦时，如果浮窗还显示着，就关掉它，避免挡视线
+                    const toast = document.getElementById('hint-toast');
+                    if(toast.classList.contains('show')) toast.classList.remove('show');
+                });
+
                 // [视觉重构] 移除 JS 内联样式，交由 CSS .cloze-input 类统一管理胶囊样式
                 // input.style.background = 'transparent'; // 删除此行
                 input.style.border = 'none'; // 保持
@@ -418,39 +442,28 @@
                 });
 
                 // 2. 声学隔离：双击输入框，只读这一个词 (Bottom-up Processing)
+                // [V18.0 终极触控] 手写触控引擎：解决iPad系统冲突，防止滑动误触
                 // 电脑端：保持右键点击
                 input.addEventListener('contextmenu', function(e) {
                     e.preventDefault(); speak(this.dataset.answer); this.focus();
                 });
                 
-                // [V19.0 触控重构] 移动端/iPad：改为“双击”触发 (Double Tap)
-                // 解决痛点：长按(Long Press)在 iOS 上会触发系统放大镜/复制菜单，干扰极大。双击更符合直觉。
-                let lastTap = 0;
-                input.addEventListener('touchend', function(e) {
-                    const currentTime = new Date().getTime();
-                    const tapLength = currentTime - lastTap;
-                    
-                    // 检测 300ms 内的第二次点击
-                    if (tapLength < 300 && tapLength > 0) {
-                        e.preventDefault(); // 核心：阻止 iOS 默认的双击缩放功能
-                        
-                        // 触发发音
+                // 移动端：自定义长按 (500ms)
+                let pressTimer;
+                const startPress = () => {
+                    pressTimer = setTimeout(() => {
+                        // 触发长按逻辑
                         speak(this.dataset.answer);
-                        
-                        // 视觉反馈：瞬间高亮脉冲，让用户知道触发成功
-                        this.style.transition = "all 0.1s ease";
-                        this.style.transform = "scale(1.15)";
-                        this.style.boxShadow = "0 0 0 4px var(--accent)";
-                        
-                        setTimeout(() => {
-                            this.style.transform = "scale(1)";
-                            this.style.boxShadow = "inset 0 1px 3px rgba(0,0,0,0.06)";
-                            // 保持焦点在当前框，方便继续输入
-                            this.focus();
-                        }, 200);
-                    }
-                    lastTap = currentTime;
-                });
+                        this.style.transform = "scale(1.2)"; // 视觉反馈：膨胀一下
+                        setTimeout(() => this.style.transform = "scale(1)", 200);
+                        if (navigator.vibrate) navigator.vibrate(50); // 触觉反馈
+                    }, 500); // 500ms 阈值，既不易误触也不用等太久
+                };
+                const cancelPress = () => clearTimeout(pressTimer);
+
+                input.addEventListener('touchstart', startPress, {passive: true});
+                input.addEventListener('touchend', cancelPress);
+                input.addEventListener('touchmove', cancelPress); // 关键：手指一滑动，马上取消长按，防止误触
 
                 displayEl.appendChild(input);
             } else {
@@ -663,6 +676,40 @@
         }
     }
 
+    // [V19.0 新增] 单词级重播功能 (对应手机底栏 🗣️ WORD 按钮)
+    function speakCurrentTarget() {
+        // 1. 优先播放当前光标所在的词
+        let target = window.activeInput;
+        // 2. 如果没有焦点，或者焦点不在框里，就找第一个还没填对的词
+        if (!target || !target.classList.contains('cloze-input')) {
+             const allInputs = Array.from(document.querySelectorAll('.cloze-input'));
+             target = allInputs.find(i => i.value.toLowerCase() !== i.dataset.answer);
+        }
+        if (target) {
+            speak(target.dataset.answer);
+            target.focus(); // 聚焦过去
+            // 视觉反馈：闪一下
+            const originalBg = target.style.background;
+            target.style.background = 'var(--accent)';
+            target.style.color = '#fff';
+            setTimeout(() => {
+                target.style.background = originalBg;
+                target.style.color = ''; 
+            }, 300);
+        }
+    }
+
+    // [V19.0 新增] 显示动态提示浮窗
+    function showHintToast(text) {
+        const toast = document.getElementById('hint-toast');
+        toast.innerText = text; 
+        toast.classList.add('show');
+        if (window.hintToastTimer) clearTimeout(window.hintToastTimer);
+        window.hintToastTimer = setTimeout(() => {
+            toast.classList.remove('show');
+        }, 2500);
+    }
+
     function flashFeedback(msg, success) {
         const el = document.getElementById('feedback');
         el.innerText = msg;
@@ -719,67 +766,27 @@
         // Tab: 偷看/放弃 (Reveal)
         if (e.key === 'Tab') {
             e.preventDefault(); 
-            
-            // [V15.0 科学重构] 聚焦提示逻辑：只提示当前关注的，或者第一个不懂的
-            const activeEl = document.activeElement;
-            const allInputs = Array.from(document.querySelectorAll('.cloze-input'));
-            
-            // 确定目标：如果当前聚焦在输入框且未完成，就选当前；否则选第一个错的
-            let targetInput = null;
-            if (activeEl.classList.contains('cloze-input') && activeEl.value.toLowerCase() !== activeEl.dataset.answer) {
-                targetInput = activeEl;
-            } else {
-                targetInput = allInputs.find(i => i.value.toLowerCase() !== i.dataset.answer);
-            }
-
-            if (targetInput) {
-                const ans = targetInput.dataset.answer;
-                const currentVal = targetInput.value.toLowerCase();
-                
-                // [V14.0] 只要用了提示，强制加入错词本，并打上"偷看"标记
-                missedWords.add(ans);
-                targetInput.dataset.wasHinted = "true";
-
-                // 1. 听觉提示
-                if (currentVal.length === 0 && !targetInput.dataset.hasPlayedAudioHint) {
-                    speak(ans);
-                    targetInput.dataset.hasPlayedAudioHint = "true";
-                    flashFeedback(">> FOCUS HINT: LISTEN...", true);
-                } 
-                // 2. 视觉提示
-                else {
-                    let correctLen = 0;
-                    while (correctLen < currentVal.length && currentVal[correctLen] === ans[correctLen]) {
-                        correctLen++;
-                    }
-                    targetInput.value = ans.substring(0, correctLen + 1);
-                    targetInput.style.color = 'var(--accent)'; 
-                    targetInput.style.fontWeight = 'bold';
-                    flashFeedback(">> LETTER REVEALED", false);
-                }
-                
-                // 保持或夺回焦点
-                targetInput.focus();
-            } else {
-                // 全对了，尝试提交
-                checkInput(); 
-            }
+            // [V19.1 逻辑统一] 键盘 Tab 键直接调用 triggerHint
+            // 这样电脑端也能享受到 Toast 弹窗和语音提示的优化
+            triggerHint();
         }
         
-    // [新增] 监听 ? 键打开手册
+    // [新增] 监听 ? 键打开手册 (这行代码必须在 Tab 键判断的后面，但在 }); 之前)
         if (e.key === '?' || (e.shiftKey && e.key === '/')) {
             toggleManual();
         }
     });
 
-    // [新增] 手册开关函数
+    // [新增] 手册开关函数 (这个函数必须放在监听器 }); 的外面)
     function toggleManual() {
         const el = document.getElementById('manual-overlay');
+        // 判断当前是显示还是隐藏
         const isHidden = el.style.display === 'none' || el.style.display === '';
+        
         if (isHidden) {
-            el.style.display = 'flex';
+            el.style.display = 'flex'; // 显示
         } else {
-            el.style.display = 'none';
+            el.style.display = 'none'; // 隐藏
         }
     }
 
@@ -787,15 +794,19 @@
     function triggerHint() {
         if (typeof isWaitingForNext !== 'undefined' && isWaitingForNext) return;
 
-        // [V15.0 统一逻辑] 移动端同样使用聚焦提示
+        // [V19.1 修复] 优先使用 window.activeInput (因为点击手机按钮会导致 input 失去焦点)
+        // 如果 activeInput 为空，或者已经填对了，再尝试用 document.activeElement 或寻找第一个错题
+        let targetInput = window.activeInput; 
         const activeEl = document.activeElement;
-        const allInputs = Array.from(document.querySelectorAll('.cloze-input'));
-        
-        // 寻找目标：优先当前焦点，其次第一个错题
-        let targetInput = null;
-        if (activeEl.classList.contains('cloze-input') && activeEl.value.toLowerCase() !== activeEl.dataset.answer) {
+
+        // 如果当前真正聚焦的元素是 input (比如键盘操作时)，优先级最高
+        if (activeEl && activeEl.classList.contains('cloze-input')) {
             targetInput = activeEl;
-        } else {
+        }
+        
+        // 如果目标为空，或者该目标已经填对了（用户可能填完了一个词但没点下一个），就去寻找全局第一个错题
+        if (!targetInput || targetInput.value.toLowerCase() === targetInput.dataset.answer) {
+            const allInputs = Array.from(document.querySelectorAll('.cloze-input'));
             targetInput = allInputs.find(i => i.value.toLowerCase() !== i.dataset.answer);
         }
 
@@ -806,26 +817,26 @@
             // [V14.0] 标记错题
             missedWords.add(ans);
             targetInput.dataset.wasHinted = "true";
-
-            // 1. 听觉
-            if (currentVal.length === 0 && !targetInput.dataset.hasPlayedAudioHint) {
-                speak(ans);
-                targetInput.dataset.hasPlayedAudioHint = "true";
-            } 
-            // 2. 视觉
-            else {
-                let correctLen = 0;
-                while (correctLen < currentVal.length && currentVal[correctLen] === ans[correctLen]) {
-                    correctLen++;
-                }
-                targetInput.value = ans.substring(0, correctLen + 1);
-                targetInput.style.color = 'var(--accent)'; 
-                targetInput.style.fontWeight = 'bold';
-            }
             
-            // [移动端优化] 仅滚动到可视区域，不再强制聚焦(focus)，防止键盘遮挡屏幕
+            // [V19.0 体验升级] 播放声音，并弹出完整单词的浮窗
+            speak(ans); 
+            showHintToast("💡 Answer: " + ans.toUpperCase()); // 弹窗显示全拼
+
+            // 逻辑：填入字母
+            let correctLen = 0;
+            while (correctLen < currentVal.length && currentVal[correctLen] === ans[correctLen]) {
+                correctLen++;
+            }
+            targetInput.value = ans.substring(0, correctLen + 1);
+            
+            // 样式
+            targetInput.style.color = 'var(--accent)'; 
+            targetInput.style.fontWeight = 'bold';
+            
+            // [移动端优化] 滚动并聚焦，方便接着输入
             targetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // targetInput.focus(); // 已注释：把键盘控制权还给用户
+            targetInput.focus();
+            window.activeInput = targetInput; // 更新焦点记录
         } else {
             checkInput();
         }
