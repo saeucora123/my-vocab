@@ -766,14 +766,22 @@
             }
         }
         
-    // [新增] 监听 ? 键打开手册 (这行代码必须在 Tab 键判断的后面，但在 }); 之前)
+    // [新增] 监听 ? 键打开手册
         if (e.key === '?' || (e.shiftKey && e.key === '/')) {
             toggleManual();
         }
     });
 
-    // [新增] 手册开关函数 (这个函数必须放在监听器 }); 的外面)
+    // [新增] 手册开关函数
     function toggleManual() {
+        const el = document.getElementById('manual-overlay');
+        const isHidden = el.style.display === 'none' || el.style.display === '';
+        if (isHidden) {
+            el.style.display = 'flex';
+        } else {
+            el.style.display = 'none';
+        }
+    }
         const el = document.getElementById('manual-overlay');
         // 判断当前是显示还是隐藏
         const isHidden = el.style.display === 'none' || el.style.display === '';
