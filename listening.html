@@ -782,16 +782,6 @@
             el.style.display = 'none';
         }
     }
-        const el = document.getElementById('manual-overlay');
-        // 判断当前是显示还是隐藏
-        const isHidden = el.style.display === 'none' || el.style.display === '';
-        
-        if (isHidden) {
-            el.style.display = 'flex'; // 显示
-        } else {
-            el.style.display = 'none'; // 隐藏
-        }
-    }
 
     // [V5.0 升级] 提取提示逻辑，供手机按钮调用
     function triggerHint() {
