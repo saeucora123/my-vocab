@@ -141,6 +141,9 @@
         <!-- [V5.0 升级] 移动端触控栏 (默认隐藏，CSS控制小屏显示) -->
         <!-- [V19.0 交互修复] 增加 onmousedown/ontouchstart 阻止默认行为，防止点击按钮时输入框失焦导致键盘收起 -->
         <div id="mobile-toolbar" style="display: none;">
+            <button onmousedown="event.preventDefault();" onclick="speak(sentences[currentIndex])" style="border-color:#008f11">🔊 REPLAY</button>
+            <button onmousedown="event.preventDefault();" onclick="triggerHint()" style="border-color:#ffff00; color:#ffff00">💡 HINT</button>
+            <button onmousedown="event.preventDefault();" onclick="checkInput()" style="border-color:#00ff41; background:var(--dim); color:white">✅ CHECK</button>
         </div>
 
         <!-- [V7.0 新增] 结算界面容器 -->
