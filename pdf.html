@@ -1,137 +1,478 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>LinguistPDF - PDF阅读翻译</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>LinguistPDF Pro</title>
+    
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
 
-  <!-- PWA 配置 -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="PDF阅读">
-  <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/192/brain.png">
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#007aff">
+    <style>
+        :root {
+            --bg: #f2f2f7;
+            --accent: #007aff;
+            --text: #1c1c1e;
+            --bar-bg: rgba(255,255,255,0.85);
+            --shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #f3f4f6;
-      overflow: hidden;
-    }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
 
-    .react-pdf__Page {
-      position: relative;
-      background-color: white;
-    }
+        /* Header */
+        header {
+            height: 60px;
+            padding-top: env(safe-area-inset-top, 20px);
+            background: var(--bar-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 0.5px solid rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-left: 16px;
+            padding-right: 16px;
+            z-index: 10;
+        }
 
-    .react-pdf__Page__textContent {
-      position: absolute;
-      top: 0;
-      left: 0;
-      transform-origin: 0 0;
-      width: 100%;
-      height: 100%;
-      z-index: 1;
-    }
+        h1 {
+            font-size: 17px;
+            font-weight: 600;
+            margin: 0;
+            flex: 1;
+            text-align: center;
+        }
 
-    .react-pdf__Page__textContent span {
-      color: transparent;
-      position: absolute;
-      white-space: pre;
-      cursor: text;
-      transform-origin: 0% 0%;
-    }
+        .header-btn {
+            color: var(--accent);
+            font-size: 16px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            padding: 8px;
+        }
 
-    ::selection {
-      background: rgba(59, 130, 246, 0.3);
-    }
+        /* Viewer */
+        #pdf-container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background: #e5e5ea;
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            -webkit-overflow-scrolling: touch;
+        }
 
-    .react-pdf__Page__annotations {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-    }
+        .pdf-page {
+            background: white;
+            box-shadow: var(--shadow);
+            max-width: 100%;
+            display: block;
+        }
 
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #8e8e93;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .upload-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+            width: 80%;
+            max-width: 300px;
+        }
 
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
+        /* Bottom Toolbar */
+        .toolbar {
+            height: 80px;
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+            background: var(--bar-bg);
+            backdrop-filter: blur(20px);
+            border-top: 0.5px solid rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 10;
+        }
 
-    ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-    }
+        .tool-btn {
+            background: none;
+            border: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: #8e8e93;
+            font-size: 10px;
+            width: 60px;
+        }
+        
+        .tool-btn.active { color: var(--accent); }
+        .tool-icon { font-size: 24px; margin-bottom: 2px; }
 
-    ::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
-    }
+        /* Floating Translation Popup */
+        #translate-popup {
+            position: fixed;
+            bottom: 100px; /* Above toolbar */
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            width: 90%;
+            max-width: 400px;
+            background: rgba(28, 28, 30, 0.95);
+            backdrop-filter: blur(20px);
+            color: white;
+            padding: 16px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+        }
+        
+        #translate-popup.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
 
-    /* 返回按钮样式 */
-    .home-btn {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      width: 50px;
-      height: 50px;
-      background: linear-gradient(135deg, #007aff, #005bb5);
-      border-radius: 50%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
-      text-decoration: none;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-      transition: transform 0.2s;
-    }
+        .trans-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: #8e8e93;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
 
-    .home-btn:active {
-      transform: scale(0.95);
-    }
+        .trans-content {
+            font-size: 16px;
+            line-height: 1.5;
+        }
 
-    .home-icon {
-      font-size: 24px;
-    }
-  </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react-pdf": "https://esm.sh/react-pdf@^10.3.0"
-  }
-}
-</script>
-  <script type="module" crossorigin src="assets/index-C39uaRO3.js"></script>
+        .trans-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-chip {
+            background: #3a3a3c;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        
+        .action-chip.primary { background: var(--accent); }
+
+        /* Hidden File Input */
+        #file-input { display: none; }
+        
+        /* Home Button */
+        .home-float {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 20;
+            font-size: 24px;
+            text-decoration: none;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255,255,255,0.5);
+            border-radius: 50%;
+            backdrop-filter: blur(10px);
+        }
+    </style>
 </head>
-
 <body>
-  <div id="root"></div>
 
-  <!-- 返回首页按钮 -->
-  <a href="index.html" class="home-btn" title="返回单词学习">
-    <span class="home-icon">🏠</span>
-  </a>
+<a href="index.html" class="home-float">🏠</a>
 
-  <!-- Service Worker 注册 -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js');
+<header>
+    <div style="width: 40px;"></div> <!-- Spacer -->
+    <h1>LinguistPDF</h1>
+    <button class="header-btn" onclick="document.getElementById('file-input').click()">Open</button>
+    <input type="file" id="file-input" accept="application/pdf" onchange="handleFile(event)">
+</header>
+
+<div id="pdf-container">
+    <div class="empty-state">
+        <div class="upload-card" onclick="document.getElementById('file-input').click()">
+            <div style="font-size: 48px; margin-bottom: 20px;">📄</div>
+            <div style="font-weight: 600; font-size: 18px; margin-bottom: 8px;">No PDF Selected</div>
+            <div style="color: #8e8e93; font-size: 14px;">Tap to open a file</div>
+        </div>
+        <p style="font-size: 12px; color: #c7c7cc;">Powered by PDF.js & DeepSeek</p>
+    </div>
+</div>
+
+<div class="toolbar">
+    <button class="tool-btn" onclick="changePage(-1)">
+        <span class="tool-icon">⬅️</span>
+        <span>Prev</span>
+    </button>
+    <div style="font-size: 14px; font-variant-numeric: tabular-nums;">
+        <span id="page-num">0</span> / <span id="page-count">0</span>
+    </div>
+    <button class="tool-btn" onclick="changePage(1)">
+        <span class="tool-icon">➡️</span>
+        <span>Next</span>
+    </button>
+</div>
+
+<!-- Translation Popup -->
+<div id="translate-popup">
+    <div class="trans-header">
+        <span>AI Translation</span>
+        <span onclick="closePopup()" style="cursor: pointer;">✕</span>
+    </div>
+    <div id="trans-result" class="trans-content">
+        Select text to translate...
+    </div>
+    <div class="trans-actions">
+        <button class="action-chip primary" onclick="saveToVocab()">+ Add Card</button>
+        <button class="action-chip" onclick="speakText()">🔊 Speak</button>
+    </div>
+</div>
+
+<script>
+    // --- Config ---
+    const AI_CONFIG = {
+        apiKey: "sk-f3ff7365a06f4fe1ae7609ebbd2238ac",
+        baseUrl: "https://api.deepseek.com/chat/completions",
+        model: "deepseek-chat"
+    };
+
+    // --- State ---
+    let pdfDoc = null;
+    let pageNum = 1;
+    let scale = 1.5; // Default zoom for mobile
+    let canvasMap = new Map(); // Store rendered canvases
+    let selectedText = "";
+
+    // --- Core Logic ---
+    async function handleFile(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async function(ev) {
+            const typedarray = new Uint8Array(ev.target.result);
+            loadPDF(typedarray);
+        };
+        reader.readAsArrayBuffer(file);
     }
-  </script>
-</body>
 
+    async function loadPDF(data) {
+        try {
+            pdfDoc = await pdfjsLib.getDocument(data).promise;
+            document.getElementById('page-count').textContent = pdfDoc.numPages;
+            document.getElementById('pdf-container').innerHTML = ''; // Clear empty state
+            
+            // Render first few pages (Lazy loading simplified)
+            pageNum = 1;
+            renderPage(pageNum);
+            updatePageNum();
+        } catch (err) {
+            alert('Error loading PDF: ' + err.message);
+        }
+    }
+
+    async function renderPage(num) {
+        if (num > pdfDoc.numPages || num < 1) return;
+        
+        // Create canvas container
+        const wrapper = document.createElement('div');
+        wrapper.style.position = 'relative';
+        wrapper.style.marginBottom = '20px';
+        wrapper.id = `page-${num}`;
+        
+        const canvas = document.createElement('canvas');
+        canvas.className = 'pdf-page';
+        const ctx = canvas.getContext('2d');
+        
+        wrapper.appendChild(canvas);
+        document.getElementById('pdf-container').appendChild(wrapper);
+
+        const page = await pdfDoc.getPage(num);
+        
+        // Mobile-optimized viewport
+        const viewport = page.getViewport({scale: scale});
+        
+        // High DPI rendering
+        const outputScale = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = Math.floor(viewport.width) + "px";
+        canvas.style.height = Math.floor(viewport.height) + "px";
+        
+        const transform = outputScale !== 1 
+            ? [outputScale, 0, 0, outputScale, 0, 0] 
+            : null;
+
+        const renderContext = {
+            canvasContext: ctx,
+            transform: transform,
+            viewport: viewport
+        };
+        
+        await page.render(renderContext).promise;
+        
+        // Text Layer for selection
+        const textLayerDiv = document.createElement('div');
+        textLayerDiv.className = 'textLayer';
+        textLayerDiv.style.width = canvas.style.width;
+        textLayerDiv.style.height = canvas.style.height;
+        textLayerDiv.style.position = 'absolute';
+        textLayerDiv.style.left = '0';
+        textLayerDiv.style.top = '0';
+        textLayerDiv.style.color = 'transparent'; // Invisible text
+        wrapper.appendChild(textLayerDiv);
+        
+        const textContent = await page.getTextContent();
+        pdfjsLib.renderTextLayer({
+            textContentSource: textContent,
+            container: textLayerDiv,
+            viewport: viewport,
+            textDivs: []
+        });
+    }
+
+    function changePage(offset) {
+        if (!pdfDoc) return;
+        const newPage = pageNum + offset;
+        if (newPage >= 1 && newPage <= pdfDoc.numPages) {
+            pageNum = newPage;
+            // Clear current and render new (Simple reader mode)
+            document.getElementById('pdf-container').innerHTML = '';
+            renderPage(pageNum);
+            updatePageNum();
+        }
+    }
+
+    function updatePageNum() {
+        document.getElementById('page-num').textContent = pageNum;
+    }
+
+    // --- Selection & Translation ---
+    document.addEventListener('selectionchange', () => {
+        const selection = window.getSelection();
+        const text = selection.toString().trim();
+        
+        if (text && text.length > 0 && text !== selectedText) {
+            selectedText = text;
+            showTranslation(text);
+        }
+    });
+
+    async function showTranslation(text) {
+        const popup = document.getElementById('translate-popup');
+        const content = document.getElementById('trans-result');
+        
+        popup.classList.add('visible');
+        content.innerHTML = '<div style="opacity:0.6">Thinking...</div>';
+        
+        // API Call
+        try {
+            const res = await fetch(AI_CONFIG.baseUrl, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Authorization": `Bearer ${AI_CONFIG.apiKey}` 
+                },
+                body: JSON.stringify({
+                    model: AI_CONFIG.model,
+                    messages: [
+                        {role: "system", content: "Translate to Chinese. Explain key vocabulary if any. Keep it concise."},
+                        {role: "user", content: text}
+                    ]
+                })
+            });
+            const data = await res.json();
+            content.innerText = data.choices[0].message.content;
+        } catch (e) {
+            content.innerText = "Translation failed: " + e.message;
+        }
+    }
+
+    function closePopup() {
+        document.getElementById('translate-popup').classList.remove('visible');
+        window.getSelection().removeAllRanges();
+    }
+
+    // --- Actions ---
+    function saveToVocab() {
+        // Logic to save to main app's localStorage
+        if (!selectedText) return;
+        const deck = JSON.parse(localStorage.getItem('fsrs_deck_v3') || '[]');
+        
+        // Simple heuristic: First word is the "Word", rest is context
+        const words = selectedText.split(' ');
+        const word = words[0].replace(/[^a-zA-Z]/g, '');
+        const sentence = selectedText;
+        
+        const newCard = {
+            id: Date.now().toString(),
+            word: word,
+            sentence: sentence,
+            definition: document.getElementById('trans-result').innerText,
+            due: Date.now(),
+            stability: 0,
+            difficulty: 5,
+            reps: 0
+        };
+        
+        deck.push(newCard);
+        localStorage.setItem('fsrs_deck_v3', JSON.stringify(deck));
+        alert('Saved to Flashcards! 💾');
+        closePopup();
+    }
+
+    function speakText() {
+        if (!selectedText) return;
+        const u = new SpeechSynthesisUtterance(selectedText);
+        u.lang = 'en-US';
+        speechSynthesis.speak(u);
+    }
+</script>
+
+<!-- PDF.js Text Layer Styles -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
+
+</body>
 </html>

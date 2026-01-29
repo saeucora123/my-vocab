@@ -260,6 +260,30 @@
     // [新增] 虚词表：已剔除实义动词(say, get, go, make等)，保留真正的语法功能词
     const functionWords = new Set(["the","be","to","of","and","a","in","that","have","i","it","for","not","on","with","he","as","you","do","at","this","but","his","by","from","they","we","her","she","or","an","will","my","all","would","there","their","what","so","up","out","if","about","who","which","me","when","can","like","no","him","into","your","some","could","them","other","than","then","now","only","its","over","also","after","how","our","well","way","even","because","any","these","most","us","is","are","was","were","am"]);
 
+    // --- Audio Unlock for iOS (Consistent with Index) ---
+    let audioUnlocked = false;
+    function unlockAudio() {
+        if (audioUnlocked) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+            const ctx = new AudioContext();
+            ctx.resume();
+            const buffer = ctx.createBuffer(1, 1, 22050);
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.start(0);
+        }
+        const u = new SpeechSynthesisUtterance(" ");
+        speechSynthesis.speak(u);
+        audioUnlocked = true;
+        document.removeEventListener('click', unlockAudio);
+        document.removeEventListener('touchstart', unlockAudio);
+    }
+    document.addEventListener('click', unlockAudio);
+    document.addEventListener('touchstart', unlockAudio);
+    // --------------------------------------------------
+
     // 文本处理：利用正则进行 NLP 级别的分句
     function parseText(text) {
         // 移除多余换行，按标点分句，但保留标点
