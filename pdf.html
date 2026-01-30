@@ -116,43 +116,56 @@
 }
 </script>
   <script type="module" crossorigin src="assets/index-C39uaRO3.js"></script>
-  <script type="module">
-    import { pdfjs } from 'react-pdf';
-
-    // Debug logger
-    function log(msg, type = 'info') {
+  <script>
+    // 1. Global Debug Logger (Must be defined first and globally)
+    window.log = function (msg, type = 'info') {
       console.log(msg);
-      const box = document.getElementById('debug-console');
-      if (box) {
-        const line = document.createElement('div');
-        line.innerText = `[${type}] ${msg}`;
-        line.style.color = type === 'error' ? 'red' : 'black';
-        line.style.borderBottom = '1px solid #eee';
-        box.appendChild(line);
-      }
-    }
+      // Wait for DOM
+      setTimeout(() => {
+        const box = document.getElementById('debug-console');
+        if (box) {
+          const line = document.createElement('div');
+          line.innerText = `[${type}] ${msg}`;
+          line.style.color = type === 'error' ? 'red' : 'black';
+          line.style.borderBottom = '1px solid #eee';
+          box.appendChild(line);
 
-    // Capture global errors
+          // Auto-show on error
+          if (type === 'error') box.classList.add('active');
+        }
+      }, 100);
+    };
+
     window.onerror = function (msg, url, lineNo, columnNo, error) {
-      log(`${msg} at ${lineNo}:${columnNo}`, 'error');
+      window.log(`${msg} at ${lineNo}:${columnNo}`, 'error');
       return false;
     };
 
     window.onunhandledrejection = function (event) {
-      log(`Unhandled Rejection: ${event.reason}`, 'error');
+      window.log(`Unhandled Rejection: ${event.reason}`, 'error');
     };
+  </script>
+
+  <script type="module">
+    import { pdfjs } from 'react-pdf';
 
     try {
-      // Force specific version if version detection fails, PDF.js 4.4.168 is common for recent React-PDF
-      const v = pdfjs.version || '4.4.168';
-      log(`Configuring PDF Worker from CDN... Target Version: ${v}`);
+      // 2. Worker Configuration
+      // 'react-pdf' v9/v10 works best with PDF.js 4.4.168 or 4.8.69.
+      // v5.x is too new and often breaks ESM loading on CDNs.
+      // We FORCE a stable version here to avoid "bleeding edge" incompatibility.
+      const STABLE_VERSION = '4.8.69';
 
-      // Use unpkg or cdnjs which are sometimes more reliable for workers than esm.sh due to redirects
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${v}/build/pdf.worker.min.mjs`;
+      window.log(`Configuring PDF Worker... Forcing Version: ${STABLE_VERSION}`);
 
-      log(`Worker Src set to: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+      // Use cdnjs or unpkg. 'unpkg' is good. We point to the classic script or mjs.
+      // For broad compatibility, we use the mjs build.
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${STABLE_VERSION}/build/pdf.worker.min.mjs`;
+
+      window.log(`Worker Src set to: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+
     } catch (e) {
-      log(`Failed to config worker: ${e.message}`, 'error');
+      window.log(`Worker Config Failed: ${e.message}`, 'error');
     }
   </script>
   <style>
