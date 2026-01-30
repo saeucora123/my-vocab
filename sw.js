@@ -1,9 +1,11 @@
 const CACHE_NAME = 'my-vocab-v1';
 const urlsToCache = [
-    '/my-vocab/',
-    '/my-vocab/index.html',
-    '/my-vocab/pdf.html',
-    '/my-vocab/listening.html'
+    './',
+    './index.html',
+    './pdf.html',
+    './listening.html',
+    './manifest.json',
+    './assets/index-C39uaRO3.js'
 ];
 
 self.addEventListener('install', event => {
