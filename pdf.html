@@ -149,20 +149,34 @@
   <script type="module">
     import { pdfjs } from 'react-pdf';
 
-    try {
-      // v9.1.1 uses PDF.js v4.4.168
-      const STABLE_VERSION = '4.4.168';
+    // CORS-Safe Worker Loader
+    // Safari/iOS often blocks workers loaded directly from cross-origin URLs ("Script Error").
+    // We fetch the worker code first, turn it into a local "Blob", and load that.
+    async function setupSafeWorker() {
+      const WORKER_URL = 'https://unpkg.com/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
 
-      window.log(`Hit-fix: Downgrading to React-PDF v9 + Worker v${STABLE_VERSION}`);
+      try {
+        window.log(`Fetching Worker Blob from: ${WORKER_URL}`);
+        const response = await fetch(WORKER_URL);
 
-      // Use unpkg which is very reliable for 4.x builds
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${STABLE_VERSION}/build/pdf.worker.min.mjs`;
+        if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
 
-      window.log(`Worker Configured: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+        const workerScript = await response.text();
+        const blob = new Blob([workerScript], { type: 'text/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
 
-    } catch (e) {
-      window.log(`Worker Config Failed: ${e.message}`, 'error');
+        pdfjs.GlobalWorkerOptions.workerSrc = blobUrl;
+        window.log(`Safe Worker Blob configured! URL: ${blobUrl}`);
+
+      } catch (e) {
+        window.log(`Blob setup failed (${e.message}), falling back to direct URL.`, 'error');
+        // Fallback: Try direct load (might fail on Safari but worth a shot if fetch fails)
+        pdfjs.GlobalWorkerOptions.workerSrc = WORKER_URL;
+      }
     }
+
+    // Initialize
+    setupSafeWorker();
   </script>
 
   <style>
@@ -236,7 +250,7 @@
     <div class="spinner"></div>
     <p style="margin-top: 20px; color: #666; font-family: sans-serif;">Loading PDF Reader...</p>
     <p style="margin-top: 10px; color: #999; font-size: 10px;">(Tap here to view Debug Log)</p>
-    <div style="margin-top:20px; font-size:10px; color:#ccc">v4.0 (Stable Downgrade)</div>
+    <div style="margin-top:20px; font-size:10px; color:#ccc">v5.0 (Blob Worker)</div>
   </div>
   <script type="module">
     import React, { useState, useEffect } from 'react';
