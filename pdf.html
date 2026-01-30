@@ -118,10 +118,69 @@
   <script type="module" crossorigin src="assets/index-C39uaRO3.js"></script>
   <script type="module">
     import { pdfjs } from 'react-pdf';
-    // Manually configure the worker to ensure it loads correctly from the CDN
-    pdfjs.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+    // Debug logger
+    function log(msg, type = 'info') {
+      console.log(msg);
+      const box = document.getElementById('debug-console');
+      if (box) {
+        const line = document.createElement('div');
+        line.innerText = `[${type}] ${msg}`;
+        line.style.color = type === 'error' ? 'red' : 'black';
+        line.style.borderBottom = '1px solid #eee';
+        box.appendChild(line);
+      }
+    }
+
+    // Capture global errors
+    window.onerror = function (msg, url, lineNo, columnNo, error) {
+      log(`${msg} at ${lineNo}:${columnNo}`, 'error');
+      return false;
+    };
+
+    window.onunhandledrejection = function (event) {
+      log(`Unhandled Rejection: ${event.reason}`, 'error');
+    };
+
+    try {
+      // Force specific version if version detection fails, PDF.js 4.4.168 is common for recent React-PDF
+      const v = pdfjs.version || '4.4.168';
+      log(`Configuring PDF Worker from CDN... Target Version: ${v}`);
+
+      // Use unpkg or cdnjs which are sometimes more reliable for workers than esm.sh due to redirects
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${v}/build/pdf.worker.min.mjs`;
+
+      log(`Worker Src set to: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+    } catch (e) {
+      log(`Failed to config worker: ${e.message}`, 'error');
+    }
   </script>
   <style>
+    /* Debug Console Styles */
+    #debug-console {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 200px;
+      background: rgba(255, 255, 255, 0.95);
+      border-bottom: 2px solid red;
+      z-index: 10000;
+      overflow-y: auto;
+      font-size: 10px;
+      font-family: monospace;
+      padding: 10px;
+      display: none;
+      /* Hidden by default, toggled by error or triple tap */
+      pointer-events: none;
+      /* Let clicks pass through unless active */
+    }
+
+    #debug-console.active {
+      display: block;
+      pointer-events: auto;
+    }
+
     /* Loading Spinner Styles */
     #loading-overlay {
       position: fixed;
@@ -137,6 +196,7 @@
       z-index: 9999;
       transition: opacity 0.5s;
     }
+
     .spinner {
       width: 40px;
       height: 40px;
@@ -145,14 +205,28 @@
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
   </style>
 </head>
 
 <body>
-  <div id="loading-overlay">
+  <!-- Debug Console HTML -->
+  <div id="debug-console"></div>
+
+  <div id="loading-overlay" onclick="document.getElementById('debug-console').classList.toggle('active')">
     <div class="spinner"></div>
     <p style="margin-top: 20px; color: #666; font-family: sans-serif;">Loading PDF Reader...</p>
+    <p style="margin-top: 10px; color: #999; font-size: 10px;">(Tap here to view Debug Log)</p>
+    <div style="margin-top:20px; font-size:10px; color:#ccc">v2.1 Fix Patch</div>
   </div>
   <script>
     // Hide loading overlay when React loads (simple timeout fallback or event listener if possible)
@@ -160,11 +234,22 @@
       // Give React a moment to render
       setTimeout(() => {
         const overlay = document.getElementById('loading-overlay');
-        if(overlay) {
-           overlay.style.opacity = '0';
-           setTimeout(() => overlay.remove(), 500);
+        const root = document.getElementById('root');
+
+        // Check if root has children (React rendered something)
+        const isRendered = root && root.childElementCount > 0;
+
+        if (isRendered && overlay) {
+          overlay.style.opacity = '0';
+          setTimeout(() => overlay.remove(), 500);
+        } else {
+          // If still empty, log warning
+          log("Root element is empty. React app likely failed to mount.", "error");
+          // Show debug console automatically if it failed
+          const consoleEl = document.getElementById('debug-console');
+          if (consoleEl) consoleEl.classList.add('active');
         }
-      }, 1500);
+      }, 2500); // Wait 2.5s for slow mobile networks
     });
   </script>
   <div id="root"></div>
