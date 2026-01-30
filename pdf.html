@@ -115,7 +115,7 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="assets/index-C39uaRO3.js"></script>
+  <!-- <script type="module" crossorigin src="assets/index-C39uaRO3.js"></script> -->
   <script>
     // 1. Global Debug Logger (Must be defined first and globally)
     window.log = function (msg, type = 'info') {
@@ -241,29 +241,128 @@
     <p style="margin-top: 10px; color: #999; font-size: 10px;">(Tap here to view Debug Log)</p>
     <div style="margin-top:20px; font-size:10px; color:#ccc">v2.1 Fix Patch</div>
   </div>
-  <script>
-    // Hide loading overlay when React loads (simple timeout fallback or event listener if possible)
-    window.addEventListener('load', () => {
-      // Give React a moment to render
-      setTimeout(() => {
-        const overlay = document.getElementById('loading-overlay');
-        const root = document.getElementById('root');
+  <script type="module">
+    import React, { useState, useEffect } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { Document, Page, pdfjs } from 'react-pdf';
 
-        // Check if root has children (React rendered something)
-        const isRendered = root && root.childElementCount > 0;
+    // Ensure worker is set (redundant check but safe)
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+      try {
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs`;
+      } catch (e) { console.error(e); }
+    }
 
-        if (isRendered && overlay) {
-          overlay.style.opacity = '0';
-          setTimeout(() => overlay.remove(), 500);
-        } else {
-          // If still empty, log warning
-          log("Root element is empty. React app likely failed to mount.", "error");
-          // Show debug console automatically if it failed
-          const consoleEl = document.getElementById('debug-console');
-          if (consoleEl) consoleEl.classList.add('active');
+    function PDFReader() {
+      const [file, setFile] = useState(null);
+      const [numPages, setNumPages] = useState(null);
+      const [pageNumber, setPageNumber] = useState(1);
+      const [scale, setScale] = useState(1.0);
+      const [loading, setLoading] = useState(false);
+
+      function onFileChange(event) {
+        const selectedFile = event.target.files[0];
+        if (selectedFile) {
+          setLoading(true);
+          setFile(selectedFile);
+          setPageNumber(1);
         }
-      }, 2500); // Wait 2.5s for slow mobile networks
-    });
+      }
+
+      function onDocumentLoadSuccess({ numPages }) {
+        setNumPages(numPages);
+        setLoading(false);
+        // Hide overlay if it exists
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) overlay.style.display = 'none';
+      }
+
+      function changePage(offset) {
+        setPageNumber(prevPageNumber => prevPageNumber + offset);
+      }
+
+      function previousPage() {
+        changePage(-1);
+      }
+
+      function nextPage() {
+        changePage(1);
+      }
+
+      // Auto-hide debug overlay on mount
+      useEffect(() => {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay && !loading && !file) {
+          // Keep overlay until user action or show "Upload" state
+          overlay.style.display = 'none';
+        }
+      }, []);
+
+      return React.createElement('div', { className: "min-h-screen bg-gray-100 flex flex-col items-center p-4 pb-24" },
+        // Header
+        React.createElement('div', { className: "mb-6 w-full max-w-md" },
+          React.createElement('h1', { className: "text-2xl font-bold text-gray-800 text-center mb-4" }, "PDF Reader"),
+
+          // File Upload
+          !file && React.createElement('div', { className: "bg-white p-6 rounded-xl shadow-lg text-center" },
+            React.createElement('label', { className: "block mb-2 text-sm font-medium text-gray-900" }, "Choose a PDF file"),
+            React.createElement('input', {
+              type: "file",
+              accept: "application/pdf",
+              onChange: onFileChange,
+              className: "block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            })
+          )
+        ),
+
+        // PDF View
+        file && React.createElement('div', { className: "bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-3xl" },
+          // Doc
+          React.createElement(Document, {
+            file: file,
+            onLoadSuccess: onDocumentLoadSuccess,
+            onLoadError: (err) => window.log("Load Error: " + err.message, "error"),
+            className: "flex justify-center bg-gray-50"
+          },
+            React.createElement(Page, {
+              pageNumber: pageNumber,
+              scale: scale,
+              width: Math.min(window.innerWidth - 32, 600), // Responsive width
+              renderAnnotationLayer: true,
+              renderTextLayer: true
+            })
+          ),
+
+          // Controls
+          React.createElement('div', { className: "flex items-center justify-between p-4 bg-white border-t border-gray-200 sticky bottom-0 z-10" },
+            React.createElement('button', {
+              disabled: pageNumber <= 1,
+              onClick: previousPage,
+              className: "px-4 py-2 bg-gray-100 rounded-lg disabled:opacity-50 font-medium"
+            }, "Preview"),
+
+            React.createElement('span', { className: "text-gray-600 font-medium" },
+              `Page ${pageNumber} of ${numPages || '--'}`
+            ),
+
+            React.createElement('button', {
+              disabled: pageNumber >= numPages,
+              onClick: nextPage,
+              className: "px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 font-medium shadow-md"
+            }, "Next")
+          )
+        )
+      );
+    }
+
+    // Mount
+    try {
+      const root = createRoot(document.getElementById('root'));
+      root.render(React.createElement(PDFReader));
+      window.log("React App Mounted Successfully");
+    } catch (err) {
+      window.log("Mount Error: " + err.message, "error");
+    }
   </script>
   <div id="root"></div>
 
