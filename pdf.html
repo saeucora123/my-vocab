@@ -105,16 +105,16 @@
     }
   </style>
   <script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react-pdf": "https://esm.sh/react-pdf@^10.3.0"
+  {
+    "imports": {
+      "react/": "https://esm.sh/react@^18.2.0/",
+      "react": "https://esm.sh/react@^18.2.0",
+      "react-dom/": "https://esm.sh/react-dom@^18.2.0/",
+      "react-dom": "https://esm.sh/react-dom@^18.2.0",
+      "react-pdf": "https://esm.sh/react-pdf@9.1.1"
+    }
   }
-}
-</script>
+  </script>
   <!-- <script type="module" crossorigin src="assets/index-C39uaRO3.js"></script> -->
   <script>
     // 1. Global Debug Logger (Must be defined first and globally)
@@ -146,6 +146,24 @@
     };
   </script>
 
+  <script type="module">
+    import { pdfjs } from 'react-pdf';
+
+    try {
+      // v9.1.1 uses PDF.js v4.4.168
+      const STABLE_VERSION = '4.4.168';
+
+      window.log(`Hit-fix: Downgrading to React-PDF v9 + Worker v${STABLE_VERSION}`);
+
+      // Use unpkg which is very reliable for 4.x builds
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${STABLE_VERSION}/build/pdf.worker.min.mjs`;
+
+      window.log(`Worker Configured: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+
+    } catch (e) {
+      window.log(`Worker Config Failed: ${e.message}`, 'error');
+    }
+  </script>
 
   <style>
     /* Debug Console Styles */
@@ -218,20 +236,18 @@
     <div class="spinner"></div>
     <p style="margin-top: 20px; color: #666; font-family: sans-serif;">Loading PDF Reader...</p>
     <p style="margin-top: 10px; color: #999; font-size: 10px;">(Tap here to view Debug Log)</p>
-    <div style="margin-top:20px; font-size:10px; color:#ccc">v3.0 (Conflict Removed)</div>
+    <div style="margin-top:20px; font-size:10px; color:#ccc">v4.0 (Stable Downgrade)</div>
   </div>
   <script type="module">
     import React, { useState, useEffect } from 'react';
     import { createRoot } from 'react-dom/client';
     import { Document, Page, pdfjs } from 'react-pdf';
 
-    // Ensure worker is set (redundant check but safe)
+    // Worker is already configured in the block above.
+    // We double check here just in case, but use the SAME stable version 4.4.168
     if (!pdfjs.GlobalWorkerOptions.workerSrc) {
       try {
-        // 动态匹配版本，防止 API 与 Worker 版本不一致报错
-        const v = pdfjs.version || '5.4.296';
-        console.log(`Setting worker to version: ${v}`);
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${v}/build/pdf.worker.min.mjs`;
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs`;
       } catch (e) { console.error(e); }
     }
 
