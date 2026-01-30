@@ -249,7 +249,10 @@
     // Ensure worker is set (redundant check but safe)
     if (!pdfjs.GlobalWorkerOptions.workerSrc) {
       try {
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs`;
+        // 动态匹配版本，防止 API 与 Worker 版本不一致报错
+        const v = pdfjs.version || '5.4.296';
+        console.log(`Setting worker to version: ${v}`);
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${v}/build/pdf.worker.min.mjs`;
       } catch (e) { console.error(e); }
     }
 
