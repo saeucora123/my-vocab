@@ -19,18 +19,27 @@
     .react-pdf__Page {
       position: relative;
       background-color: white;
+      /* 移动端关键：允许页面内部滚动，但防止拖拽整个元素 */
+      touch-action: pan-x pan-y;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
-    /* Text Layer - Critical for selection */
+    /* Text Layer - Critical for selection and Touch */
     .react-pdf__Page__textContent {
       position: absolute;
       top: 0;
       left: 0;
-      transform-origin: 0 0;
       width: 100%;
       height: 100%;
-      z-index: 1;
-      /* Ensure text layer is above canvas */
+      z-index: 10; /* 必须高于 Canvas 才能响应触摸 */
+      pointer-events: auto;
+      /* 关键：允许文本选择，并移除浏览器的默认手势干扰 */
+      user-select: text;
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
+      touch-action: none; /* 阻止浏览器处理此层的双击缩放等，交给JS处理 */
     }
 
     /* Individual Text Spans */
@@ -40,6 +49,28 @@
       white-space: pre;
       cursor: text;
       transform-origin: 0% 0%;
+      /* 确保触摸目标足够大，方便选择 */
+      min-height: 1em;
+    }
+
+    /* Canvas Layer */
+    .react-pdf__Page__canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      touch-action: none; /* 防止画布拦截事件 */
+    }
+
+    /* Annotation Layer */
+    .react-pdf__Page__annotations {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 5;
+      pointer-events: none; /* 允许点击穿透到文本层 */
     }
 
     /* Selection Highlight */
@@ -52,14 +83,11 @@
       /* Blue-500 with opacity */
     }
 
-    /* Annotation Layer */
-    .react-pdf__Page__annotations {
-      position: absolute;
-      top: 0;
-      left: 0;
+    /* Container for the viewer - important for mobile scrolling */
+    #root {
       width: 100%;
       height: 100%;
-      pointer-events: none;
+      touch-action: manipulation; /* 优化移动端点击延迟 */
     }
 
     /* Custom Scrollbar */
