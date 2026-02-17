@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
+  <title>LinguistPDF - Context Aware Reader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f3f4f6;
+      overflow: hidden;
+      /* App handles scrolling */
+    }
+
+    /* PDF Page Wrapper */
+    .react-pdf__Page {
+      position: relative;
+      background-color: white;
+      /* 允许滚动和缩放 */
+      touch-action: pan-x pan-y pinch-zoom;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Text Layer - Critical for selection and Touch */
+    .react-pdf__Page__textContent {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10; /* 必须高于 Canvas 才能响应触摸 */
+      pointer-events: auto;
+      /* 关键：允许文本选择，并移除浏览器的默认手势干扰 */
+      user-select: text;
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
+      /* 允许平移和缩放 */
+      touch-action: pan-x pan-y pinch-zoom;
+    }
+
+    /* Individual Text Spans */
+    .react-pdf__Page__textContent span {
+      color: transparent;
+      position: absolute;
+      white-space: pre;
+      cursor: text;
+      transform-origin: 0% 0%;
+      /* 确保触摸目标足够大，方便选择 */
+      min-height: 1em;
+    }
+
+    /* Canvas Layer */
+    .react-pdf__Page__canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      /* 允许画布响应触摸 */
+      touch-action: auto;
+    }
+
+    /* Annotation Layer */
+    .react-pdf__Page__annotations {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 5;
+      pointer-events: none; /* 允许点击穿透到文本层 */
+    }
+
+    /* Selection Highlight */
+    ::-moz-selection {
+      background: rgba(59, 130, 246, 0.3);
+      /* Blue-500 with opacity */
+    }
+    ::selection {
+      background: rgba(59, 130, 246, 0.3);
+      /* Blue-500 with opacity */
+    }
+
+    /* Container for the viewer - important for mobile scrolling */
+    #root {
+      width: 100%;
+      height: 100%;
+      touch-action: manipulation; /* 优化移动端点击延迟 */
+    }
+
+    /* 修复PDF居中问题 - Flex方案（margin:auto对绝对定位canvas无效） */
+    [class*="overflow-auto"] {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+    }
+
+    .react-pdf__Document {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      width: 100% !important;
+    }
+
+    /* Page容器flex居中，覆盖之前的position:relative */
+    .react-pdf__Page {
+      display: flex !important;
+      justify-content: center !important;
+      margin: 0 auto !important;
+    }
+
+    /* canvas改为relative，让flex居中生效 */
+    .react-pdf__Page__canvas {
+      position: relative !important;
+      z-index: 1 !important;
+      display: block !important;
+      margin: 0 !important;
+    }
+
+    /* textContent和annotations通过绝对定位跟随canvas，用left:50%+translateX修正 */
+    .react-pdf__Page__textContent,
+    .react-pdf__Page__annotations {
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* 移动端缩放按钮增强 */
+    @media (max-width: 768px) {
+      .fixed.bottom-0 button {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        touch-action: manipulation !important;
+      }
+
+      /* 底部工具栏增加点击区域 */
+      .safe-area-pb {
+        padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important;
+      }
+
+      /* PDF区域增加触摸滚动体验 */
+      .touch-pan-x.touch-pan-y {
+        touch-action: pan-x pan-y pinch-zoom !important;
+      }
+    }
+
+    /* 电脑端PDF容器滚动条优化 */
+    @media (min-width: 769px) {
+      .overflow-auto {
+        scroll-behavior: smooth;
+      }
+
+      /* 确保PDF在电脑端也居中 */
+      .react-pdf__Page {
+        max-width: 100% !important;
+        margin: 0 auto !important;
+      }
+    }
+
+    /* 全局PDF容器修复 - 确保始终居中 */
+  </style>
+
+  <link rel="stylesheet" href="/index.css">
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-pdf": "https://esm.sh/react-pdf@^10.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.1"
+  }
+}
+</script>
+  <script type="module" crossorigin src="./assets/index-DljivB86.js"></script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script>
+    // 等待应用加载后添加增强功能
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        // PDF居中通过CSS修复，不需要JavaScript
+
+        // ====== 鼠标滚轮缩放支持（按Ctrl键）======
+        document.addEventListener('wheel', function(e) {
+          if (e.ctrlKey || e.metaKey) {
+            const pdfContainer = document.querySelector('canvas')?.closest('div');
+            if (pdfContainer && document.contains(pdfContainer) && pdfContainer.contains(e.target)) {
+              e.preventDefault();
+              const delta = e.deltaY > 0 ? -1 : 1;
+
+              const svgElements = document.querySelectorAll('svg');
+              svgElements.forEach(svg => {
+                const parentBtn = svg.closest('button');
+                if (parentBtn) {
+                  const lines = svg.querySelectorAll('line');
+                  const circles = svg.querySelectorAll('circle');
+                  if (circles.length > 0) {
+                    if (lines.length >= 3 && delta < 0) parentBtn.click();
+                    if (lines.length === 2 && delta > 0) parentBtn.click();
+                  }
+                }
+              });
+            }
+          }
+        }, { passive: false });
+
+        // ====== 键盘快捷键支持 ======
+        document.addEventListener('keydown', function(e) {
+          if (!(e.ctrlKey || e.metaKey)) return;
+
+          const findZoomBtn = (isIn) => {
+            return Array.from(document.querySelectorAll('button')).find(btn => {
+              const svg = btn.querySelector('svg');
+              if (!svg) return false;
+              const lines = svg.querySelectorAll('line');
+              const circles = svg.querySelectorAll('circle');
+              return circles.length > 0 && ((isIn && lines.length >= 3) || (!isIn && lines.length === 2));
+            });
+          };
+
+          if (e.key === '+' || e.key === '=') {
+            e.preventDefault();
+            const btn = findZoomBtn(true);
+            if (btn) btn.click();
+          }
+          if (e.key === '-') {
+            e.preventDefault();
+            const btn = findZoomBtn(false);
+            if (btn) btn.click();
+          }
+          if (e.key === '0') {
+            e.preventDefault();
+            // 重置缩放到100%的逻辑
+            const span = Array.from(document.querySelectorAll('span')).find(s => s.textContent.includes('%'));
+            if (span) {
+              const current = parseInt(span.textContent);
+              const btn = findZoomBtn(current > 100 ? false : true);
+              if (btn) {
+                const clicks = Math.abs(Math.floor((current - 100) / 10));
+                for (let i = 0; i < clicks; i++) setTimeout(() => btn.click(), i * 50);
+              }
+            }
+          }
+        });
+      }, 500);
+    });
+  </script>
+</body>
+
+</html>
