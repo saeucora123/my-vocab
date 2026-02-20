@@ -50,8 +50,20 @@
       white-space: pre;
       cursor: text;
       transform-origin: 0% 0%;
+      line-height: 1;
       /* 确保触摸目标足够大，方便选择 */
       min-height: 1em;
+    }
+
+    .pdf-highlight-mark {
+      background: rgba(250, 204, 21, 0.35);
+      color: inherit;
+      border-radius: 1px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+      padding: 0;
+      box-shadow: none;
+      mix-blend-mode: multiply;
     }
 
     /* Canvas Layer */
