@@ -1270,6 +1270,9 @@
             // 【新增】只保存单张卡片（安全核心）
             saveCard: async (card) => {
                 const d = await db.open();
+                // 【Delta Sync】每次本地修改时，更新时间戳并标记需要同步
+                card.updated_at = new Date().toISOString();
+                card.needsSync = true;
                 const tx = d.transaction('cards', 'readwrite');
                 tx.objectStore('cards').put(card);
                 // 保存后延迟推送云端（防止复习时频繁触发）
@@ -1292,7 +1295,12 @@
                     const tx = d.transaction('cards', 'readwrite');
                     const store = tx.objectStore('cards');
                     store.clear(); // 简单粗暴全量覆盖，防止ID变动残留
-                    cards.forEach(c => store.put(c));
+                    // 【Delta Sync】从外部导入的卡片，全部标记为需要同步
+                    cards.forEach(c => {
+                        if (!c.updated_at) c.updated_at = new Date().toISOString();
+                        if (c.needsSync === undefined) c.needsSync = true;
+                        store.put(c);
+                    });
                     tx.oncomplete = () => resolve();
                     tx.onerror = () => reject(tx.error);
                 });
@@ -1338,9 +1346,52 @@
         
         // 【核心修复】检测到已登录后，立即从云端拉取最新数据
                 console.log("已登录，正在同步云端数据...");
+
+                // 【一次性迁移】检查新 cards 表是否为空，如果是，则从旧 vocab_data 表迁移
+                await migrateOldCloudData();
+
                 await pullFromCloud(); 
             } else {
                 document.getElementById('authModal').style.display = 'flex';
+            }
+        }
+
+        // 【一次性迁移函数】把旧 vocab_data 表的数据迁移到新 cards 表
+        // 此函数会自动检测是否需要迁移，安全可重复执行
+        async function migrateOldCloudData() {
+            if (!currentUser) return;
+            try {
+                // 1. 检查新表是否已有数据（如果有，说明已经迁移过了，直接跳过）
+                const { data: newData } = await sbClient.from('cards').select('id').eq('user_id', currentUser.id).limit(1);
+                if (newData && newData.length > 0) {
+                    console.log('新 cards 表已有数据，跳过迁移');
+                    return;
+                }
+
+                // 2. 尝试从旧表读取数据
+                const { data: oldData, error } = await sbClient.from('vocab_data').select('data').eq('user_id', currentUser.id).single();
+                if (error || !oldData || !oldData.data || oldData.data.length === 0) {
+                    console.log('旧 vocab_data 表无数据，无需迁移');
+                    return;
+                }
+
+                // 3. 把旧数据写入新表
+                const oldCards = oldData.data;
+                console.log(`正在迁移 ${oldCards.length} 张卡片到新表...`);
+                const rows = oldCards.map(c => ({
+                    id: c.id,
+                    user_id: currentUser.id,
+                    updated_at: c.updated_at || new Date().toISOString(),
+                    card_data: { ...c, needsSync: false, updated_at: c.updated_at || new Date().toISOString() }
+                }));
+                const { error: insertError } = await sbClient.from('cards').upsert(rows, { onConflict: 'id,user_id' });
+                if (!insertError) {
+                    console.log(`✅ 迁移完成！${oldCards.length} 张卡片已迁移到新表`);
+                } else {
+                    console.error('迁移失败:', insertError);
+                }
+            } catch (e) {
+                console.error('迁移检查出错（不影响正常使用）:', e);
             }
         }
 
@@ -1391,18 +1442,42 @@
             el.title = ok ? '已同步' : '同步失败';
         }
 
-        // 把本地数据推送到云端
+        // 把本地数据推送到云端（增量同步：只推送带 needsSync 标记的卡片）
         async function pushToCloud() {
             if (!currentUser) return;
             const syncEl = document.getElementById('syncStatus');
             if (syncEl) { syncEl.innerText = '↻'; syncEl.style.color = '#ff9500'; } // 提示正在同步
             try {
                 const localCards = await db.getAll();
-                const { error } = await sbClient.from('vocab_data').upsert({
+                // 【Delta Sync】只取出需要同步的卡片
+                const cardsToSync = localCards.filter(c => c.needsSync === true);
+                if (cardsToSync.length === 0) {
+                    setSyncStatus(true);
+                    return; // 没有需要同步的卡片，直接返回
+                }
+                // 构造 Supabase cards 表的行格式
+                const rows = cardsToSync.map(c => ({
+                    id: c.id,
                     user_id: currentUser.id,
-                    data: localCards,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'user_id' });
+                    updated_at: c.updated_at || new Date().toISOString(),
+                    card_data: c
+                }));
+                const { error } = await sbClient.from('cards').upsert(rows, { onConflict: 'id,user_id' });
+                if (!error) {
+                    // 上传成功后，在本地 IndexedDB 中把这些卡片的 needsSync 改为 false
+                    const dbInst = await db.open();
+                    const tx = dbInst.transaction('cards', 'readwrite');
+                    const store = tx.objectStore('cards');
+                    cardsToSync.forEach(c => {
+                        c.needsSync = false;
+                        store.put(c);
+                    });
+                    // 同步更新内存中的 deck
+                    cardsToSync.forEach(synced => {
+                        const idx = deck.findIndex(c => c.id === synced.id);
+                        if (idx > -1) deck[idx].needsSync = false;
+                    });
+                }
                 setSyncStatus(!error);
             } catch (e) {
                 setSyncStatus(false);
@@ -1410,27 +1485,75 @@
             }
         }
 
-        // 从云端拉取数据覆盖本地
+        // 从云端拉取数据（增量同步：逐张比对 updated_at，保留更新的版本）
         async function pullFromCloud() {
             if (!currentUser) return;
             try {
-                const { data, error } = await sbClient.from('vocab_data').select('data').eq('user_id', currentUser.id).single();
-                if (error || !data) {
+                // 【Delta Sync】从独立的 cards 表拉取该用户的所有卡片
+                const { data, error } = await sbClient.from('cards').select('card_data, updated_at').eq('user_id', currentUser.id);
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
                     // 云端没有数据，把本地数据推上去
+                    // 先把所有本地卡片都标记为 needsSync，再推送
+                    const localCards = await db.getAll();
+                    if (localCards.length > 0) {
+                        const dbInst = await db.open();
+                        const tx = dbInst.transaction('cards', 'readwrite');
+                        const store = tx.objectStore('cards');
+                        localCards.forEach(c => {
+                            c.needsSync = true;
+                            c.updated_at = c.updated_at || new Date().toISOString();
+                            store.put(c);
+                        });
+                        deck.forEach(c => { c.needsSync = true; });
+                    }
                     await pushToCloud();
                     return;
                 }
-                const cloudCards = data.data;
-                if (cloudCards && cloudCards.length > 0) {
-                    await db.saveAll(cloudCards);
-                    deck = cloudCards;
-                    render();
-                    setSyncStatus(true);
-                    console.log('已从云端加载', cloudCards.length, '张卡片');
-                } else {
-                    // 云端是空的，把本地推上去
-                    await pushToCloud();
-                }
+
+                // 提取云端卡片对象
+                const cloudCards = data.map(row => row.card_data);
+
+                // 【时间戳冲突解决】逐张比对，只保留更新的版本
+                const localCards = await db.getAll();
+                const localMap = new Map(localCards.map(c => [c.id, c]));
+
+                const dbInst = await db.open();
+                const tx = dbInst.transaction('cards', 'readwrite');
+                const store = tx.objectStore('cards');
+
+                cloudCards.forEach(cloudCard => {
+                    const localCard = localMap.get(cloudCard.id);
+                    if (!localCard) {
+                        // 本地没有这张卡片，直接从云端添加
+                        cloudCard.needsSync = false;
+                        store.put(cloudCard);
+                        localMap.set(cloudCard.id, cloudCard);
+                    } else {
+                        // 本地有，比较时间戳
+                        const cloudTime = new Date(cloudCard.updated_at || 0).getTime();
+                        const localTime = new Date(localCard.updated_at || 0).getTime();
+                        if (cloudTime > localTime) {
+                            // 云端更新，用云端覆盖本地
+                            cloudCard.needsSync = false;
+                            store.put(cloudCard);
+                            localMap.set(cloudCard.id, cloudCard);
+                        }
+                        // 本地更新或相同：保留本地，不做任何操作（下次 push 会同步到云端）
+                    }
+                });
+
+                // 用合并后的 Map 重建 deck
+                deck = Array.from(localMap.values());
+                render();
+                setSyncStatus(true);
+                console.log('增量同步完成，当前卡片总数:', deck.length);
+
+                // 如果本地有比云端更新的卡片，顺便推送上去
+                const needsPush = deck.some(c => c.needsSync === true);
+                if (needsPush) await pushToCloud();
+
             } catch (e) {
                 setSyncStatus(false);
                 console.error('拉取云端数据失败', e);
@@ -1576,7 +1699,9 @@
                 difficulty: 5, // 【Expert修改】初始难度设为 5 (1-10)，假设一切皆为中等，等待RPE修正
                 reps: 0,
                 lastReview: 0,
-                history: [] // 新增：记录复习历史，用于未来算法优化
+                history: [], // 新增：记录复习历史，用于未来算法优化
+                updated_at: new Date().toISOString(), // 【Delta Sync】记录最后修改时间
+                needsSync: true // 【Delta Sync】标记该卡片需要上传到云端
             };
         }
 
