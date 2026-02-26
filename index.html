@@ -922,7 +922,7 @@
     <!-- ===== 顶部用户状态栏 ===== -->
     <div id="userBar" style="display:none; position:fixed; top:12px; right:12px; z-index:999; background:rgba(255,255,255,0.9); backdrop-filter:blur(10px); border-radius:20px; padding:6px 14px; font-size:12px; color:#555; box-shadow:0 2px 12px rgba(0,0,0,0.1); display:flex; align-items:center; gap:8px;">
         <span id="userEmail" style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
-        <span id="syncStatus" style="color:#34c759;">●</span>
+        <span id="syncStatus" onclick="forceSmartSync()" style="color:#34c759; cursor:pointer; font-size:14px;" title="点击强制双向同步">🔄</span>
         <button onclick="handleLogout()" style="background:none; border:none; color:#ff3b30; cursor:pointer; font-size:12px; padding:0;">退出</button>
     </div>
 
@@ -958,7 +958,10 @@
                 </div>
 
                 <textarea id="newSentenceInput" placeholder="Context sentence will appear here..."></textarea>
-                <button class="add-btn" onclick="addWord()">Add to Deck</button>
+                <div style="display:flex; gap:10px;">
+                    <button class="add-btn" onclick="addWord()" style="flex:1;">Add to Deck</button>
+                    <button class="add-btn" onclick="openBatchModal()" style="background:var(--success); flex:1;">📝 Batch Add</button>
+                </div>
             </div>
 
             <div class="divider"><span>OR IMPORT</span></div>
@@ -1162,6 +1165,28 @@
         </div>
     </div>
 
+    <!-- 【新增】批量添加弹窗 (Batch Add Modal) -->
+    <div id="batchModal" class="modal-overlay hidden" style="z-index: 1200;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">📝 Batch Add Words</div>
+                <button class="close-btn" onclick="closeBatchModal()" id="batchCloseBtn">Close</button>
+            </div>
+            <p style="font-size:12px; color:gray; margin-top:0;">Paste your words below (separated by commas or new lines). The AI will process them one by one automatically.</p>
+            <textarea id="batchWordInput" rows="8" placeholder="apple&#10;banana&#10;turn up..." style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px;"></textarea>
+            
+            <div id="batchProgress" class="hidden" style="margin-bottom:15px;">
+                <div style="font-size:13px; font-weight:bold; color:var(--accent); margin-bottom:5px;" id="batchStatusText">Processing: 0 / 0</div>
+                <div style="width:100%; height:8px; background:#eee; border-radius:4px; overflow:hidden;">
+                    <div id="batchProgressBar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
+                </div>
+                <div id="batchLog" style="font-size:11px; color:gray; margin-top:5px; max-height:60px; overflow-y:auto;"></div>
+            </div>
+
+            <button class="add-btn full-width-btn" id="startBatchBtn" onclick="startBatchProcess()">🚀 Start Auto-Generation</button>
+        </div>
+    </div>
+
     <!-- 【新增】Inbox Modal -->
     <div id="inboxModal" class="modal-overlay hidden">
         <div class="modal-content">
@@ -1249,7 +1274,7 @@
                 tx.objectStore('cards').put(card);
                 // 保存后延迟推送云端（防止复习时频繁触发）
                 clearTimeout(db._syncTimer);
-                db._syncTimer = setTimeout(() => pushToCloud(), 2000);
+                db._syncTimer = setTimeout(() => pushToCloud(), 15000); // 增加到15秒，减少并发冲突
             },
             // 【新增】删除单张卡片
             deleteCard: async (id) => {
@@ -1258,7 +1283,7 @@
                 tx.objectStore('cards').delete(id);
                 // 删除后同步云端
                 clearTimeout(db._syncTimer);
-                db._syncTimer = setTimeout(() => pushToCloud(), 2000);
+                db._syncTimer = setTimeout(() => pushToCloud(), 15000); // 增加到15秒，减少并发冲突
             },
             // 保留旧方法仅做兼容，不再推荐频繁调用
             saveAll: async (cards) => {
@@ -1369,6 +1394,8 @@
         // 把本地数据推送到云端
         async function pushToCloud() {
             if (!currentUser) return;
+            const syncEl = document.getElementById('syncStatus');
+            if (syncEl) { syncEl.innerText = '↻'; syncEl.style.color = '#ff9500'; } // 提示正在同步
             try {
                 const localCards = await db.getAll();
                 const { error } = await sbClient.from('vocab_data').upsert({
@@ -1437,7 +1464,7 @@
         // 【新增】Apollo 预测引擎核心公式
         // 计算卡片在 deltaDays 天后的保留率 R = (1 + factor * t / s) ^ -1
         function predictR(s, deltaDays) {
-            const factor = 9 * (1 / 0.9 - 1); // 基于 FSRS 标准常数
+            const factor = 9 * (1 / p.requestRetention - 1); // 基于 FSRS 标准常数，动态跟随当前模式
             return 1 / (1 + factor * deltaDays / s);
         }
 
@@ -1680,7 +1707,12 @@
                 const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
                 if (jsonMatch) rawContent = jsonMatch[0];
 
-                const result = JSON.parse(rawContent);
+                let result;
+                try {
+                    result = JSON.parse(rawContent);
+                } catch (parseError) {
+                    throw new Error("AI生成的数据格式异常，请重试");
+                }
 
                 // 【强制兜底修复】防止 AI 返回 null 导致词根消失
                 // 如果 AI 返回的 morphemes 是空的，或者不是对象，我们就手动造一个
@@ -1870,16 +1902,20 @@
                     // 【Expert Logic】脚手架式挖空 (Scaffolded Cloze)
                     // 不再显示纯下划线，而是根据难度给出“词根线索”，强迫逻辑推导
                     // 例如: "adapt" -> "ad___" (给出前缀线索)
-                    const escapedWord = currentCard.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    const regex = new RegExp(`(${escapedWord})`, 'gi');
-
-                    // 线索生成逻辑：【修复】移除首字母提示。
-                    // 认知科学原理：在 reps>=3 阶段，给出首字母会触发 "Orthographic Cueing" (字形线索)，
-                    // 导致大脑直接通过拼写补全单词，而不是通过上下文逻辑(Semantic Logic)去提取含义。
-                    // 这被称为 "Bypassing the Retrieval Attempt" (绕过提取尝试)。
+                    
                     const clozeHtml = `<span class="cloze-blank" style="color:#007aff; font-weight:bold; border-bottom:2px dashed #007aff;">[ ... ]</span>`;
+                    let clozeSent = currentCard.sentence;
 
-                    const clozeSent = currentCard.sentence.replace(regex, clozeHtml);
+                    // 【智能挖空升级】优先寻找 AI 标记的 <b> 标签进行挖空，完美解决词组和单词的时态/复数变化 (如 turn up -> turned up)
+                    if (clozeSent.includes('<b>') && clozeSent.includes('</b>')) {
+                        clozeSent = clozeSent.replace(/<b>.*?<\/b>/gi, clozeHtml);
+                    } else {
+                        // 兜底方案：如果 AI 没有生成 <b> 标签，退回到死板的字符串匹配
+                        const escapedWord = currentCard.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(`(${escapedWord})`, 'gi');
+                        clozeSent = clozeSent.replace(regex, clozeHtml);
+                    }
+
                     // 修改：移除 font-family 和 强制的 #333 颜色，改用 color:inherit
                     wordEl.innerHTML = `<div style="font-size:22px; line-height:1.4; color:inherit;">${clozeSent}</div>`;
 
@@ -2105,8 +2141,8 @@
             const spellingInput = document.getElementById('spellingInput');
             // 只有当输入框存在，且尚未通过验证时才检查
             if (spellingInput && !spellingInput.disabled && !document.getElementById('showAnswerBtn').classList.contains('hidden')) {
-                const userSpelling = spellingInput.value.trim().toLowerCase();
-                const correctSpelling = currentCard.word.trim().toLowerCase();
+                const userSpelling = spellingInput.value.replace(/\s+/g, ' ').trim().toLowerCase();
+                const correctSpelling = currentCard.word.replace(/\s+/g, ' ').trim().toLowerCase();
 
                 if (userSpelling !== correctSpelling) {
                     // 拼写错误：增加提示等级 (Scaffolding)
@@ -3129,6 +3165,145 @@
 
         loadDeck();
 
+        // --- 批量添加逻辑 (Batch Add Logic) ---
+        function openBatchModal() {
+            document.getElementById('batchModal').classList.remove('hidden');
+            document.getElementById('batchWordInput').value = '';
+            document.getElementById('batchProgress').classList.add('hidden');
+            document.getElementById('batchLog').innerHTML = '';
+            document.getElementById('startBatchBtn').disabled = false;
+            document.getElementById('startBatchBtn').innerText = '🚀 Start Auto-Generation';
+        }
+
+        function closeBatchModal() {
+            document.getElementById('batchModal').classList.add('hidden');
+        }
+
+        async function startBatchProcess() {
+            const text = document.getElementById('batchWordInput').value;
+            // 通过换行或逗号分割，并进行深度清洗（去除Markdown符号，压缩多余特殊空格）
+            let rawWords = text.split(/[\n,]+/).map(w => {
+                let clean = w.replace(/[*_~`]/g, ''); // 去除 Markdown 的加粗**、下划线__等符号
+                clean = clean.replace(/\s+/g, ' ');   // 将所有连续的奇怪空格压缩为1个普通英文空格
+                return clean.trim();                  // 剔除首尾的残留空格
+            }).filter(w => w.length > 0);
+            
+            // 去重
+            let words = [...new Set(rawWords)];
+            
+            // 过滤掉词库中已经存在的单词
+            words = words.filter(w => !deck.some(c => c.word.toLowerCase() === w.toLowerCase()));
+
+            if (words.length === 0) {
+                return alert("没有找到新单词，或者输入的单词都已经存在于词库中！");
+            }
+
+            const confirmStart = confirm(`即将调用 AI 自动生成 ${words.length} 个单词的深度解析。\n预计需要 ${words.length * 3} 秒左右。\n在此期间请不要关闭页面，确定开始吗？`);
+            if (!confirmStart) return;
+
+            // UI 状态切换
+            document.getElementById('startBatchBtn').disabled = true;
+            document.getElementById('startBatchBtn').innerText = '⏳ Processing... (Do not close)';
+            document.getElementById('batchCloseBtn').disabled = true;
+            const progressContainer = document.getElementById('batchProgress');
+            const statusText = document.getElementById('batchStatusText');
+            const progressBar = document.getElementById('batchProgressBar');
+            const logArea = document.getElementById('batchLog');
+            progressContainer.classList.remove('hidden');
+
+            let successCount = 0;
+            let failCount = 0;
+
+            const appendLog = (msg, color = 'gray') => {
+                const p = document.createElement('div');
+                p.style.color = color;
+                p.innerText = msg;
+                logArea.appendChild(p);
+                logArea.scrollTop = logArea.scrollHeight; // 自动滚动到底部
+            };
+
+            // 专门为批量任务精简的 Prompt，确保快速和稳定
+            const batchPromptTemplate = (word) => `你是一位语言学专家。请为单词/词组 "${word}" 生成深度编码数据。
+【JSON 返回结构强制要求】
+{
+  "sentence": "包含逻辑连接词和 <b>词块</b> 的例句，除目标词外限制在CET-4词汇",
+  "morphemes": { "prefix": "", "root": "${word}", "suffix": "" }, 
+  "definition": "Simple English definition.",
+  "mnemonic": "Root+Prefix -> 核心动作 -> 引申义",
+  "socratic": "引导思考的提问",
+  "emoji": "最精准的表情符号",
+  "self_ref": "与用户个人生活相关的反思提问",
+  "trap": "🚫易混: [词] 💡区别: [中文简述]",
+  "writing": "一个通用高分作文句型(含中文)",
+  "contrast": "🇨🇳🇺🇸中英思维差异(中文)",
+  "family": "同根词"
+}`;
+
+            // 采用经典的 for 循环进行串行请求，防止并发过高导致 DeepSeek 接口 429 报错
+            for (let i = 0; i < words.length; i++) {
+                const word = words[i];
+                statusText.innerText = `Processing: ${i + 1} / ${words.length} (${word})`;
+                progressBar.style.width = `${((i + 1) / words.length) * 100}%`;
+
+                try {
+                    const response = await fetch(AI_CONFIG.baseUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AI_CONFIG.apiKey}` },
+                        body: JSON.stringify({
+                            model: AI_CONFIG.model,
+                            messages: [
+                                { role: "system", content: "You are a vocabulary expert. Output ONLY JSON." },
+                                { role: "user", content: batchPromptTemplate(word) }
+                            ],
+                            temperature: 0.5,
+                            response_format: { type: 'json_object' } // 强制 JSON
+                        })
+                    });
+
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    
+                    const data = await response.json();
+                    let rawContent = data.choices[0].message.content;
+                    const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) rawContent = jsonMatch[0];
+                    
+                    const result = JSON.parse(rawContent);
+
+                    // 构造并保存卡片
+                    const newCard = createCardObject(
+                        word, result.sentence || "", result.definition || "", result.mnemonic || "",
+                        result.socratic || "", result.emoji || "", result.trap || "", result.writing || "",
+                        result.self_ref || "", result.contrast || "", result.morphemes || null, result.family || ""
+                    );
+
+                    deck.push(newCard);
+                    await db.saveCard(newCard); 
+                    successCount++;
+                    appendLog(`✅ ${word}: Success`, '#34c759');
+
+                    // 【核心】限流延迟机制 (Rate Limiting)
+                    // 每个单词请求完后强制暂停 1.5 秒，极大地保护 API 稳定性，防止封号或拒接
+                    if (i < words.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                    }
+
+                } catch (err) {
+                    console.error(`Error on ${word}:`, err);
+                    failCount++;
+                    appendLog(`❌ ${word}: Failed (${err.message})`, '#ff3b30');
+                }
+            }
+
+            statusText.innerText = `All Done! Success: ${successCount}, Failed: ${failCount}.`;
+            document.getElementById('startBatchBtn').innerText = 'Done!';
+            document.getElementById('batchCloseBtn').disabled = false;
+            
+            // 刷新主界面数据
+            render();
+            // 批量完成后，统一推送一次云端
+            pushToCloud();
+        }
+
         // --- 9. Inbox Logic (New) ---
         function openInboxModal(show = true) {
             const modal = document.getElementById('inboxModal');
@@ -3205,6 +3380,50 @@
                 openInboxModal(true);
             }
         }
+
+        // --- 终极云同步安全补丁 (Multi-Device Safety) ---
+
+        // 1. 智能双向同步（供手动按钮调用）：先拉取防覆盖，再推送确保最新
+        async function forceSmartSync() {
+            if (!currentUser) return alert("请先登录云端！");
+            const syncEl = document.getElementById('syncStatus');
+            syncEl.style.transform = "rotate(180deg)";
+            syncEl.style.transition = "transform 0.5s";
+            syncEl.style.color = "#ff9500"; // 橙色表示同步中
+
+            try {
+                // 第一步：强行拉取云端数据（防止手机端有陈旧数据）
+                await pullFromCloud();
+                // 第二步：将合并后的最新状态推送到云端（兜底）
+                await pushToCloud();
+                syncEl.style.color = "#34c759"; // 绿色表示成功
+                alert("✅ 云端双向同步完成，数据已是最新状态！");
+            } catch (e) {
+                syncEl.style.color = "#ff3b30";
+                alert("❌ 同步失败，请检查网络！");
+            } finally {
+                setTimeout(() => syncEl.style.transform = "rotate(0deg)", 500);
+            }
+        }
+
+        // 2. 页面可见性监听 (Visibility API - 息屏唤醒/切回后台拉取)
+        // 当你把手机切回微信/浏览器，或者电脑从休眠中唤醒时，自动触发
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible" && currentUser) {
+                console.log("检测到页面唤醒，正在防抖检查云端数据...");
+                // 给一个小提示，让用户知道系统在努力工作
+                const syncEl = document.getElementById('syncStatus');
+                if (syncEl) syncEl.style.color = "#007aff"; // 蓝色表示正在后台校验
+
+                // 强制从云端拉取最新数据（静默拉取，不打扰用户）
+                pullFromCloud().then(() => {
+                    if (syncEl) syncEl.style.color = "#34c759";
+                }).catch(() => {
+                    if (syncEl) syncEl.style.color = "#ff3b30";
+                });
+            }
+        });
+
     </script>
 </body>
 
