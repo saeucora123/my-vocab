@@ -1560,7 +1560,7 @@
                 word: word.trim(),
                 // 【Expert Structure】核心形态学对象
                 morphemes: morphemes || { prefix: "", root: word.trim(), suffix: "" },
-                family: family ? family.trim() : "", // 词族网络
+                family: family ? (Array.isArray(family) ? family.join(', ') : String(family)).trim() : "", // 词族网络
                 sentence: sentence.trim(),
                 contrast: contrast ? contrast.trim() : "", // 【新增】存储思维差异
                 definition: definition.trim(),
@@ -3296,7 +3296,8 @@
                     const newCard = createCardObject(
                         word, result.sentence || "", result.definition || "", result.mnemonic || "",
                         result.socratic || "", result.emoji || "", result.trap || "", result.writing || "",
-                        result.self_ref || "", result.contrast || "", result.morphemes || null, result.family || ""
+                        result.self_ref || "", result.contrast || "", result.morphemes || null,
+                        Array.isArray(result.family) ? result.family.join(', ') : (result.family || "")
                     );
 
                     // 【核心修复】绕过 db.saveCard()，直接写 IndexedDB
