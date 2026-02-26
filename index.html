@@ -3257,6 +3257,13 @@
 
             // 采用经典的 for 循环进行串行请求，防止并发过高导致 DeepSeek 接口 429 报错
             for (let i = 0; i < words.length; i++) {
+                // 【新增：防后台中断机制】检测到页面切到后台时，强制暂停循环
+                // 手机浏览器在后台会掐断网络，强行请求会报错。这里让程序“睡着”，直到你切回来再醒来。
+                while (document.hidden) {
+                    // 每秒检查一次是否切回了前台
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+
                 const word = words[i];
                 statusText.innerText = `Processing: ${i + 1} / ${words.length} (${word})`;
                 progressBar.style.width = `${((i + 1) / words.length) * 100}%`;
@@ -3267,65 +3274,94 @@
                     continue;
                 }
 
-                try {
-                    const response = await fetch(AI_CONFIG.baseUrl, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AI_CONFIG.apiKey}` },
-                        body: JSON.stringify({
-                            model: AI_CONFIG.model,
-                            messages: [
-                                // 【关键修改】使用强化版的 System Prompt，防止 AI 偷懒
-                                { role: "system", content: batchSystemPrompt },
-                                { role: "user", content: batchPromptTemplate(word) }
-                            ],
-                            temperature: 0.5,
-                            response_format: { type: 'json_object' } // 强制 JSON
-                        })
-                    });
+                // 【新增：增强健壮性】请求重试机制与超时控制
+                let attempts = 0;
+                let maxAttempts = 3;
+                let success = false;
 
-                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
-                    
-                    const data = await response.json();
-                    let rawContent = data.choices[0].message.content;
-                    const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) rawContent = jsonMatch[0];
-                    
-                    const result = JSON.parse(rawContent);
+                while (attempts < maxAttempts && !success) {
+                    attempts++;
+                    try {
+                        // 加入 30 秒超时控制器，防止单个请求假死导致后续任务永久中断
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-                    // 构造并保存卡片
-                    const newCard = createCardObject(
-                        word, result.sentence || "", result.definition || "", result.mnemonic || "",
-                        result.socratic || "", result.emoji || "", result.trap || "", result.writing || "",
-                        result.self_ref || "", result.contrast || "", result.morphemes || null,
-                        Array.isArray(result.family) ? result.family.join(', ') : (result.family || "")
-                    );
+                        const response = await fetch(AI_CONFIG.baseUrl, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AI_CONFIG.apiKey}` },
+                            body: JSON.stringify({
+                                model: AI_CONFIG.model,
+                                messages: [
+                                    // 【关键修改】使用强化版的 System Prompt，防止 AI 偷懒
+                                    { role: "system", content: batchSystemPrompt },
+                                    { role: "user", content: batchPromptTemplate(word) }
+                                ],
+                                temperature: 0.5,
+                                response_format: { type: 'json_object' } // 强制 JSON
+                            }),
+                            signal: controller.signal // 绑定超时信号
+                        });
+                        
+                        clearTimeout(timeoutId); // 成功响应则清除超时计时器
 
-                    // 【核心修复】绕过 db.saveCard()，直接写 IndexedDB
-                    // 原因：db.saveCard() 内部会启动15秒后的 pushToCloud() 计时器，
-                    // 导致批量未完成时就推送，且云端拉取的 store.clear() 会清空后续写入的数据
-                    const dbInst = await db.open();
-                    await new Promise((resolve, reject) => {
-                        const tx = dbInst.transaction('cards', 'readwrite');
-                        tx.objectStore('cards').put(newCard);
-                        tx.oncomplete = resolve;
-                        tx.onerror = () => reject(tx.error);
-                    });
+                        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                        
+                        const data = await response.json();
+                        let rawContent = data.choices[0].message.content;
+                        const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) rawContent = jsonMatch[0];
+                        
+                        const result = JSON.parse(rawContent);
 
-                    // ✅ 必须在 IndexedDB 写入成功后再 push，防止写入失败时 deck 被污染
-                    deck.push(newCard);
-                    successCount++;
-                    appendLog(`✅ ${word}: Success`, '#34c759');
+                        // 构造并保存卡片
+                        const newCard = createCardObject(
+                            word, result.sentence || "", result.definition || "", result.mnemonic || "",
+                            result.socratic || "", result.emoji || "", result.trap || "", result.writing || "",
+                            result.self_ref || "", result.contrast || "", result.morphemes || null,
+                            Array.isArray(result.family) ? result.family.join(', ') : (result.family || "")
+                        );
 
-                    // 【核心】限流延迟机制 (Rate Limiting)
-                    // 每个单词请求完后强制暂停 1.5 秒，极大地保护 API 稳定性，防止封号或拒接
-                    if (i < words.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        // 【核心修复】绕过 db.saveCard()，直接写 IndexedDB
+                        const dbInst = await db.open();
+                        await new Promise((resolve, reject) => {
+                            const tx = dbInst.transaction('cards', 'readwrite');
+                            tx.objectStore('cards').put(newCard);
+                            tx.oncomplete = resolve;
+                            tx.onerror = () => reject(tx.error);
+                        });
+
+                        // ✅ 必须在 IndexedDB 写入成功后再 push，防止写入失败时 deck 被污染
+                        deck.push(newCard);
+                        successCount++;
+                        appendLog(`✅ ${word}: Success`, '#34c759');
+
+                        // 【新增】阶段性自动存档：每成功 5 个单词，自动同步一次云端
+                        // 作用：相当于玩游戏的“自动保存点”，防止中途崩溃导致前功尽弃
+                        if (successCount % 10 === 0) {
+                            appendLog(`💾 Auto-saving progress to Cloud...`, '#007aff');
+                            // 这里调用云端同步，确保数据落袋为安
+                            await pushToCloud(); 
+                        }
+
+                        success = true; // 标记成功，跳出 while 重试循环
+
+                        // 【核心】限流延迟机制 (Rate Limiting)
+                        // 每个单词请求完后强制暂停 1.5 秒，极大地保护 API 稳定性，防止封号或拒接
+                        if (i < words.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 1500));
+                        }
+
+                    } catch (err) {
+                        console.warn(`Error on ${word} (Attempt ${attempts}):`, err.message);
+                        if (attempts >= maxAttempts) {
+                            failCount++;
+                            appendLog(`❌ ${word}: Failed (${err.message})`, '#ff3b30');
+                        } else {
+                            // 失败后不要立刻重试，休眠 3 秒钟给接口缓冲时间
+                            appendLog(`⚠️ ${word}: Network/API issue. Retrying (${attempts}/${maxAttempts}) in 3s...`, '#ff9500');
+                            await new Promise(resolve => setTimeout(resolve, 3000));
+                        }
                     }
-
-                } catch (err) {
-                    console.error(`Error on ${word}:`, err);
-                    failCount++;
-                    appendLog(`❌ ${word}: Failed (${err.message})`, '#ff3b30');
                 }
             }
 
