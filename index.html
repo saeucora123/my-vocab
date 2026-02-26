@@ -1455,6 +1455,7 @@
         let tempContrast = ""; // 【新增】暂存思维差异
         let tempMorphemes = null; // 【修复】添加全局变量
         let tempFamily = "";      // 【修复】添加全局变量
+        let isBatchProcessing = false; // 【修复】批量处理保护标志，防止云端拉取覆盖本地数据
 
         const p = {
             w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
@@ -3171,8 +3172,11 @@
             document.getElementById('batchWordInput').value = '';
             document.getElementById('batchProgress').classList.add('hidden');
             document.getElementById('batchLog').innerHTML = '';
-            document.getElementById('startBatchBtn').disabled = false;
-            document.getElementById('startBatchBtn').innerText = '🚀 Start Auto-Generation';
+            
+            const startBtn = document.getElementById('startBatchBtn');
+            startBtn.disabled = false;
+            startBtn.innerText = '🚀 Start Auto-Generation';
+            startBtn.onclick = startBatchProcess; // 每次打开弹窗，确保它的功能是“开始运行”
         }
 
         function closeBatchModal() {
@@ -3185,10 +3189,10 @@
             let rawWords = text.split(/[\n,]+/).map(w => {
                 let clean = w.replace(/[*_~`]/g, ''); // 去除 Markdown 的加粗**、下划线__等符号
                 clean = clean.replace(/\s+/g, ' ');   // 将所有连续的奇怪空格压缩为1个普通英文空格
-                return clean.trim();                  // 剔除首尾的残留空格
+                return clean.trim().toLowerCase();    // 【修复】统一转小写，修复大小写去重失效问题
             }).filter(w => w.length > 0);
             
-            // 去重
+            // 去重（因已统一转小写，Apple/apple 会被正确识别为同一词）
             let words = [...new Set(rawWords)];
             
             // 过滤掉词库中已经存在的单词
@@ -3198,8 +3202,12 @@
                 return alert("没有找到新单词，或者输入的单词都已经存在于词库中！");
             }
 
-            const confirmStart = confirm(`即将调用 AI 自动生成 ${words.length} 个单词的深度解析。\n预计需要 ${words.length * 3} 秒左右。\n在此期间请不要关闭页面，确定开始吗？`);
+            const confirmStart = confirm(`即将调用 AI 自动生成 ${words.length} 个单词的深度解析。\n预计需要 ${words.length * 3} 秒左右。\n在此期间请不要关闭或切换页面，确定开始吗？`);
             if (!confirmStart) return;
+
+            // 【核心修复】设置批量处理保护标志，防止切屏时 pullFromCloud 的 store.clear() 清空正在写入的数据
+            isBatchProcessing = true;
+            clearTimeout(db._syncTimer); // 取消所有待执行的自动云端推送计时器
 
             // UI 状态切换
             document.getElementById('startBatchBtn').disabled = true;
@@ -3222,21 +3230,29 @@
                 logArea.scrollTop = logArea.scrollHeight; // 自动滚动到底部
             };
 
-            // 专门为批量任务精简的 Prompt，确保快速和稳定
-            const batchPromptTemplate = (word) => `你是一位语言学专家。请为单词/词组 "${word}" 生成深度编码数据。
+            // 【认知科学修正】System Prompt：注入灵魂（自解释谜题、严禁谐音、具象锚点）
+            const batchSystemPrompt = `你是一位精通"i+1"理论的认知语言学专家。请严格遵循以下认知原则生成数据：
+1. 例句必须是"自解释谜题"：必须含明确逻辑路标(because, despite等)，让学生仅凭基础词汇就能推理出目标词意。严禁废话语境。除目标词外限制在CET-4难度。
+2. 助记法(mnemonic)：严禁谐音！必须是"词根词缀物理动作 -> 抽象隐喻"的推导。
+3. 自我参照(self_ref)：具象记忆锚点。问一个与用户具象生活(物品/时间/朋友)相关的问题，逼迫其使用该词逻辑思考，绝不能假大空。
+4. 辨析与差异：指出最致命的中式英语误区或易混词。
+只输出JSON格式，不要任何多余解释。`;
+
+            // User Prompt：只负责结构约束，保持轻量
+            const batchPromptTemplate = (word) => `请为单词/词组 "${word}" 生成深度编码数据。
 【JSON 返回结构强制要求】
 {
-  "sentence": "包含逻辑连接词和 <b>词块</b> 的例句，除目标词外限制在CET-4词汇",
+  "sentence": "包含逻辑连接词和 <b>词块</b> 的例句（严格遵守i+1和自解释推理）",
   "morphemes": { "prefix": "", "root": "${word}", "suffix": "" }, 
-  "definition": "Simple English definition.",
-  "mnemonic": "Root+Prefix -> 核心动作 -> 引申义",
-  "socratic": "引导思考的提问",
+  "definition": "Simple English definition (CEFR B1).",
+  "mnemonic": "物理图景(词根释义) -> 抽象演化推导",
+  "socratic": "引导底层逻辑思考的提问",
   "emoji": "最精准的表情符号",
-  "self_ref": "与用户个人生活相关的反思提问",
+  "self_ref": "具体且生活化的反思提问(英文)",
   "trap": "🚫易混: [词] 💡区别: [中文简述]",
   "writing": "一个通用高分作文句型(含中文)",
   "contrast": "🇨🇳🇺🇸中英思维差异(中文)",
-  "family": "同根词"
+  "family": "同根词(仅列举单词)"
 }`;
 
             // 采用经典的 for 循环进行串行请求，防止并发过高导致 DeepSeek 接口 429 报错
@@ -3245,6 +3261,12 @@
                 statusText.innerText = `Processing: ${i + 1} / ${words.length} (${word})`;
                 progressBar.style.width = `${((i + 1) / words.length) * 100}%`;
 
+                // 【核心修复】循环内实时去重，防止本批次内前面刚加入的词被重复处理
+                if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
+                    appendLog(`⏭️ ${word}: Skipped (already exists)`, '#ff9500');
+                    continue;
+                }
+
                 try {
                     const response = await fetch(AI_CONFIG.baseUrl, {
                         method: "POST",
@@ -3252,7 +3274,8 @@
                         body: JSON.stringify({
                             model: AI_CONFIG.model,
                             messages: [
-                                { role: "system", content: "You are a vocabulary expert. Output ONLY JSON." },
+                                // 【关键修改】使用强化版的 System Prompt，防止 AI 偷懒
+                                { role: "system", content: batchSystemPrompt },
                                 { role: "user", content: batchPromptTemplate(word) }
                             ],
                             temperature: 0.5,
@@ -3276,8 +3299,19 @@
                         result.self_ref || "", result.contrast || "", result.morphemes || null, result.family || ""
                     );
 
+                    // 【核心修复】绕过 db.saveCard()，直接写 IndexedDB
+                    // 原因：db.saveCard() 内部会启动15秒后的 pushToCloud() 计时器，
+                    // 导致批量未完成时就推送，且云端拉取的 store.clear() 会清空后续写入的数据
+                    const dbInst = await db.open();
+                    await new Promise((resolve, reject) => {
+                        const tx = dbInst.transaction('cards', 'readwrite');
+                        tx.objectStore('cards').put(newCard);
+                        tx.oncomplete = resolve;
+                        tx.onerror = () => reject(tx.error);
+                    });
+
+                    // ✅ 必须在 IndexedDB 写入成功后再 push，防止写入失败时 deck 被污染
                     deck.push(newCard);
-                    await db.saveCard(newCard); 
                     successCount++;
                     appendLog(`✅ ${word}: Success`, '#34c759');
 
@@ -3294,14 +3328,23 @@
                 }
             }
 
-            statusText.innerText = `All Done! Success: ${successCount}, Failed: ${failCount}.`;
-            document.getElementById('startBatchBtn').innerText = 'Done!';
+            // 【核心修复】必须先推送完成，再解除保护标志！
+            // 否则 pushToCloud 执行期间若用户切屏，visibilitychange 会触发 pullFromCloud 的 store.clear()，覆盖掉刚写入的数据
+            statusText.innerText = `All Done! ✅ ${successCount} added, ❌ ${failCount} failed. Syncing to cloud...`;
+            await pushToCloud(); // 等待推送完成再提示
+            isBatchProcessing = false; // ✅ 必须在推送完成后才解除保护
+            statusText.innerText = `All Done! ✅ ${successCount} added, ❌ ${failCount} failed. Cloud synced!`;
+
+            // 解禁按钮，并将其功能切换为"关闭弹窗"
+            const startBtn = document.getElementById('startBatchBtn');
+            startBtn.innerText = '✅ Done! Click to Close';
+            startBtn.disabled = false;
+            startBtn.onclick = closeBatchModal;
+            
             document.getElementById('batchCloseBtn').disabled = false;
             
             // 刷新主界面数据
             render();
-            // 批量完成后，统一推送一次云端
-            pushToCloud();
         }
 
         // --- 9. Inbox Logic (New) ---
@@ -3410,6 +3453,11 @@
         // 当你把手机切回微信/浏览器，或者电脑从休眠中唤醒时，自动触发
         document.addEventListener("visibilitychange", () => {
             if (document.visibilityState === "visible" && currentUser) {
+                // 【核心修复】批量处理期间禁止云端拉取，防止 store.clear() 清空正在写入的数据
+                if (isBatchProcessing) {
+                    console.log("批量处理中，跳过云端拉取以防数据覆盖");
+                    return;
+                }
                 console.log("检测到页面唤醒，正在防抖检查云端数据...");
                 // 给一个小提示，让用户知道系统在努力工作
                 const syncEl = document.getElementById('syncStatus');
