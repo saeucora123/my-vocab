@@ -901,33 +901,172 @@
             color: white !important;
             border-color: #ff3b30 !important;
         }
+
+        /* 【新增】备考模式 (Exam Prep) 样式 */
+        .exam-prep-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 10000;
+            /* 高于其他所有层 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+            padding: 20px;
+        }
+
+        .exam-prep-content {
+            background: rgba(255, 255, 255, 0.95);
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            box-sizing: border-box;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes scaleIn {
+            from {
+                transform: scale(0.95);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .exam-type-select {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .exam-input-area {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+            font-size: 16px;
+            min-height: 100px;
+            resize: vertical;
+            margin-bottom: 16px;
+        }
+
+        .exam-result-area {
+            flex: 1;
+            overflow-y: auto;
+            background: #f2f2f7;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 16px;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .exam-card-preview {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border-left: 4px solid var(--accent);
+        }
+
+        /* 【新增】学科切换下拉框 (Subject Dropdown) 样式 */
+        .subject-select {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+            color: #333;
+            font-weight: 600;
+            appearance: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .subject-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+        }
     </style>
 </head>
 
 <body>
 
     <!-- ===== Supabase 登录浮层 ===== -->
-    <div id="authModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(8px); z-index:9999; justify-content:center; align-items:center;">
-        <div style="background:#fff; border-radius:20px; padding:30px; width:90%; max-width:360px; box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+    <div id="authModal"
+        style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(8px); z-index:9999; justify-content:center; align-items:center;">
+        <div
+            style="background:#fff; border-radius:20px; padding:30px; width:90%; max-width:360px; box-shadow:0 20px 60px rgba(0,0,0,0.2);">
             <h2 style="text-align:center; margin:0 0 6px; font-size:22px;">☁️ 云端同步</h2>
             <p style="text-align:center; color:#86868b; font-size:13px; margin:0 0 20px;">登录后数据自动同步到所有设备</p>
-            <input id="authEmail" type="email" placeholder="邮箱地址" style="width:100%; padding:14px; border-radius:10px; border:1px solid #ddd; font-size:16px; box-sizing:border-box; margin-bottom:10px; outline:none;">
-            <input id="authPassword" type="password" placeholder="密码 (首次注册自动创建账号)" style="width:100%; padding:14px; border-radius:10px; border:1px solid #ddd; font-size:16px; box-sizing:border-box; margin-bottom:16px; outline:none;">
-            <button onclick="handleLogin()" style="width:100%; padding:14px; background:linear-gradient(135deg,#007aff,#005bb5); color:white; border:none; border-radius:10px; font-size:16px; font-weight:600; cursor:pointer; margin-bottom:10px;">登录 / 注册</button>
-            <button onclick="document.getElementById('authModal').style.display='none'" style="width:100%; padding:12px; background:#f2f2f7; color:#333; border:none; border-radius:10px; font-size:15px; cursor:pointer;">暂不登录（仅本地）</button>
-            <p id="authMsg" style="text-align:center; color:#ff3b30; font-size:13px; margin:10px 0 0; min-height:18px;"></p>
+            <input id="authEmail" type="email" placeholder="邮箱地址"
+                style="width:100%; padding:14px; border-radius:10px; border:1px solid #ddd; font-size:16px; box-sizing:border-box; margin-bottom:10px; outline:none;">
+            <input id="authPassword" type="password" placeholder="密码 (首次注册自动创建账号)"
+                style="width:100%; padding:14px; border-radius:10px; border:1px solid #ddd; font-size:16px; box-sizing:border-box; margin-bottom:16px; outline:none;">
+            <button onclick="handleLogin()"
+                style="width:100%; padding:14px; background:linear-gradient(135deg,#007aff,#005bb5); color:white; border:none; border-radius:10px; font-size:16px; font-weight:600; cursor:pointer; margin-bottom:10px;">登录
+                / 注册</button>
+            <button onclick="document.getElementById('authModal').style.display='none'"
+                style="width:100%; padding:12px; background:#f2f2f7; color:#333; border:none; border-radius:10px; font-size:15px; cursor:pointer;">暂不登录（仅本地）</button>
+            <p id="authMsg" style="text-align:center; color:#ff3b30; font-size:13px; margin:10px 0 0; min-height:18px;">
+            </p>
         </div>
     </div>
 
     <!-- ===== 顶部用户状态栏 ===== -->
-    <div id="userBar" style="display:none; position:fixed; top:12px; right:12px; z-index:999; background:rgba(255,255,255,0.9); backdrop-filter:blur(10px); border-radius:20px; padding:6px 14px; font-size:12px; color:#555; box-shadow:0 2px 12px rgba(0,0,0,0.1); display:flex; align-items:center; gap:8px;">
-        <span id="userEmail" style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
-        <span id="syncStatus" onclick="forceSmartSync()" style="color:#34c759; cursor:pointer; font-size:14px;" title="点击强制双向同步">🔄</span>
-        <button onclick="handleLogout()" style="background:none; border:none; color:#ff3b30; cursor:pointer; font-size:12px; padding:0;">退出</button>
+    <div id="userBar"
+        style="display:none; position:fixed; top:12px; right:12px; z-index:999; background:rgba(255,255,255,0.9); backdrop-filter:blur(10px); border-radius:20px; padding:6px 14px; font-size:12px; color:#555; box-shadow:0 2px 12px rgba(0,0,0,0.1); display:flex; align-items:center; gap:8px;">
+        <span id="userEmail"
+            style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+        <span id="syncStatus" onclick="forceSmartSync()" style="color:#34c759; cursor:pointer; font-size:14px;"
+            title="点击强制双向同步">🔄</span>
+        <button onclick="handleLogout()"
+            style="background:none; border:none; color:#ff3b30; cursor:pointer; font-size:12px; padding:0;">退出</button>
     </div>
 
     <div class="container">
         <h1>FSRS Context Pro</h1>
+
+        <!-- 【新增】学科切换下拉框 (Subject Dropdown) -->
+        <select id="mainSubjectSelect" class="subject-select" onchange="switchSubject(this.value)">
+            <option value="all">🌍 全库 (All)</option>
+            <option value="英语">🇬🇧 英语词汇 (English)</option>
+            <option value="考公">🏛️ 考公 (Civil Service)</option>
+            <option value="考研">🎓 考研 (Grad Exam)</option>
+            <option value="CPA">📊 CPA (Accounting)</option>
+            <option value="税务师">⚖️ 税务师 (Tax Advisor)</option>
+            <option value="其他">📌 其他 (Others)</option>
+        </select>
 
         <!-- 【新增】胜任感仪表盘 (Competence Dashboard) -->
         <div style="text-align:center; font-size:12px; color:#86868b; margin-bottom:5px;">Language Mastery Level</div>
@@ -960,7 +1099,8 @@
                 <textarea id="newSentenceInput" placeholder="Context sentence will appear here..."></textarea>
                 <div style="display:flex; gap:10px;">
                     <button class="add-btn" onclick="addWord()" style="flex:1;">Add to Deck</button>
-                    <button class="add-btn" onclick="openBatchModal()" style="background:var(--success); flex:1;">📝 Batch Add</button>
+                    <button class="add-btn" onclick="openBatchModal()" style="background:var(--success); flex:1;">📝
+                        Batch Add</button>
                 </div>
             </div>
 
@@ -1126,6 +1266,13 @@
         style="left: 90px; background: #5856d6; border-color: #a29bfe;">
         <span class="portal-icon">📚</span>
     </a>
+
+    <!-- [新增] 传送门按钮：点击弹出备考窗口 (Exam Prep) -->
+    <button onclick="openExamPrepModal()" class="portal-btn exam-portal-btn" title="备考抓词"
+        style="left: 160px; background: #ff9500; border-color: #ffaa33; border-radius: 50%; cursor: pointer;">
+        <span class="portal-icon">📝</span>
+    </button>
+
     <style>
         /* 这里直接写样式，方便你复制 */
         .portal-btn {
@@ -1155,11 +1302,71 @@
         }
     </style>
 
+    <!-- 【新增】全能备考/错题分析弹窗 (Exam Prep Modal) -->
+    <div id="examPrepModal" class="exam-prep-modal-overlay hidden">
+        <div class="exam-prep-content">
+            <div class="modal-header">
+                <div class="modal-title">📝 AI 备考 / 错题抓取器</div>
+                <button class="close-btn" onclick="closeExamPrepModal()">Close</button>
+            </div>
+
+            <p style="font-size:13px; color:gray; margin-top:0;">选择你的考试/场景，贴入错题或知识点。AI 会通过 DeepSeek 解析，并自动整理成正反面
+                FSRS 记忆卡片。</p>
+
+            <select id="examTypeSelect" class="exam-type-select">
+                <option value="考公">🏛️ 考公 (行测/申论等常识)</option>
+                <option value="考研">🎓 考研 (政治/专业课/英语)</option>
+                <option value="CPA">📊 CPA (会计/审计/财管/税法/经济法/战略)</option>
+                <option value="税务师">⚖️ 税务师 (税法一/二/涉税服务等)</option>
+                <option value="其他">📌 其他 (通用错题收录与解析)</option>
+            </select>
+
+            <div class="input-row" style="margin-bottom:12px;">
+                <input type="text" id="examModuleInput" placeholder="模块/章节（选填，如：税法一-增值税、考研政治-马原）">
+                <select id="examErrorTypeSelect" class="exam-type-select" style="max-width:180px; margin-bottom:0;">
+                    <option value="">错因（选填）</option>
+                    <option value="概念混淆">概念混淆</option>
+                    <option value="条件遗漏">条件遗漏</option>
+                    <option value="审题偏差">审题偏差</option>
+                    <option value="计算失误">计算失误</option>
+                    <option value="记忆模糊">记忆模糊</option>
+                </select>
+            </div>
+
+            <textarea id="examKnowledgeInput" class="exam-input-area" placeholder="例如：
+- 复制粘贴一道你做错的行测图推题/常识题。
+- 输入 'CPA税法中关于增值税视同销售的8种情况'。
+- 粘贴一段你看不懂的考研政治材料..."></textarea>
+
+            <button id="examGenerateBtn" class="add-btn full-width-btn" style="margin-top:0;"
+                onclick="generateExamMaterial()">
+                🚀 AI 解析并制卡 (DeepSeek)
+            </button> <!-- 添加了完整的闭合标签 -->
+
+            <div id="examResultContainer" class="exam-result-area hidden">
+                <div id="examLoading" style="text-align:center; display:none;">
+                    <br><br>
+                    <div class="spinner" style="margin: 0 auto;"></div>
+                    <p style="color:var(--subtext); font-size:13px; margin-top:10px;">DeepSeek 思考中，可能是大解析，请稍候...</p>
+                </div>
+                <div id="examResultContent"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="wordListModal" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">Vocabulary (<span id="totalWordCount">0</span>)</div>
                 <button class="close-btn" onclick="toggleWordList()">Close</button>
+            </div>
+            <div id="examListFilterBar" style="display:none; gap:10px; margin-bottom:12px; flex-wrap:wrap; align-items:center;">
+                <select id="examListModuleFilter" class="exam-type-select" style="max-width:240px;" onchange="handleExamListFilterChange()">
+                    <option value="all">All modules</option>
+                </select>
+                <select id="examListErrorFilter" class="exam-type-select" style="max-width:180px;" onchange="handleExamListFilterChange()">
+                    <option value="all">All error types</option>
+                </select>
             </div>
             <div class="word-list" id="fullWordList"></div>
         </div>
@@ -1172,18 +1379,24 @@
                 <div class="modal-title">📝 Batch Add Words</div>
                 <button class="close-btn" onclick="closeBatchModal()" id="batchCloseBtn">Close</button>
             </div>
-            <p style="font-size:12px; color:gray; margin-top:0;">Paste your words below (separated by commas or new lines). The AI will process them one by one automatically.</p>
-            <textarea id="batchWordInput" rows="8" placeholder="apple&#10;banana&#10;turn up..." style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px;"></textarea>
-            
+            <p style="font-size:12px; color:gray; margin-top:0;">Paste your words below (separated by commas or new
+                lines). The AI will process them one by one automatically.</p>
+            <textarea id="batchWordInput" rows="8" placeholder="apple&#10;banana&#10;turn up..."
+                style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px;"></textarea>
+
             <div id="batchProgress" class="hidden" style="margin-bottom:15px;">
-                <div style="font-size:13px; font-weight:bold; color:var(--accent); margin-bottom:5px;" id="batchStatusText">Processing: 0 / 0</div>
+                <div style="font-size:13px; font-weight:bold; color:var(--accent); margin-bottom:5px;"
+                    id="batchStatusText">Processing: 0 / 0</div>
                 <div style="width:100%; height:8px; background:#eee; border-radius:4px; overflow:hidden;">
-                    <div id="batchProgressBar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
+                    <div id="batchProgressBar"
+                        style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
                 </div>
-                <div id="batchLog" style="font-size:11px; color:gray; margin-top:5px; max-height:60px; overflow-y:auto;"></div>
+                <div id="batchLog"
+                    style="font-size:11px; color:gray; margin-top:5px; max-height:60px; overflow-y:auto;"></div>
             </div>
 
-            <button class="add-btn full-width-btn" id="startBatchBtn" onclick="startBatchProcess()">🚀 Start Auto-Generation</button>
+            <button class="add-btn full-width-btn" id="startBatchBtn" onclick="startBatchProcess()">🚀 Start
+                Auto-Generation</button>
         </div>
     </div>
 
@@ -1248,79 +1461,350 @@
         let ocrWorker = null;
         let deck = [];
 
+        // 【新增】全局学科状态
+        window.currentSubject = 'all';
+        window.listFilters = { module: 'all', errorType: 'all' };
+
+        // 【新增】学科切换逻辑
+        function switchSubject(subject) {
+            window.currentSubject = subject;
+            window.listFilters = { module: 'all', errorType: 'all' };
+
+            // 下拉框状态同步 (处理从其他途径触发的调用)
+            const selectEl = document.getElementById('mainSubjectSelect');
+            if (selectEl && selectEl.value !== subject) {
+                selectEl.value = subject;
+            }
+
+            // 【新增】根据学科切换主界面的输入框 UI
+            const inputWrapper = document.querySelector('.input-wrapper');
+            const ocrControls = document.querySelector('.ocr-controls');
+            const divider = document.querySelector('.divider');
+            let quickAction = document.getElementById('examPrepQuickAction');
+
+            if (subject === 'all' || subject === '英语') {
+                if (inputWrapper) inputWrapper.style.display = 'block';
+                if (ocrControls) ocrControls.style.display = 'flex';
+                if (divider) divider.style.display = 'flex';
+                if (quickAction) quickAction.style.display = 'none';
+            } else {
+                if (inputWrapper) inputWrapper.style.display = 'none';
+                if (ocrControls) ocrControls.style.display = 'none';
+                if (divider) divider.style.display = 'none';
+
+                if (!quickAction) {
+                    const inputSec = document.getElementById('inputSection');
+                    quickAction = document.createElement('div');
+                    quickAction.id = 'examPrepQuickAction';
+                    quickAction.style.marginBottom = '20px';
+                    inputSec.insertBefore(quickAction, inputSec.firstChild);
+                }
+                quickAction.style.display = 'block';
+
+                // 根据不同考试，生成有针对性的备考按钮
+                quickAction.innerHTML = `
+                    <button class="add-btn full-width-btn" style="background:linear-gradient(135deg, #ff9500, #ffaa33); height:60px; border:none; box-shadow:0 4px 15px rgba(255,149,0,0.3); font-size:16px;" onclick="quickOpenExamModal()">
+                        📝 使用 AI 录入 ${subject} 知识卡片 / 错题
+                    </button>
+                `;
+            }
+
+            // 重新渲染当前界面
+            render();
+            // 如果处于列表视图，也要一并刷新
+            if (!document.getElementById('wordListModal').classList.contains('hidden')) {
+                renderListContent();
+            }
+        }
+
         // --- IndexedDB Wrapper (解决 5MB 限制) ---
+        const PENDING_DELETE_KEY = 'fsrs_pending_deletes';
         const db = {
-            open: () => new Promise((resolve, reject) => {
-                const r = indexedDB.open('FSRS_Context_DB', 1);
-                r.onupgradeneeded = e => {
-                    const d = e.target.result;
-                    if (!d.objectStoreNames.contains('cards')) d.createObjectStore('cards', { keyPath: 'id' });
-                    if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings');
-                };
-                r.onsuccess = e => resolve(e.target.result);
-                r.onerror = () => reject(r.error);
-            }),
-            getAll: async () => {
-                const d = await db.open();
-                return new Promise(resolve => {
-                    const req = d.transaction('cards', 'readonly').objectStore('cards').getAll();
-                    req.onsuccess = () => resolve(req.result || []);
+            _syncTimer: null,
+            open: function() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open('fsrs_context_db', 1);
+                    request.onerror = event => reject(event.target.error);
+                    request.onupgradeneeded = event => {
+                        const conn = event.target.result;
+                        if (!conn.objectStoreNames.contains('cards')) {
+                            conn.createObjectStore('cards', { keyPath: 'id' });
+                        }
+                        if (!conn.objectStoreNames.contains('settings')) {
+                            conn.createObjectStore('settings', { keyPath: 'key' });
+                        }
+                    };
+                    request.onsuccess = event => resolve(event.target.result);
                 });
             },
-            // 【新增】只保存单张卡片（安全核心）
-            saveCard: async (card) => {
-                const d = await db.open();
-                // 【Delta Sync】每次本地修改时，更新时间戳并标记需要同步
-                card.updated_at = new Date().toISOString();
-                card.needsSync = true;
-                const tx = d.transaction('cards', 'readwrite');
-                tx.objectStore('cards').put(card);
-                // 保存后延迟推送云端（防止复习时频繁触发）
-                clearTimeout(db._syncTimer);
-                db._syncTimer = setTimeout(() => pushToCloud(), 15000); // 增加到15秒，减少并发冲突
-            },
-            // 【新增】删除单张卡片
-            deleteCard: async (id) => {
-                const d = await db.open();
-                const tx = d.transaction('cards', 'readwrite');
-                tx.objectStore('cards').delete(id);
-                // 删除后同步云端
-                clearTimeout(db._syncTimer);
-                db._syncTimer = setTimeout(() => pushToCloud(), 15000); // 增加到15秒，减少并发冲突
-            },
-            // 保留旧方法仅做兼容，不再推荐频繁调用
-            saveAll: async (cards) => {
-                const d = await db.open();
+            getAll: async function() {
+                const conn = await this.open();
                 return new Promise((resolve, reject) => {
-                    const tx = d.transaction('cards', 'readwrite');
+                    const tx = conn.transaction('cards', 'readonly');
                     const store = tx.objectStore('cards');
-                    store.clear(); // 简单粗暴全量覆盖，防止ID变动残留
-                    // 【Delta Sync】从外部导入的卡片，全部标记为需要同步
-                    cards.forEach(c => {
-                        if (!c.updated_at) c.updated_at = new Date().toISOString();
-                        if (c.needsSync === undefined) c.needsSync = true;
-                        store.put(c);
-                    });
+                    const request = store.getAll();
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            },
+            saveCard: async function(card) {
+                const conn = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = conn.transaction('cards', 'readwrite');
+                    const store = tx.objectStore('cards');
+                    store.put(card);
                     tx.oncomplete = () => resolve();
                     tx.onerror = () => reject(tx.error);
                 });
             },
-            getSetting: async (k) => {
-                const d = await db.open();
-                return new Promise(resolve => {
-                    const req = d.transaction('settings', 'readonly').objectStore('settings').get(k);
-                    req.onsuccess = () => resolve(req.result);
+            saveAll: async function(cards) {
+                const conn = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = conn.transaction('cards', 'readwrite');
+                    const store = tx.objectStore('cards');
+                    cards.forEach(card => store.put(card));
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
                 });
             },
-            saveSetting: async (k, v) => {
-                const d = await db.open();
-                const tx = d.transaction('settings', 'readwrite');
-                tx.objectStore('settings').put(v, k);
+            deleteCard: async function(id) {
+                const conn = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = conn.transaction('cards', 'readwrite');
+                    const store = tx.objectStore('cards');
+                    store.delete(id);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+            },
+            getSetting: async function(key) {
+                const conn = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = conn.transaction('settings', 'readonly');
+                    const store = tx.objectStore('settings');
+                    const request = store.get(key);
+                    request.onsuccess = () => resolve(request.result ? request.result.value : null);
+                    request.onerror = () => reject(request.error);
+                });
+            },
+            saveSetting: async function(key, value) {
+                const conn = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = conn.transaction('settings', 'readwrite');
+                    const store = tx.objectStore('settings');
+                    store.put({ key: key, value: value });
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
             }
         };
-        // ----------------------------------------
 
-        // ====== 这里是新增的 AI 配置 (开始) ======
+        function escapeHTML(str) {
+            if (typeof str !== 'string') return '';
+            return str.replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag]));
+        }
+
+        function textToHtmlLines(str) {
+            if (!str) return '';
+            return escapeHTML(str).replace(/\n/g, '<br>');
+        }
+
+        function updateDeckInfo() {
+            if (typeof renderListContent === 'function') renderListContent();
+        }
+
+        function updateStatsUI() {
+            // Stats updates are handled natively in render()
+        }
+
+        function getSubjectFilteredDeck(sourceDeck = deck) {
+            const EXAM_SUBJECTS = ['\u8003\u516c', '\u8003\u7814', 'CPA', '\u7a0e\u52a1\u5e08', '\u5176\u4ed6'];
+            const ENGLISH_SUBJECT = '\u82f1\u8bed';
+            function isExamCard(card) {
+                const sentence = card && card.sentence ? card.sentence : '';
+                if (card && card.examMeta && EXAM_SUBJECTS.includes(card.examMeta.examType)) return true;
+                return EXAM_SUBJECTS.some(subject => sentence.includes(`[${subject}]`));
+            }
+            if (window.currentSubject === 'all') return sourceDeck;
+            if (window.currentSubject === ENGLISH_SUBJECT) {
+                return sourceDeck.filter(card => !isExamCard(card));
+            }
+            return sourceDeck.filter(card => {
+                const sentence = card && card.sentence ? card.sentence : '';
+                const subjectByMeta = card && card.examMeta && card.examMeta.examType === window.currentSubject;
+                const subjectBySentence = sentence.includes(`[${window.currentSubject}]`);
+                return subjectByMeta || subjectBySentence;
+            });
+        }
+        function isExamSubjectActive(subject = window.currentSubject) {
+            return subject !== 'all' && subject !== '\u82f1\u8bed';
+        }
+        function getExamFocusScore(card, now = Date.now()) {
+            const updatedAt = new Date(card.updated_at || 0).getTime();
+            const dueAt = typeof card.due === 'number' ? card.due : now;
+            const daysSinceUpdate = Number.isFinite(updatedAt) && updatedAt > 0 ? (now - updatedAt) / 86400000 : 999;
+            const overdueDays = Math.max(0, (now - dueAt) / 86400000);
+            let score = Math.min(overdueDays, 4);
+            if (card.reps === 0) score += 4;
+            else if (card.reps <= 2) score += 2;
+            if ((card.difficulty || 0) >= 7.5) score += 3;
+            else if ((card.difficulty || 0) >= 6.5) score += 2;
+            if (daysSinceUpdate <= 3) score += 2;
+            else if (daysSinceUpdate <= 7) score += 1;
+            if (card.examMeta && card.examMeta.errorType) score += 1;
+            return score;
+        }
+        function refreshExamListFilters(baseDeck) {
+            const filterBar = document.getElementById('examListFilterBar');
+            const moduleSelect = document.getElementById('examListModuleFilter');
+            const errorSelect = document.getElementById('examListErrorFilter');
+            if (!filterBar || !moduleSelect || !errorSelect) return;
+            if (!isExamSubjectActive()) {
+                filterBar.style.display = 'none';
+                moduleSelect.innerHTML = '<option value="all">All modules</option>';
+                errorSelect.innerHTML = '<option value="all">All error types</option>';
+                return;
+            }
+            filterBar.style.display = 'flex';
+            const modules = [...new Set(baseDeck.map(card => card.examMeta && card.examMeta.module).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+            const errorTypes = [...new Set(baseDeck.map(card => card.examMeta && card.examMeta.errorType).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+            const currentModule = window.listFilters && window.listFilters.module ? window.listFilters.module : 'all';
+            const currentErrorType = window.listFilters && window.listFilters.errorType ? window.listFilters.errorType : 'all';
+            moduleSelect.innerHTML = '<option value="all">All modules</option>';
+            modules.forEach(moduleName => {
+                const option = document.createElement('option');
+                option.value = moduleName;
+                option.textContent = moduleName;
+                moduleSelect.appendChild(option);
+            });
+            moduleSelect.value = modules.includes(currentModule) ? currentModule : 'all';
+            errorSelect.innerHTML = '<option value="all">All error types</option>';
+            errorTypes.forEach(errorType => {
+                const option = document.createElement('option');
+                option.value = errorType;
+                option.textContent = errorType;
+                errorSelect.appendChild(option);
+            });
+            errorSelect.value = errorTypes.includes(currentErrorType) ? currentErrorType : 'all';
+            window.listFilters = {
+                module: moduleSelect.value,
+                errorType: errorSelect.value
+            };
+        }
+        function applyExamListFilters(baseDeck) {
+            if (!isExamSubjectActive()) return baseDeck;
+            const filters = window.listFilters || { module: 'all', errorType: 'all' };
+            return baseDeck.filter(card => {
+                const moduleMatch = filters.module === 'all' || (card.examMeta && card.examMeta.module === filters.module);
+                const errorMatch = filters.errorType === 'all' || (card.examMeta && card.examMeta.errorType === filters.errorType);
+                return moduleMatch && errorMatch;
+            });
+        }
+        function handleExamListFilterChange() {
+            const moduleSelect = document.getElementById('examListModuleFilter');
+            const errorSelect = document.getElementById('examListErrorFilter');
+            window.listFilters = {
+                module: moduleSelect ? moduleSelect.value : 'all',
+                errorType: errorSelect ? errorSelect.value : 'all'
+            };
+            renderListContent();
+        }        function renderWordWithEmoji(target, word, emoji = '', animated = false) {
+            target.innerHTML = '';
+            if (emoji) {
+                const emojiBadge = document.createElement('div');
+                emojiBadge.className = 'emoji-badge';
+                emojiBadge.textContent = emoji;
+                if (animated) emojiBadge.style.animation = 'popUp 0.5s ease';
+                target.appendChild(emojiBadge);
+            }
+            target.append(document.createTextNode(word || ''));
+        }
+
+        function renderSelfRefCard(target, title, text) {
+            target.innerHTML = `<div style="display:flex; align-items:start; gap:10px;">
+                    <span style="font-size:24px;">🫵</span>
+                    <div>
+                        <div style="font-weight:bold; color:#d46b08; margin-bottom:4px;">${escapeHTML(title)}</div>
+                        <div style="font-style:italic; color:#333; font-size:15px;">"${escapeHTML(text || '')}"</div>
+                    </div>
+                </div>`;
+        }
+
+        function renderTextCard(target, options) {
+            const {
+                label = '',
+                text = '',
+                background = '#f1f3f5',
+                borderColor = '#6c757d'
+            } = options;
+            target.innerHTML = `<div style="background:${background}; padding:10px; border-radius:8px; border-left:4px solid ${borderColor}"><strong>${escapeHTML(label)}</strong><br>${textToHtmlLines(text)}</div>`;
+        }
+
+        function normalizeExamPayload(payload, meta) {
+            const fallbackCards = (payload.Front && payload.Back)
+                ? [{ type: '核心结论', front: payload.Front, back: payload.Back }]
+                : [];
+            const rawCards = Array.isArray(payload.cards) ? payload.cards : fallbackCards;
+            const cards = rawCards.map((card, index) => ({
+                type: String(card.type || card.label || ['核心结论', '触发条件', '易错辨析'][index] || ('卡片' + (index + 1))).trim(),
+                front: String(card.front || card.Front || '').trim(),
+                back: String(card.back || card.Back || '').trim()
+            })).filter(card => card.front && card.back).slice(0, 3);
+
+            return {
+                examType: meta.examType,
+                module: meta.module,
+                errorType: meta.errorType,
+                summary: String(payload.summary || payload.Summary || '').trim(),
+                cards
+            };
+        }
+
+        function renderExamPreview(container, examPack) {
+            const chips = [
+                examPack.examType,
+                examPack.module ? ('模块: ' + examPack.module) : '',
+                examPack.errorType ? ('错因: ' + examPack.errorType) : ''
+            ].filter(Boolean);
+
+            container.innerHTML =
+                '<div style="margin-bottom:10px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">' +
+                    '<span style="background:var(--accent); color:white; padding:4px 8px; border-radius:4px; font-size:12px; font-weight:bold;">已拆成 ' + examPack.cards.length + ' 张最小卡片</span>' +
+                    chips.map(chip => '<span style="background:#f2f2f7; color:#555; padding:4px 8px; border-radius:999px; font-size:12px;">' + escapeHTML(chip) + '</span>').join('') +
+                '</div>';
+
+            if (examPack.summary) {
+                container.innerHTML +=
+                    '<div class="exam-card-preview" style="border-left-color:#34c759;">' +
+                        '<div style="font-size:12px; color:#34c759; margin-bottom:6px; font-weight:bold;">[压缩摘要]</div>' +
+                        '<div style="font-size:14px; line-height:1.6; color:#333;">' + textToHtmlLines(examPack.summary) + '</div>' +
+                    '</div>';
+            }
+
+            examPack.cards.forEach((card, index) => {
+                container.innerHTML +=
+                    '<div class="exam-card-preview">' +
+                        '<div style="font-size:12px; color:var(--accent); margin-bottom:8px; font-weight:bold;">卡片 ' + (index + 1) + '</div>' +
+                        '<input id="tempExamType' + index + '" type="text" value="' + escapeHTML(card.type) + '" placeholder="卡片类型（如：核心结论）" style="width:100%; padding:10px; border-radius:8px; border:1px solid #d2d2d7; font-size:13px; margin-bottom:10px; box-sizing:border-box;">' +
+                        '<div style="font-size:12px; color:var(--accent); margin-bottom:5px; font-weight:bold;">[正面 / 问题]</div>' +
+                        '<textarea id="tempExamFront' + index + '" style="width:100%; min-height:72px; padding:10px; border-radius:8px; border:1px solid #007aff; font-size:15px; font-weight:bold; margin-bottom:12px; resize:vertical; box-sizing:border-box;">' + escapeHTML(card.front) + '</textarea>' +
+                        '<div style="font-size:12px; color:#ff9500; margin-bottom:5px; font-weight:bold;">[背面 / 答案解析]</div>' +
+                        '<textarea id="tempExamBack' + index + '" style="width:100%; min-height:96px; padding:10px; border-radius:8px; border:1px solid #ff9500; font-size:14px; margin-bottom:5px; resize:vertical; box-sizing:border-box;">' + escapeHTML(card.back) + '</textarea>' +
+                    '</div>';
+            });
+
+            container.innerHTML += '<button class="add-btn full-width-btn" style="background:#34c759; margin-top:20px;" onclick="saveExamCardToDeck()">📥 保存这 ' + examPack.cards.length + ' 张卡片</button>';
+        }
+
         const AI_CONFIG = {
             // 请在下面引号里填入你的 DeepSeek API Key，例如 "sk-ab12345..."
             apiKey: "sk-f3ff7365a06f4fe1ae7609ebbd2238ac",
@@ -1336,6 +1820,29 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3a2Nva2x2bHBhanFuemN1cXVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNzU5MjUsImV4cCI6MjA4Njg1MTkyNX0.F8uiQkRxa3lK7c8gJ673jOrLK7bNNsbLIYnLKBo7iAA';
         const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         let currentUser = null;
+        let syncPromise = null;
+
+        async function getPendingDeletions() {
+            const pending = await db.getSetting(PENDING_DELETE_KEY);
+            return Array.isArray(pending) ? pending : [];
+        }
+
+        async function queuePendingDeletion(id) {
+            const pending = await getPendingDeletions();
+            if (!pending.includes(id)) {
+                pending.push(id);
+                await db.saveSetting(PENDING_DELETE_KEY, pending);
+            }
+        }
+
+        async function flushPendingDeletions() {
+            if (!currentUser) return;
+            const pending = await getPendingDeletions();
+            if (pending.length === 0) return;
+            const { error } = await sbClient.from('cards').delete().eq('user_id', currentUser.id).in('id', pending);
+            if (error) throw error;
+            await db.saveSetting(PENDING_DELETE_KEY, []);
+        }
 
         // 初始化时检查是否已登录
         async function initAuth() {
@@ -1343,14 +1850,14 @@
             if (session && session.user) {
                 currentUser = session.user;
                 showUserBar(session.user.email);
-        
-        // 【核心修复】检测到已登录后，立即从云端拉取最新数据
+
+                // 【核心修复】检测到已登录后，立即从云端拉取最新数据
                 console.log("已登录，正在同步云端数据...");
 
                 // 【一次性迁移】检查新 cards 表是否为空，如果是，则从旧 vocab_data 表迁移
                 await migrateOldCloudData();
 
-                await pullFromCloud(); 
+                await pullFromCloud();
             } else {
                 document.getElementById('authModal').style.display = 'flex';
             }
@@ -1445,45 +1952,241 @@
         // 把本地数据推送到云端（增量同步：只推送带 needsSync 标记的卡片）
         async function pushToCloud() {
             if (!currentUser) return;
-            const syncEl = document.getElementById('syncStatus');
-            if (syncEl) { syncEl.innerText = '↻'; syncEl.style.color = '#ff9500'; } // 提示正在同步
-            try {
-                const localCards = await db.getAll();
-                // 【Delta Sync】只取出需要同步的卡片
-                const cardsToSync = localCards.filter(c => c.needsSync === true);
-                if (cardsToSync.length === 0) {
-                    setSyncStatus(true);
-                    return; // 没有需要同步的卡片，直接返回
-                }
-                // 构造 Supabase cards 表的行格式
-                const rows = cardsToSync.map(c => ({
-                    id: c.id,
-                    user_id: currentUser.id,
-                    updated_at: c.updated_at || new Date().toISOString(),
-                    card_data: c
-                }));
-                const { error } = await sbClient.from('cards').upsert(rows, { onConflict: 'id,user_id' });
-                if (!error) {
-                    // 上传成功后，在本地 IndexedDB 中把这些卡片的 needsSync 改为 false
+            if (syncPromise) return syncPromise;
+
+            syncPromise = (async () => {
+                const syncEl = document.getElementById('syncStatus');
+                if (syncEl) { syncEl.innerText = '↻'; syncEl.style.color = '#ff9500'; }
+                try {
+                    await flushPendingDeletions();
+                    const localCards = await db.getAll();
+                    const cardsToSync = localCards.filter(c => c.needsSync === true);
+                    if (cardsToSync.length === 0) {
+                        setSyncStatus(true);
+                        return;
+                    }
+                    const rows = cardsToSync.map(c => ({
+                        id: c.id,
+                        user_id: currentUser.id,
+                        updated_at: c.updated_at || new Date().toISOString(),
+                        card_data: c
+                    }));
+                    const { error } = await sbClient.from('cards').upsert(rows, { onConflict: 'id,user_id' });
+                    if (error) throw error;
+
                     const dbInst = await db.open();
-                    const tx = dbInst.transaction('cards', 'readwrite');
-                    const store = tx.objectStore('cards');
-                    cardsToSync.forEach(c => {
-                        c.needsSync = false;
-                        store.put(c);
+                    await new Promise((resolve, reject) => {
+                        const tx = dbInst.transaction('cards', 'readwrite');
+                        const store = tx.objectStore('cards');
+                        cardsToSync.forEach(c => {
+                            c.needsSync = false;
+                            store.put(c);
+                        });
+                        tx.oncomplete = resolve;
+                        tx.onerror = () => reject(tx.error);
                     });
-                    // 同步更新内存中的 deck
+
                     cardsToSync.forEach(synced => {
                         const idx = deck.findIndex(c => c.id === synced.id);
                         if (idx > -1) deck[idx].needsSync = false;
                     });
+                    setSyncStatus(true);
+                } catch (e) {
+                    setSyncStatus(false);
+                    console.error('云端同步失败', e);
+                    throw e;
+                } finally {
+                    syncPromise = null;
                 }
-                setSyncStatus(!error);
-            } catch (e) {
-                setSyncStatus(false);
-                console.error('云端同步失败', e);
+            })();
+
+            return syncPromise;
+        }
+
+        function openExamPrepModal() {
+            document.getElementById('examPrepModal').classList.remove('hidden');
+            document.getElementById('examKnowledgeInput').focus();
+        }
+
+        function closeExamPrepModal() {
+            document.getElementById('examPrepModal').classList.add('hidden');
+            document.getElementById('examKnowledgeInput').value = '';
+            document.getElementById('examModuleInput').value = '';
+            document.getElementById('examErrorTypeSelect').value = '';
+            document.getElementById('examResultContainer').classList.add('hidden');
+            document.getElementById('examResultContent').innerHTML = '';
+            window.tempExamPack = null;
+        }
+
+        // 【新增】主界面快捷进入备考状态（同步学科）
+        function quickOpenExamModal() {
+            openExamPrepModal();
+            // 自动将弹窗内的考试类型下拉框对齐到当前主页选定的科目
+            const modalSelect = document.getElementById('examTypeSelect');
+            if (modalSelect && window.currentSubject !== 'all' && window.currentSubject !== '英语') {
+                modalSelect.value = window.currentSubject;
             }
         }
+
+        async function generateExamMaterial() {
+            const inputVal = document.getElementById('examKnowledgeInput').value.trim();
+            const examType = document.getElementById('examTypeSelect').value;
+            const examModule = document.getElementById('examModuleInput').value.trim();
+            const errorType = document.getElementById('examErrorTypeSelect').value;
+            if (!inputVal) return alert('请输入需要解析的知识点或错题！');
+
+            const btn = document.getElementById('examGenerateBtn');
+            const loading = document.getElementById('examLoading');
+            const resultArea = document.getElementById('examResultContainer');
+            const contentArea = document.getElementById('examResultContent');
+
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            resultArea.classList.remove('hidden');
+            loading.style.display = 'block';
+            contentArea.innerHTML = '';
+
+            const systemPrompt = [
+                '你是' + examType + '备考教练。请把用户提供的知识点、错题或材料，压缩成最适合 FSRS 复习的最小卡片。',
+                '',
+                '目标：默认只生成 1 张最精准的原子卡。只有当材料明确包含 2-3 个彼此独立的考点时，才允许生成多张。绝不要为了"覆盖全面"而硬造卡片。',
+                '',
+                '优先顺序：',
+                '1. 核心结论：最该记住的一句话规则/结论。',
+                '2. 触发条件：什么时候适用，边界条件是什么。',
+                '3. 易错辨析：最容易混淆的点、反例或陷阱。',
+                '',
+                '规则：',
+                '- 不要为了凑数硬造卡片；如果材料简单，1-2 张即可。',
+                '- 每张卡只测一个点，正面必须能独立触发回忆。',
+                '- 背面只保留最关键答案，不写长段废话。',
+                '- 如果用户给的是错题，要优先保留导致失分的关键条件。',
+                '- 输出严格 JSON，不要 markdown。',
+                '',
+                '格式：',
+                '{',
+                '  "summary": "不超过60字的压缩摘要",',
+                '  "cards": [',
+                '    { "type": "核心结论", "front": "...", "back": "..." },',
+                '    { "type": "触发条件", "front": "...", "back": "..." },',
+                '    { "type": "易错辨析", "front": "...", "back": "..." }',
+                '  ]',
+                '}'
+            ].join('\n');
+
+            const userPrompt = [
+                '考试类型: ' + examType,
+                examModule ? ('模块/章节: ' + examModule) : '',
+                errorType ? ('已知错因: ' + errorType) : '',
+                '用户输入:',
+                inputVal
+            ].filter(Boolean).join('\n');
+
+            try {
+                const response = await fetch(AI_CONFIG.baseUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + AI_CONFIG.apiKey
+                    },
+                    body: JSON.stringify({
+                        model: AI_CONFIG.model,
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: userPrompt }
+                        ],
+                        temperature: 0.2,
+                        response_format: { type: 'json_object' }
+                    })
+                });
+
+                if (!response.ok) throw new Error('API 请求失败');
+                const data = await response.json();
+                let jsonStr = data.choices[0].message.content.trim();
+                jsonStr = jsonStr.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+
+                const examPack = normalizeExamPayload(JSON.parse(jsonStr), {
+                    examType,
+                    module: examModule,
+                    errorType
+                });
+
+                if (!examPack.cards.length) throw new Error('AI 未返回有效卡片');
+
+                window.tempExamPack = examPack;
+                renderExamPreview(contentArea, examPack);
+            } catch (error) {
+                console.error(error);
+                contentArea.innerHTML = '<div style="color:red; padding:10px;">生成失败，请检查网络或 API Key：' + escapeHTML(error.message) + '</div>';
+            } finally {
+                loading.style.display = 'none';
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
+        }
+
+        async function saveExamCardToDeck() {
+            if (!window.tempExamPack || !Array.isArray(window.tempExamPack.cards)) return;
+
+            const createdCards = [];
+            const total = window.tempExamPack.cards.length;
+
+            const buildExamSentence = (cardType, index) => {
+                const tags = [
+                    '[' + window.tempExamPack.examType + ']',
+                    window.tempExamPack.module ? ('[模块:' + window.tempExamPack.module + ']') : '',
+                    window.tempExamPack.errorType ? ('[错因:' + window.tempExamPack.errorType + ']') : '',
+                    '[卡型:' + cardType + ']',
+                    '[序号:' + (index + 1) + '/' + total + ']'
+                ].filter(Boolean);
+                return tags.join('') + ' 来自备考模式抓取。';
+            };
+
+            for (let i = 0; i < total; i++) {
+                const typeEl = document.getElementById('tempExamType' + i);
+                const frontEl = document.getElementById('tempExamFront' + i);
+                const backEl = document.getElementById('tempExamBack' + i);
+                if (!typeEl || !frontEl || !backEl) continue;
+
+                const cardType = typeEl.value.trim() || ('卡片' + (i + 1));
+                const front = frontEl.value.trim();
+                const back = backEl.value.trim();
+                if (!front || !back) continue;
+
+                const newCard = createCardObject(front, buildExamSentence(cardType, i), back, '', '', '📚');
+                newCard.examMeta = {
+                    examType: window.tempExamPack.examType,
+                    module: window.tempExamPack.module || '',
+                    errorType: window.tempExamPack.errorType || '',
+                    cardType,
+                    summary: window.tempExamPack.summary || ''
+                };
+
+                deck.push(newCard);
+                await db.saveCard(newCard);
+                createdCards.push(newCard);
+            }
+
+            if (createdCards.length === 0) {
+                alert('至少保留一张有效卡片再保存。');
+                return;
+            }
+
+            closeExamPrepModal();
+            updateDeckInfo();
+            updateStatsUI();
+
+            const msg = document.createElement('div');
+            msg.innerText = '✅ 已保存 ' + createdCards.length + ' 张备考卡片';
+            msg.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#34c759; color:white; padding:10px 20px; border-radius:20px; z-index:10000; box-shadow:0 10px 20px rgba(0,0,0,0.1);';
+            document.body.appendChild(msg);
+            setTimeout(() => msg.remove(), 2500);
+
+            render();
+            // 【自动同步】触发后台云同步，防止多设备数据断流
+            pushToCloud();
+        }
+        // ====== 备考/错题本模式 (Exam Prep) 核心逻辑 (结束) ======
 
         // 从云端拉取数据（增量同步：逐张比对 updated_at，保留更新的版本）
         async function pullFromCloud() {
@@ -1586,10 +2289,11 @@
         };
 
         // 【新增】Apollo 预测引擎核心公式
-        // 计算卡片在 deltaDays 天后的保留率 R = (1 + factor * t / s) ^ -1
+        // 计算卡片在 deltaDays 天后的保留率 (真实记忆留存率: R = 90% at t=s)
         function predictR(s, deltaDays) {
-            const factor = 9 * (1 / p.requestRetention - 1); // 基于 FSRS 标准常数，动态跟随当前模式
-            return 1 / (1 + factor * deltaDays / s);
+            // FSRS 标准真实遗忘曲线: R = (1 + (t / 9s))^-1 
+            // 它是客观的认知物理规律，独立于用户的 requestRetention 目标设置
+            return 1 / (1 + deltaDays / (9 * s));
         }
 
         // --- 2. Persistence Layer ---
@@ -1625,16 +2329,14 @@
             initAuth();
         }
 
-        function saveDeck() {
-            // 使用 fire-and-forget 模式异步保存到 DB
-            db.saveAll(deck).catch(e => console.error("Save to DB failed", e));
-
-            // 保存后推送到云端同步
-            pushToCloud();
-
-            // 为了安全，依然保留一份最新的 JSON 字符串在内存或做极简备份，但主要依赖 DB
-            // 这里仅调用 render 更新 UI，不再写入 localStorage 防止报错
+        async function saveDeck() {
             render();
+            try {
+                await db.saveAll(deck);
+                await pushToCloud();
+            } catch (e) {
+                console.error('Save to DB failed', e);
+            }
         }
 
         // --- 3. FSRS Logic (Standard) ---
@@ -1721,6 +2423,9 @@
                 return;
             }
             if (!word) return alert("请先输入一个单词！");
+
+            // 【安全修复】每次发起 AI 生成前，清空之前的全局缓存数据，防止"张冠李戴"
+            resetTempData();
 
             const originalIcon = iconEl.innerText;
             iconEl.innerHTML = '<div class="spinner"></div>';
@@ -1942,16 +2647,22 @@
 
         function render() {
             const now = Date.now();
-            let rawDueCards = deck.filter(c => c.due <= now).sort((a, b) => a.due - b.due);
-
-            // 【修改】已移除语义干扰拦截器
-            // 原有逻辑过于粗暴（误伤 apple/apply），且人为隔开形近词（adapt/adopt）反而不利于对比记忆。
-            // 直接让所有到期卡片正常显示，依靠大脑进行辨析。
+            const filteredDeck = getSubjectFilteredDeck(deck);
+            let rawDueCards = filteredDeck.filter(c => c.due <= now);
+            if (isExamSubjectActive()) {
+                rawDueCards = rawDueCards.sort((a, b) => {
+                    const scoreDiff = getExamFocusScore(b, now) - getExamFocusScore(a, now);
+                    if (scoreDiff !== 0) return scoreDiff;
+                    return a.due - b.due;
+                });
+            } else {
+                rawDueCards = rawDueCards.sort((a, b) => a.due - b.due);
+            }
             const dueCards = rawDueCards;
 
             // 【新增】Apollo's Prophecy & CMRR Display
-            // 1. 计算"明天"的整体记忆保留率 (基于所有复习过的卡片)
-            const activeCards = deck.filter(c => c.reps > 0);
+            // 1. 计算"明天"的整体记忆保留率 (基于过滤后的卡片)
+            const activeCards = filteredDeck.filter(c => c.reps > 0);
             let predictedR = 0;
             if (activeCards.length > 0) {
                 // 预测每张卡片在明天(1天后)的 R 值并取平均
@@ -1971,10 +2682,13 @@
             const modeColor = p.requestRetention >= 0.9 ? "#ff3b30" : "#34c759";
             // 简单的 CSS 进度条可视化
             const barColor = parseFloat(predictedR) > 80 ? '#34c759' : (parseFloat(predictedR) > 60 ? '#ff9500' : '#ff3b30');
+            const examFocusHint = isExamSubjectActive()
+                ? '<div style="margin:6px 0 0; font-size:11px; color:#b25c00;">Focus queue: new + hard + recent cards first</div>'
+                : '';
 
             document.getElementById('deckInfo').innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                <span>Cards: ${deck.length}</span>
+                <span>Cards: ${filteredDeck.length}</span>
                 <button onclick="toggleRetentionMode()" style="padding:2px 8px; border:1px solid ${modeColor}; color:${modeColor}; background:none; border-radius:10px; font-size:10px;">${modeLabel}</button>
             </div>
             
@@ -1988,7 +2702,7 @@
                     <div style="width:${predictedR}%; background:${barColor}; height:100%; transition:width 0.5s;"></div>
                 </div>
             </div>
-        `;
+        ` + examFocusHint;
 
             const revContainer = document.getElementById('reviewContainer');
             const empty = document.getElementById('emptyState');
@@ -2017,18 +2731,36 @@
                 // 【修改】强制预测模式：默认隐藏 Show Answer，强迫用户使用语义按钮(Semantic Check)来翻牌
                 document.getElementById('showAnswerBtn').classList.add('hidden');
 
-                // === 核心逻辑修改：实现挖空模式 ===
+                // 【新增】判断是否为备考卡片
+                const isExam = currentCard.sentence && (
+                    currentCard.sentence.includes('[考公]') ||
+                    currentCard.sentence.includes('[考研]') ||
+                    currentCard.sentence.includes('[CPA]') ||
+                    currentCard.sentence.includes('[税务师]') ||
+                    currentCard.sentence.includes('[其他]')
+                );
+
+                // === 核心逻辑修改：实现挖空/复习显示模式 ===
                 const wordEl = document.getElementById('currentWord');
 
                 // 【专家修改】引入“去语境化”机制：熟练度>5时，30%概率强制只看单词，防止过度依赖例句
                 const forceDecontextualized = currentCard.reps > 5 && Math.random() < 0.3;
 
-                // 修改：增加 !forceDecontextualized 判断
-                if (currentCard.reps >= 3 && currentCard.sentence && !forceDecontextualized) {
+                // 针对备考卡片的极简 Q&A 布局
+                if (isExam) {
+                    const safeQuestion = sanitizeHTML(currentCard.word);
+                    wordEl.innerHTML = `<div style="font-size:24px; font-weight:bold; color:var(--text); line-height:1.5; text-align:left; padding:10px 0;">${safeQuestion}</div>`;
+
+                    wordEl.style.webkitTextFillColor = "initial";
+                    wordEl.style.background = "none";
+                    wordEl.style.color = "var(--text)";
+                }
+                // 英语单词的处理逻辑 (原来的)
+                else if (currentCard.reps >= 3 && currentCard.sentence && !forceDecontextualized) {
                     // 【Expert Logic】脚手架式挖空 (Scaffolded Cloze)
                     // 不再显示纯下划线，而是根据难度给出“词根线索”，强迫逻辑推导
                     // 例如: "adapt" -> "ad___" (给出前缀线索)
-                    
+
                     const clozeHtml = `<span class="cloze-blank" style="color:#007aff; font-weight:bold; border-bottom:2px dashed #007aff;">[ ... ]</span>`;
                     let clozeSent = currentCard.sentence;
 
@@ -2055,7 +2787,8 @@
 
                     // 【修改】复习模式(reps>0)隐藏Emoji，只有新卡片才显示，防止线索依赖
                     const isReview = currentCard.reps > 0;
-                    const emojiHtml = (currentCard.emoji && !isReview) ? `<div class="emoji-badge">${currentCard.emoji}</div>` : "";
+                    const safeEmoji = currentCard.emoji ? escapeHTML(currentCard.emoji) : '';
+                    const emojiHtml = (safeEmoji && !isReview) ? `<div class="emoji-badge">${safeEmoji}</div>` : "";
 
                     // 1. 核心：大字永远只显示原始单词 (Safe & Clean)
                     // 【修改】使用 sanitizeHTML 包裹 currentCard.word，防止恶意代码
@@ -2068,7 +2801,7 @@
                         const m = currentCard.morphemes;
 
                         // 简单的清洗函数：去掉括号里的解释，只留词素本身
-                        const clean = (str) => str ? str.replace(/\(.*\)/g, '').replace(/（.*）/g, '').trim() : "";
+                        const clean = (str) => str ? escapeHTML(str.replace(/\(.*\)/g, '').replace(/（.*）/g, '').trim()) : "";
 
                         let parts = [];
                         // 只有当有内容时才添加，避免空标签
@@ -2096,10 +2829,12 @@
                 }
 
                 // 【新增】苏格拉底提问展示
-                // 如果有 socratic 数据，优先显示提问，否则显示默认提示
+                // 备考卡片不显示发音提示和苏格拉底提问
                 const hintEl = document.querySelector('.pronounce-hint');
-                if (currentCard.socratic) {
-                    hintEl.innerHTML = `<span style="color:var(--accent); font-style:italic;">🤔 ${currentCard.socratic}</span>`;
+                if (isExam) {
+                    hintEl.innerHTML = "";
+                } else if (currentCard.socratic) {
+                    hintEl.innerHTML = `<span style="color:var(--accent); font-style:italic;">🤔 ${escapeHTML(currentCard.socratic)}</span>`;
                 } else {
                     hintEl.innerText = "Tap word to listen";
                 }
@@ -2120,14 +2855,7 @@
 
                 // 如果是新词 (reps===0) 且有 Self-Ref 内容，立刻显示 (Priming Effect)
                 if (currentCard.reps === 0 && currentCard.selfRef) {
-                    srText.innerHTML = `
-                    <div style="display:flex; align-items:start; gap:10px;">
-                        <span style="font-size:24px;">🫵</span>
-                        <div>
-                            <div style="font-weight:bold; color:#d46b08; margin-bottom:4px;">Self-Reflection (Priming):</div>
-                            <div style="font-style:italic; color:#333; font-size:15px;">"${currentCard.selfRef}"</div>
-                        </div>
-                    </div>`;
+                    renderSelfRefCard(srText, 'Self-Reflection (Priming):', currentCard.selfRef);
                     srArea.classList.remove('hidden');
                 }
 
@@ -2136,12 +2864,17 @@
                 // 2. Hide Ratings, Show "Show Answer"
                 document.getElementById('ratingButtons').classList.add('hidden');
                 document.getElementById('showAnswerBtn').classList.remove('hidden');
-                // 【新增】重置语义检查按钮状态
-                document.getElementById('semanticCheck').classList.remove('hidden');
-                document.querySelectorAll('#semanticCheck .action-btn').forEach(b => {
-                    b.style.background = '#e5e5ea';
-                    b.style.color = '#333';
-                });
+
+                // 【修改】备考卡片彻底隐藏“语义检查”功能
+                if (isExam) {
+                    document.getElementById('semanticCheck').classList.add('hidden');
+                } else {
+                    document.getElementById('semanticCheck').classList.remove('hidden');
+                    document.querySelectorAll('#semanticCheck .action-btn').forEach(b => {
+                        b.style.background = '#e5e5ea';
+                        b.style.color = '#333';
+                    });
+                }
 
                 // 3. Pre-fill content (but keep hidden)
                 const defEl = document.getElementById('currentDefinition');
@@ -2178,8 +2911,8 @@
                 document.getElementById('currentStats').innerHTML = statsHtml;
 
                 // 【新增】生存模式 (Survival Mode)：Yerkes-Dodson 定律应用
-                // 当难度 D > 8.0 时，认为用户进入"高认知负荷区"，开启全局降噪
-                if (currentCard.difficulty > 8.0) {
+                // 备考卡片不应用生存模式 (避免文字变暗看不清)
+                if (!isExam && currentCard.difficulty > 8.0) {
                     document.body.classList.add('survival-focus'); // 全局变暗
                     document.getElementById('currentStats').innerHTML += " <b style='color:#ff3b30'>🔥 FOCUS MODE</b>";
                 } else {
@@ -2189,8 +2922,8 @@
                 }
 
                 // 【新增】更新胜任感进度条 (Competence Bar)
-                const matureCount = deck.filter(c => c.stability > 21).length; // S > 21 天视作掌握
-                const totalCount = deck.length || 1;
+                const matureCount = filteredDeck.filter(c => c.stability > 21).length; // S > 21 天视作掌握
+                const totalCount = filteredDeck.length || 1;
                 const progressPct = Math.min((matureCount / totalCount) * 100, 100);
                 document.getElementById('masteryBar').style.width = `${progressPct}%`;
 
@@ -2200,8 +2933,8 @@
                 const oldInput = document.getElementById('spellingInput');
                 if (oldInput) oldInput.remove();
 
-                // 如果复习次数大于3次，强制拼写
-                if (currentCard.reps > 3) {
+                // 备考卡片不需要拼写，英语卡片如果复习次数大于3次则强制拼写
+                if (!isExam && currentCard.reps > 3) {
                     const input = document.createElement('input');
                     input.type = 'text';
                     input.id = 'spellingInput';
@@ -2325,8 +3058,7 @@
             // 0. 还原单词显示 (如果是挖空状态，这里要显示回单词)
             const wordEl = document.getElementById('currentWord');
             // 【修改】看答案时强制显示大号 Emoji，作为多巴胺奖励
-            const emojiHtml = currentCard.emoji ? `<div class="emoji-badge" style="animation: popUp 0.5s ease;">${currentCard.emoji}</div>` : "";
-            wordEl.innerHTML = `${emojiHtml}${currentCard.word}`;
+            renderWordWithEmoji(wordEl, currentCard.word, currentCard.emoji, true);
             wordEl.style.color = "var(--accent)"; // 高亮显示
 
             // 1. Show Definition (Always visible after reveal)
@@ -2365,21 +3097,26 @@
                 // document.getElementById('mnemonicArea').classList.remove('hidden'); // 🚫 禁止自动弹出助记法
             }
 
+            // 【新增】再次判断是否为备考卡片，防止在 revealAnswer 中显示针对英语的组件
+            const isExam = currentCard.sentence && (
+                currentCard.sentence.includes('[考公]') ||
+                currentCard.sentence.includes('[考研]') ||
+                currentCard.sentence.includes('[CPA]') ||
+                currentCard.sentence.includes('[税务师]') ||
+                currentCard.sentence.includes('[其他]')
+            );
+
             // Self-Reference (自我参照)
             const srArea = document.getElementById('selfRefArea');
             const srText = document.getElementById('currentSelfRef');
-            if (currentCard.selfRef) {
+            // 备考卡片坚决不显示主观题生成按钮！
+            if (isExam) {
+                srArea.classList.add('hidden');
+            } else if (currentCard.selfRef) {
                 // 【Expert Tutor】不再模糊，而是作为"灵魂拷问"直接展示
                 // 这是一个问题(Question)，不是答案(Answer)，所以必须让用户立刻看到并思考
                 srText.className = ""; // 移除模糊类
-                srText.innerHTML = `
-                <div style="display:flex; align-items:start; gap:10px;">
-                    <span style="font-size:24px;">🫵</span>
-                    <div>
-                        <div style="font-weight:bold; color:#d46b08; margin-bottom:4px;">Direct Question:</div>
-                        <div style="font-style:italic; color:#333; font-size:15px;">"${currentCard.selfRef}"</div>
-                    </div>
-                </div>`;
+                renderSelfRefCard(srText, 'Direct Question:', currentCard.selfRef);
                 srArea.classList.remove('hidden');
             } else {
                 // 【修改】如果没有数据，不再隐藏，而是显示生成按钮
@@ -2391,11 +3128,22 @@
             // 2. Show Context (Context)
             const ctxArea = document.getElementById('contextArea');
             const ctxContent = document.getElementById('contextContent');
-            ctxArea.classList.remove('hidden'); // ✅ 【修改】遵循专家建议：自动弹出例句区域以供验证
+
+            // 备考卡片的 Context 区域其实就是原来的 `sentence`，用来存标签了，不应该作为例句弹出来
+            if (isExam) {
+                ctxArea.classList.add('hidden');
+            } else {
+                ctxArea.classList.remove('hidden'); // ✅ 【修改】遵循专家建议：自动弹出例句区域以供验证
+            }
 
             // 【新增】初始化控制栏状态 (如果有数据，按钮才可用)
+            // 备考卡片隐藏所有的上下文控制按钮 (Context, RSVP, Noise, Logic)
             const dBar = document.getElementById('disclosureBar');
-            dBar.classList.remove('hidden');
+            if (isExam) {
+                dBar.classList.add('hidden');
+            } else {
+                dBar.classList.remove('hidden');
+            }
 
             // 重置所有按钮样式
             ['btnToggleCtx', 'btnToggleMne', 'btnToggleRef'].forEach(bid => {
@@ -2428,8 +3176,12 @@
             document.getElementById('semanticCheck').classList.add('hidden');
             document.getElementById('ratingButtons').classList.remove('hidden');
 
-            // 新增：显示深度学习工具栏
-            document.getElementById('deepLearningTools').classList.remove('hidden');
+            // 新增：显示深度学习工具栏 / 备考卡片隐藏该工具栏
+            if (isExam) {
+                document.getElementById('deepLearningTools').classList.add('hidden');
+            } else {
+                document.getElementById('deepLearningTools').classList.remove('hidden');
+            }
             document.getElementById('deepContent').innerHTML = ""; // 清空上次内容
 
             // 4. (Smart Feature) If no definition exists (old cards), try to fetch it now
@@ -2449,9 +3201,12 @@
                         defEl.innerText = def;
                         // Auto-save this definition to the card so we don't fetch again next time
                         currentCard.definition = def;
+                        currentCard.needsSync = true;
+                        currentCard.updated_at = new Date().toISOString();
 
                         // 【修改】使用新的数据库方法静默保存，确保数据同步且不刷新界面
                         db.saveCard(currentCard);
+                        pushToCloud();
                     } else {
                         defEl.innerText = "No definition found in dictionary.";
                     }
@@ -2574,8 +3329,12 @@
                 currentCard.due = now + (days * 86400000);
             }
             // 【修改】只保存当前复习的这张卡片
+            currentCard.needsSync = true;
+            currentCard.updated_at = new Date().toISOString();
             db.saveCard(currentCard);
             render();
+            // 【同步修复】每次评分后触发云端同步，确保复习进度跨设备一致
+            pushToCloud();
         }
 
         // 修改：默认回车键触发“简单模式”，并传入 null 作为 btnElement (需要稍微修改 autoFetchContext 防报错)
@@ -2831,44 +3590,88 @@
 
         function renderListContent() {
             const listContainer = document.getElementById('fullWordList');
-            document.getElementById('totalWordCount').innerText = deck.length;
+            const subjectDeck = getSubjectFilteredDeck(deck);
+            refreshExamListFilters(subjectDeck);
+            const filteredDeck = applyExamListFilters(subjectDeck);
+            document.getElementById('totalWordCount').innerText = filteredDeck.length;
             listContainer.innerHTML = '';
-            const sortedDeck = [...deck].reverse();
-
-            // 修改：只显示最近的 100 个单词，防止单词多了页面卡死
+            const sortedDeck = [...filteredDeck].reverse();
             const displayDeck = sortedDeck.slice(0, 100);
-
             if (displayDeck.length === 0) {
-                listContainer.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">No words.</div>';
+                const emptyText = subjectDeck.length === 0 ? 'No cards in this subject.' : 'No cards match current filters.';
+                listContainer.innerHTML = `<div style="text-align:center;color:#999;padding:20px;">${emptyText}</div>`;
                 return;
             }
-
             displayDeck.forEach(card => {
                 const item = document.createElement('div');
                 item.className = 'word-item';
-                let preview = card.definition ? card.definition : (card.sentence ? card.sentence : "No context");
-                if (preview.length > 50) preview = preview.substring(0, 50) + "...";
-
-                item.innerHTML = `
-                <div class="word-header">
-                    <div class="word-info"><strong>${card.word}</strong></div>
-                </div>
-                <div class="word-context-preview">${preview}</div>
-                <div class="item-actions">
-                    <button class="edit-btn" onclick="openEditModal('${card.id}')">Edit</button>
-                    <button class="delete-btn" onclick="deleteWord('${card.id}')">Delete</button>
-                </div>
-            `;
+                let preview = card.definition ? card.definition : (card.sentence ? card.sentence : 'No context');
+                if (preview.length > 50) preview = preview.substring(0, 50) + '...';
+                const header = document.createElement('div');
+                header.className = 'word-header';
+                const info = document.createElement('div');
+                info.className = 'word-info';
+                const strong = document.createElement('strong');
+                strong.textContent = card.word;
+                info.appendChild(strong);
+                header.appendChild(info);
+                const previewEl = document.createElement('div');
+                previewEl.className = 'word-context-preview';
+                previewEl.textContent = preview;
+                let metaRow = null;
+                const metaLabels = [
+                    card.examMeta && card.examMeta.module,
+                    card.examMeta && card.examMeta.cardType,
+                    card.examMeta && card.examMeta.errorType
+                ].filter(Boolean);
+                if (metaLabels.length > 0) {
+                    metaRow = document.createElement('div');
+                    metaRow.style.display = 'flex';
+                    metaRow.style.flexWrap = 'wrap';
+                    metaRow.style.gap = '6px';
+                    metaRow.style.marginTop = '8px';
+                    metaLabels.forEach(label => {
+                        const chip = document.createElement('span');
+                        chip.textContent = label;
+                        chip.style.fontSize = '11px';
+                        chip.style.padding = '4px 8px';
+                        chip.style.borderRadius = '999px';
+                        chip.style.background = '#fff4e5';
+                        chip.style.color = '#b25c00';
+                        chip.style.border = '1px solid rgba(255,149,0,0.18)';
+                        metaRow.appendChild(chip);
+                    });
+                }
+                const actions = document.createElement('div');
+                actions.className = 'item-actions';
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn';
+                editBtn.textContent = 'Edit';
+                editBtn.addEventListener('click', () => openEditModal(card.id));
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.addEventListener('click', () => deleteWord(card.id));
+                actions.append(editBtn, deleteBtn);
+                item.append(header, previewEl);
+                if (metaRow) item.appendChild(metaRow);
+                item.appendChild(actions);
                 listContainer.appendChild(item);
             });
         }
-
-        function deleteWord(id) {
-            if (confirm("Delete word?")) {
-                deck = deck.filter(c => c.id !== id);
-                saveDeck();
-                renderListContent();
+        async function deleteWord(id) {
+            if (!confirm("Delete word?")) return;
+            deck = deck.filter(c => c.id !== id);
+            if (currentCard && currentCard.id === id) currentCard = null;
+            try {
+                await db.deleteCard(id);
+                await queuePendingDeletion(id);
+                await pushToCloud();
+            } catch (e) {
+                console.error('Delete sync failed', e);
             }
+            renderListContent();
+            render();
         }
 
         function openEditModal(id) {
@@ -2912,6 +3715,10 @@
                     tempEditData = {}; // 用完即焚，清空数据
                 }
 
+                // 【关键同步修复】标记该卡片在云端已过期，需要被同步
+                deck[cardIndex].needsSync = true;
+                deck[cardIndex].updated_at = new Date().toISOString();
+
                 // 【修改】改为单条保存
                 db.saveCard(deck[cardIndex]);
 
@@ -2919,6 +3726,9 @@
                 renderListContent();
                 render();
                 closeEditModal();
+
+                // 【自动同步】触发后台云同步，防止多设备数据断流
+                pushToCloud();
             }
         }
 
@@ -2983,7 +3793,7 @@
         // 初始化语音列表 (Chrome/Edge 需要)
         speechSynthesis.onvoiceschanged = () => { };
 
-        // 【新增】功能1：RSVP 极速阅读模式 (优化版：动态语速+安全清理)
+        // 【新增】功能1：RSVP 极速阅读模式 (优化版：requestAnimationFrame防卡顿)
         function startRSVP() {
             if (!currentCard || !currentCard.sentence) return alert("No context sentence to RSVP!");
 
@@ -2991,7 +3801,7 @@
 
             // 1. 切换逻辑：如果已经在运行，再次点击则停止并恢复
             if (rsvpTimer) {
-                clearTimeout(rsvpTimer);
+                cancelAnimationFrame(rsvpTimer);
                 rsvpTimer = null;
                 if (displayEl.dataset.original) displayEl.innerHTML = displayEl.dataset.original;
                 return;
@@ -3013,11 +3823,22 @@
             const text = div.textContent || div.innerText || "";
             const words = text.trim().split(/\s+/);
 
+            if (words.length === 0) return;
+
             let i = 0;
             displayEl.innerHTML = `<div class="rsvp-active-word" style="color:#007aff">READY...</div>`;
 
-            // 递归执行函数，实现可变速度
-            const nextStep = () => {
+            // 使用 requestAnimationFrame 控制的高精度计时器
+            let nextFrameTime = performance.now() + 800; // 首词延迟 800ms
+
+            const loop = (timestamp) => {
+                if (!rsvpTimer) return; // 已被取消
+                
+                if (timestamp < nextFrameTime) {
+                    rsvpTimer = requestAnimationFrame(loop);
+                    return;
+                }
+
                 if (i >= words.length) {
                     displayEl.innerHTML = displayEl.dataset.original; // 恢复
                     rsvpTimer = null;
@@ -3033,12 +3854,17 @@
                 if (word.includes('.') || word.includes('?') || word.includes('!')) delay += 400; // 句末停顿
                 else if (word.includes(',') || word.includes(';')) delay += 200; // 逗号停顿
 
+                nextFrameTime = timestamp + delay;
                 i++;
-                rsvpTimer = setTimeout(nextStep, delay);
+                
+                rsvpTimer = requestAnimationFrame(loop);
             };
 
-            // 800ms 后开始播放第一个词
-            rsvpTimer = setTimeout(nextStep, 800);
+            // 启动高精度循环
+            rsvpTimer = requestAnimationFrame((timestamp) => {
+                nextFrameTime = timestamp + 800;
+                rsvpTimer = requestAnimationFrame(loop);
+            });
         }
 
         // 【新增】功能2：白噪音/听力干扰模式控制
@@ -3112,7 +3938,7 @@
                     })
                 });
                 const data = await response.json();
-                contentDiv.innerHTML = `<div style="background:#e3f2fd; padding:10px; border-radius:8px; border-left:4px solid #2196f3"><strong>🕵️ AI Feedback:</strong><br>${data.choices[0].message.content.replace(/\n/g, '<br>')}</div>`;
+                renderTextCard(contentDiv, { label: '🕵️ AI Feedback:', text: data.choices[0].message.content, background: '#e3f2fd', borderColor: '#2196f3' });
             } catch (e) { alert("AI Error"); }
         }
 
@@ -3123,16 +3949,16 @@
             // --- 优化：优先读取本地缓存，节省 Token ---
             const contentDiv = document.getElementById('deepContent');
             if (type === 'trap' && currentCard.trap) {
-                contentDiv.innerHTML = `<div style="background:#f1f3f5; padding:10px; border-radius:8px; border-left:4px solid #6c757d"><strong>📦 Saved:</strong><br>${currentCard.trap.replace(/\n/g, '<br>')}</div>`;
+                renderTextCard(contentDiv, { label: '📦 Saved:', text: currentCard.trap, background: '#f1f3f5', borderColor: '#6c757d' });
                 return;
             }
             if (type === 'writing' && currentCard.writing) {
-                contentDiv.innerHTML = `<div style="background:#e8eaf6; padding:10px; border-radius:8px; border-left:4px solid #5856d6"><strong>📦 Saved:</strong><br>${currentCard.writing.replace(/\n/g, '<br>')}</div>`;
+                renderTextCard(contentDiv, { label: '📦 Saved:', text: currentCard.writing, background: '#e8eaf6', borderColor: '#5856d6' });
                 return;
             }
             // 【新增】优先读取思维差异缓存
             if (type === 'contrast' && currentCard.contrast) {
-                contentDiv.innerHTML = `<div style="background:#fff4e6; padding:10px; border-radius:8px; border-left:4px solid #fd7e14"><strong>📦 Saved:</strong><br>${currentCard.contrast.replace(/\n/g, '<br>')}</div>`;
+                renderTextCard(contentDiv, { label: '📦 Saved:', text: currentCard.contrast, background: '#fff4e6', borderColor: '#fd7e14' });
                 return;
             }
             // ----------------------------------------
@@ -3196,7 +4022,7 @@
                 db.saveCard(currentCard);
 
                 // 简单的格式化显示
-                contentDiv.innerHTML = `<div style="background:#f1f3f5; padding:10px; border-radius:8px; border-left:4px solid ${type === 'trap' ? '#6c757d' : '#5856d6'}">${text.replace(/\n/g, '<br>')}</div>`;
+                renderTextCard(contentDiv, { text, background: '#f1f3f5', borderColor: type === 'trap' ? '#6c757d' : '#5856d6' });
 
             } catch (e) {
                 alert("AI Error: " + e.message);
@@ -3276,13 +4102,16 @@
                 const data = await response.json();
                 const text = data.choices[0].message.content.trim();
 
-                // 更新数据并保存
+                // 更新数据并标记同步
                 currentCard[field] = text;
+                currentCard.needsSync = true;
+                currentCard.updated_at = new Date().toISOString();
                 await db.saveCard(currentCard);
+                pushToCloud();
 
                 // 直接显示结果
                 const srText = document.getElementById('currentSelfRef');
-                srText.innerHTML = text;
+                renderSelfRefCard(srText, 'Direct Question:', text);
             } catch (e) {
                 alert("生成失败: " + e.message);
                 btn.innerText = originalText;
@@ -3297,7 +4126,7 @@
             document.getElementById('batchWordInput').value = '';
             document.getElementById('batchProgress').classList.add('hidden');
             document.getElementById('batchLog').innerHTML = '';
-            
+
             const startBtn = document.getElementById('startBatchBtn');
             startBtn.disabled = false;
             startBtn.innerText = '🚀 Start Auto-Generation';
@@ -3316,10 +4145,10 @@
                 clean = clean.replace(/\s+/g, ' ');   // 将所有连续的奇怪空格压缩为1个普通英文空格
                 return clean.trim().toLowerCase();    // 【修复】统一转小写，修复大小写去重失效问题
             }).filter(w => w.length > 0);
-            
+
             // 去重（因已统一转小写，Apple/apple 会被正确识别为同一词）
             let words = [...new Set(rawWords)];
-            
+
             // 过滤掉词库中已经存在的单词
             words = words.filter(w => !deck.some(c => c.word.toLowerCase() === w.toLowerCase()));
 
@@ -3426,16 +4255,16 @@
                             }),
                             signal: controller.signal // 绑定超时信号
                         });
-                        
+
                         clearTimeout(timeoutId); // 成功响应则清除超时计时器
 
                         if (!response.ok) throw new Error(`API Error: ${response.status}`);
-                        
+
                         const data = await response.json();
                         let rawContent = data.choices[0].message.content;
                         const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
                         if (jsonMatch) rawContent = jsonMatch[0];
-                        
+
                         const result = JSON.parse(rawContent);
 
                         // 构造并保存卡片
@@ -3465,7 +4294,7 @@
                         if (successCount % 10 === 0) {
                             appendLog(`💾 Auto-saving progress to Cloud...`, '#007aff');
                             // 这里调用云端同步，确保数据落袋为安
-                            await pushToCloud(); 
+                            await pushToCloud();
                         }
 
                         success = true; // 标记成功，跳出 while 重试循环
@@ -3502,9 +4331,9 @@
             startBtn.innerText = '✅ Done! Click to Close';
             startBtn.disabled = false;
             startBtn.onclick = closeBatchModal;
-            
+
             document.getElementById('batchCloseBtn').disabled = false;
-            
+
             // 刷新主界面数据
             render();
         }
@@ -3538,12 +4367,22 @@
                             loadFromInbox(word);
                         };
 
-                        item.innerHTML = `
-                        <div class="word-header">
-                            <div class="word-info"><strong>${word}</strong></div>
-                            <button class="delete-btn" onclick="removeFromInbox('${word}')">×</button>
-                        </div>
-                        `;
+                        const header = document.createElement('div');
+                        header.className = 'word-header';
+                        const info = document.createElement('div');
+                        info.className = 'word-info';
+                        const strong = document.createElement('strong');
+                        strong.textContent = word;
+                        info.appendChild(strong);
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'delete-btn';
+                        deleteBtn.textContent = '×';
+                        deleteBtn.addEventListener('click', (event) => {
+                            event.stopPropagation();
+                            removeFromInbox(word);
+                        });
+                        header.append(info, deleteBtn);
+                        item.appendChild(header);
                         listContainer.appendChild(item);
                     });
                 }
