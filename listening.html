@@ -101,6 +101,16 @@
         .missed-tag { background: rgba(255, 59, 48, 0.1); color: var(--err); padding: 8px 16px; border-radius: 99px; font-weight: 600; font-size: 1rem; border: 1px solid rgba(255, 59, 48, 0.2); transition: 0.2s; }
         .missed-tag:hover { background: var(--err); color: #fff; transform: scale(1.05); }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        #session-config { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+        .config-chip { background:#F2F2F7; border-radius:16px; padding: 12px 14px; }
+        .config-chip label { display:block; font-size:0.72rem; color:var(--dim); font-weight:700; letter-spacing:0.6px; margin-bottom:8px; }
+        .config-chip select, .config-chip input { width:100%; background:transparent; color:var(--fg); border:none; font-weight:700; font-size:0.95rem; outline:none; }
+        #review-queue-panel { margin-top: 18px; background: rgba(255,255,255,0.72); border: 1px solid rgba(0,0,0,0.06); border-radius: 20px; padding: 16px; }
+        #review-queue-items { display:grid; gap:10px; margin-top: 12px; }
+        .review-queue-item { background:#fff; border:1px solid rgba(0,0,0,0.05); border-radius:14px; padding:12px 14px; }
+        .review-queue-item p { margin:0; font-size:0.92rem; line-height:1.5; }
+        .review-queue-meta { margin-top:6px; color:var(--dim); font-size:0.75rem; line-height:1.4; }
+        #countdown-banner { display:none; width:100%; margin-bottom: 12px; background: rgba(255,149,0,0.12); color:#9a5d00; border:1px solid rgba(255,149,0,0.2); border-radius: 14px; padding: 12px 16px; font-weight:700; text-align:center; }
 
         /* [V19.0 新增] iOS Dynamic Toast (动态提示浮窗) */
         #hint-toast { position: fixed; top: 15%; left: 50%; transform: translate(-50%, 20px); background: rgba(29, 29, 31, 0.85); color: #fff; padding: 12px 24px; border-radius: 99px; z-index: 2000; opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); font-weight: 600; font-size: 1.1rem; box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
@@ -109,6 +119,7 @@
         /* [新增] 返回背单词基地的按钮样式 */
         .home-link { position: fixed; top: 10px; right: 10px; font-size: 1.5rem; text-decoration: none; z-index: 1001; opacity: 0.5; transition: opacity 0.2s; filter: grayscale(100%); }
         .home-link:hover { opacity: 1; filter: grayscale(0%); text-shadow: 0 0 8px var(--fg); }
+        @media (max-width: 900px) { #session-config { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
@@ -121,22 +132,62 @@
         <h3 style="margin-top:0; font-weight:700; font-size:1.4rem; letter-spacing:-0.5px;">Import Content</h3>
         <p style="color:var(--dim); font-size: 0.95rem; margin-bottom: 20px; line-height:1.4;">Paste your English article, transcript, or study material here. The system will process it for deep listening training.</p>
         <textarea id="source-text" placeholder="Paste English text here..."></textarea>
-        <div style="display:flex; gap:12px; align-items: center; margin-top: 20px;">
-            <button onclick="initSystem()">Start Session</button>
-            <div style="display:flex; align-items:center; background:#F2F2F7; padding:4px 12px; border-radius:99px; height: 44px; box-sizing: border-box;">
-                 <label style="font-size: 0.75rem; color: var(--dim); font-weight:700; margin-right:8px; letter-spacing:0.5px;">SPEED</label>
-                 <input type="number" id="rate" value="1.0" step="0.1" min="0.5" max="2.0" style="width: 40px; background:transparent; color:var(--fg); border:none; font-weight:bold; font-size:1rem; outline:none; text-align:center;">
+        <div id="session-config">
+            <div class="config-chip">
+                <label for="session-mode">模式</label>
+                <select id="session-mode">
+                    <option value="blind" selected>普通听写</option>
+                    <option value="delayed">延迟听写</option>
+                </select>
             </div>
-            <button onclick="toggleManual()" style="margin-left: auto; background: transparent; color: var(--accent); box-shadow: none; padding: 0;">How it works</button>
+            <div class="config-chip">
+                <label for="blank-density">挖空密度</label>
+                <select id="blank-density">
+                    <option value="light">低</option>
+                    <option value="balanced" selected>中</option>
+                    <option value="dense">高</option>
+                </select>
+            </div>
+            <div class="config-chip">
+                <label for="delay-seconds">延迟秒数</label>
+                <input type="number" id="delay-seconds" value="5" step="1" min="0" max="12">
+            </div>
+        </div>
+        <div style="display:flex; gap:12px; align-items: center; margin-top: 20px;">
+            <button onclick="initSystem()">开始训练</button>
+            <button onclick="applyFirstPassPreset()" style="background:#EAF7E8; color:#1F6B2A; box-shadow:none;">第一遍预设</button>
+            <button onclick="applySecondPassPreset()" style="background:#FFF2D9; color:#8A4B00; box-shadow:none;">第二遍强化预设</button>
+            <button onclick="loadReviewQueueToTextarea()" style="background:#E8F2FF; color:var(--accent); box-shadow:none;">练习复盘队列</button>
+            <div style="display:flex; align-items:center; background:#F2F2F7; padding:4px 12px; border-radius:99px; height: 44px; box-sizing: border-box;">
+                 <label style="font-size: 0.75rem; color: var(--dim); font-weight:700; margin-right:8px; letter-spacing:0.5px;">语速</label>
+                 <!-- [修改] id 改为 init-rate，作为初始传值使用 -->
+                 <input type="number" id="init-rate" value="1.0" step="0.1" min="0.5" max="2.0" style="width: 40px; background:transparent; color:var(--fg); border:none; font-weight:bold; font-size:1rem; outline:none; text-align:center;">
+            </div>
+            <button onclick="toggleManual()" style="margin-left: auto; background: transparent; color: var(--accent); box-shadow: none; padding: 0;">使用说明</button>
+        </div>
+        <div id="review-queue-panel">
+            <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
+                <strong style="font-size:0.92rem;">复盘队列</strong>
+                <span id="review-queue-count" style="font-size:0.78rem; color:var(--accent); font-weight:700;">0 条</span>
+            </div>
+            <div id="review-queue-items"></div>
         </div>
     </div>
 
     <div id="training-area">
-        <div id="status-bar">
+        <div id="status-bar" style="align-items: center;">
             <span>UNIT: <span id="current-index">0</span>/<span id="total-count">0</span></span>
-            <span>MODE: BLIND_ECHO</span>
+            
+            <!-- [新增] 训练中实时语速调节器 (继承原有 id="rate" 以完美兼容底层逻辑) -->
+            <span style="display:flex; align-items:center; background: rgba(0,113,227,0.08); padding: 4px 12px; border-radius: 12px; border: 1px solid rgba(0,113,227,0.2);">
+                <label style="font-size: 0.7rem; color: var(--accent); font-weight: 800; margin-right: 6px; letter-spacing: 0.5px;">语速</label>
+                <input type="number" id="rate" value="1.0" step="0.1" min="0.4" max="2.0" title="可随时点击修改语速" style="width: 45px; background: transparent; color: var(--accent); border: none; font-weight: 800; font-size: 0.95rem; outline: none; text-align: center; cursor: pointer;">
+            </span>
+
+            <span>模式: <span id="mode-label">普通听写</span></span>
         </div>
 
+        <div id="countdown-banner"></div>
         <div id="target-text">Waiting for stream...</div>
         <!-- 旧输入框保留但隐藏 -->
         <input type="text" id="user-input" placeholder="Type what you hear..." autocomplete="off" spellcheck="false" style="display:none">
@@ -174,7 +225,7 @@
 </div>
 
 <div id="help">
-    <span class="key">?</span> Manual | <span class="key">Ctrl+Enter</span> Replay | <span class="key">Enter</span> Next Field | <span class="key">Shift+Enter</span> Check All | <span class="key">Tab</span> Hint | <span class="key">Right Click</span> Speak Word
+    <span class="key">?</span> 说明 | <span class="key">Ctrl+Enter</span> 重播 | <span class="key">Ctrl+Space</span> 重播 | <span class="key">Alt+W</span> 重听单词 | <span class="key">Alt+←/→</span> 上一句/下一句 | <span class="key">Enter</span> 下一个空 | <span class="key">Shift+Enter</span> 检查整句 | <span class="key">Tab</span> 提示 | <span class="key">右键</span> 读单词
 </div>
 
 <!-- [新增] 操作手册内容结构 -->
@@ -217,6 +268,7 @@
         <ul>
             <li><span class="key">Enter</span> : 提交检查 / 跳至下一空 / 下一句</li>
             <li><span class="key">Ctrl</span> + <span class="key">Enter</span> : 重播整句 (Replay)</li>
+            <li><span class="key">Alt</span> + <span class="key">W</span> : 重听当前单词 (Word Replay)</li>
             <li><span class="key">Tab</span> : 请求提示 (Hint)</li>
             <li><span class="key">?</span> (Shift+/) : 打开/关闭本手册</li>
         </ul>
@@ -234,6 +286,239 @@
     let missedWords = new Set(); 
     let sessionMistakes = 0;
     let totalBlanks = 0;
+    let delayUnlockTimer = null;
+    const REVIEW_QUEUE_KEY = 'neuro_echo_review_queue_v1';
+    const SETTINGS_KEY = 'neuro_echo_settings_v1';
+    let reviewQueue = [];
+    let sessionConfig = {
+        mode: 'blind',
+        blankDensity: 'balanced',
+        delaySeconds: 5
+    };
+
+    function syncSessionConfig() {
+        sessionConfig = {
+            mode: document.getElementById('session-mode').value,
+            blankDensity: document.getElementById('blank-density').value,
+            delaySeconds: Math.max(0, parseInt(document.getElementById('delay-seconds').value || '0', 10) || 0),
+            initRate: document.getElementById('init-rate').value || '1.0'
+        };
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(sessionConfig));
+        document.getElementById('mode-label').innerText = sessionConfig.mode === 'delayed' ? '延迟听写' : '普通听写';
+    }
+
+    function loadPersistedSettings() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+            if (saved.mode) document.getElementById('session-mode').value = saved.mode;
+            if (saved.blankDensity) document.getElementById('blank-density').value = saved.blankDensity;
+            if (saved.delaySeconds !== undefined) document.getElementById('delay-seconds').value = saved.delaySeconds;
+            if (saved.initRate) document.getElementById('init-rate').value = saved.initRate;
+        } catch (error) {}
+        syncSessionConfig();
+    }
+
+    function applyFirstPassPreset() {
+        document.getElementById('session-mode').value = 'blind';
+        document.getElementById('blank-density').value = 'light';
+        document.getElementById('delay-seconds').value = '0';
+        document.getElementById('init-rate').value = '1.0';
+        syncSessionConfig();
+        showHintToast('已切换到第一遍预设');
+    }
+
+    function applySecondPassPreset() {
+        document.getElementById('session-mode').value = 'delayed';
+        document.getElementById('blank-density').value = 'balanced';
+        document.getElementById('delay-seconds').value = '4';
+        document.getElementById('init-rate').value = '1.0';
+        syncSessionConfig();
+        showHintToast('已切换到第二遍强化预设');
+    }
+
+    function loadReviewQueue() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(REVIEW_QUEUE_KEY) || '[]');
+            reviewQueue = Array.isArray(saved) ? saved : [];
+        } catch (error) {
+            reviewQueue = [];
+        }
+        renderReviewQueue();
+    }
+
+    function saveReviewQueue() {
+        reviewQueue = reviewQueue.slice(0, 20);
+        localStorage.setItem(REVIEW_QUEUE_KEY, JSON.stringify(reviewQueue));
+        renderReviewQueue();
+    }
+
+    function renderReviewQueue() {
+        const itemsEl = document.getElementById('review-queue-items');
+        const countEl = document.getElementById('review-queue-count');
+        if (!itemsEl || !countEl) return;
+        countEl.innerText = `${reviewQueue.length} 条`;
+        itemsEl.innerHTML = '';
+        if (reviewQueue.length === 0) {
+            itemsEl.innerHTML = '<div class="review-queue-item"><p>还没有复盘内容。只要某句用过提示或出过错，它就会自动进入这里。</p></div>';
+            return;
+        }
+        reviewQueue.slice(0, 4).forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'review-queue-item';
+            const textEl = document.createElement('p');
+            textEl.innerText = item.text;
+            const metaEl = document.createElement('div');
+            metaEl.className = 'review-queue-meta';
+            metaEl.innerText = `Focus: ${(item.focusWords || []).join(', ') || 'n/a'}`;
+            const actionsEl = document.createElement('div');
+            actionsEl.style.marginTop = '8px';
+            actionsEl.style.display = 'flex';
+            actionsEl.style.gap = '8px';
+            const singleBtn = document.createElement('button');
+            singleBtn.innerText = '单句训练';
+            singleBtn.style.background = '#EAF7E8';
+            singleBtn.style.color = '#1F6B2A';
+            singleBtn.style.boxShadow = 'none';
+            singleBtn.style.padding = '8px 14px';
+            singleBtn.onclick = () => startSingleReviewItem(item.text);
+            const speakBtn = document.createElement('button');
+            speakBtn.innerText = '朗读这句';
+            speakBtn.style.background = '#E8F2FF';
+            speakBtn.style.color = 'var(--accent)';
+            speakBtn.style.boxShadow = 'none';
+            speakBtn.style.padding = '8px 14px';
+            speakBtn.onclick = () => speak(item.text);
+            actionsEl.appendChild(singleBtn);
+            actionsEl.appendChild(speakBtn);
+            card.appendChild(textEl);
+            card.appendChild(metaEl);
+            card.appendChild(actionsEl);
+            itemsEl.appendChild(card);
+        });
+    }
+
+    function loadReviewQueueToTextarea() {
+        if (reviewQueue.length === 0) {
+            alert('复盘队列还是空的。');
+            return;
+        }
+        document.getElementById('source-text').value = reviewQueue.map(item => item.text).join('\n');
+    }
+
+    function startSingleReviewItem(text) {
+        if (!text) return;
+        document.getElementById('source-text').value = text;
+        initSystem();
+    }
+
+    function rememberCurrentSentence() {
+        const focusWords = Array.from(document.querySelectorAll('.cloze-input'))
+            .filter(input => input.dataset.wasHinted || input.dataset.mistakeLogged === 'true')
+            .map(input => input.dataset.answer);
+        if (focusWords.length === 0) return;
+        const text = sentences[currentIndex];
+        const existing = reviewQueue.find(item => item.text === text);
+        if (existing) {
+            existing.focusWords = Array.from(new Set([...(existing.focusWords || []), ...focusWords]));
+        } else {
+            reviewQueue.unshift({
+                text,
+                focusWords: Array.from(new Set(focusWords))
+            });
+        }
+        saveReviewQueue();
+    }
+
+    function shouldBlankWord(lower, tokenIndex) {
+        const isCandidate = lower.length > 1 && !functionWords.has(lower);
+        if (!isCandidate) return false;
+        const densityRules = {
+            light: { force: 8, chance: 28 },
+            balanced: { force: 7, chance: 50 },
+            dense: { force: 5, chance: 74 }
+        };
+        const rule = densityRules[sessionConfig.blankDensity] || densityRules.balanced;
+        if (lower.length >= rule.force) return true;
+        const seed = (lower + ':' + currentIndex + ':' + tokenIndex).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        return (seed % 100) < rule.chance;
+    }
+
+    function normalizeAnswer(text) {
+        return (text || '')
+            .toLowerCase()
+            .replace(/[’‘]/g, "'")
+            .replace(/[^a-z']/g, '')
+            .replace(/^'+|'+$/g, '');
+    }
+
+    function simplifyForCompare(text) {
+        return normalizeAnswer(text).replace(/'/g, '');
+    }
+
+    function buildHintFillValue(currentValue, answer) {
+        const normalizedAnswer = normalizeAnswer(answer);
+        const simplifiedInput = simplifyForCompare(currentValue);
+        const simplifiedAnswer = simplifyForCompare(answer);
+        let matchedLetters = 0;
+        while (
+            matchedLetters < simplifiedInput.length &&
+            matchedLetters < simplifiedAnswer.length &&
+            simplifiedInput[matchedLetters] === simplifiedAnswer[matchedLetters]
+        ) {
+            matchedLetters++;
+        }
+        const targetLetters = Math.min(simplifiedAnswer.length, matchedLetters + 1);
+        let visibleLetters = 0;
+        let result = '';
+        for (const char of normalizedAnswer) {
+            result += char;
+            if (char !== "'") visibleLetters++;
+            if (visibleLetters >= targetLetters) break;
+        }
+        return result || normalizedAnswer;
+    }
+
+    function clearDelayCountdown() {
+        if (delayUnlockTimer) clearInterval(delayUnlockTimer);
+        delayUnlockTimer = null;
+        const banner = document.getElementById('countdown-banner');
+        banner.style.display = 'none';
+        banner.innerText = '';
+    }
+
+    function unlockInputsAfterDelay() {
+        const inputs = document.querySelectorAll('.cloze-input');
+        inputs.forEach(el => {
+            el.disabled = false;
+            el.style.opacity = '1';
+        });
+        if (!isWaitingForNext) {
+            const firstEmpty = Array.from(inputs).find(i => i.value.trim() === '') || inputs[0];
+            if (firstEmpty) firstEmpty.focus();
+        }
+    }
+
+    function startDelayedUnlock() {
+        clearDelayCountdown();
+        if (sessionConfig.mode !== 'delayed' || sessionConfig.delaySeconds === 0) {
+            unlockInputsAfterDelay();
+            return;
+        }
+        const banner = document.getElementById('countdown-banner');
+        let remaining = sessionConfig.delaySeconds;
+        banner.style.display = 'block';
+        banner.innerText = `延迟听写：先在脑中默想 ${remaining} 秒，再开始输入。`;
+        delayUnlockTimer = setInterval(() => {
+            remaining -= 1;
+            if (remaining <= 0) {
+                clearDelayCountdown();
+                unlockInputsAfterDelay();
+                flashFeedback('>> MEMORY PHASE COMPLETE. TYPE WHAT YOU HEARD.', true);
+                return;
+            }
+            banner.innerText = `延迟听写：先在脑中默想 ${remaining} 秒，再开始输入。`;
+        }, 1000);
+    }
 
     // [V2.0 升级] 编辑距离算法：用于允许轻微拼写错误
     function levenshtein(a, b) {
@@ -254,22 +539,59 @@
 
     // 文本处理：利用正则进行 NLP 级别的分句
     function parseText(text) {
-        // [V20.0 升级] 使用 Intl.Segmenter 智能分句，完美解决 Mr./U.S.A. 等缩写误判问题
-        const cleanText = text.replace(/\s+/g, ' ').trim();
-        if (Intl && Intl.Segmenter) {
-            const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
-            return Array.from(segmenter.segment(cleanText)).map(s => s.segment.trim());
-        }
-        // 降级兼容：如果是旧浏览器，回退到正则（优化版，支持缩写后跟空格小写不分句）
-        return cleanText.match(/[^.?!]+[.?!]+(["']?)(?=\s*[A-Z]|$)|[^.?!]+$/g) || [];
+        // [核心优化] 先按换行符拆分，尊重段落排版
+        const lines = text.split(/\n+/).map(line => line.trim()).filter(line => line.length > 0);
+        let sentences = [];
+        
+        lines.forEach(line => {
+            // 1. 基础清理：清理连续空格
+            let cleanLine = line.replace(/[ \t]+/g, ' '); 
+            
+            // 2. 修复原文本常见的排版缺陷（导致无法正确分句的罪魁祸首）：
+            // 2.1 消除标点前多余的空格 (如 "closely at ." -> "closely at.")
+            cleanLine = cleanLine.replace(/\s+([.?!;:,])/g, '$1');
+            // 2.2 强制在紧贴大写字母的句末标点后加空格 (如 "survive.You" -> "survive. You")
+            cleanLine = cleanLine.replace(/([.?!])([A-Z])/g, '$1 $2');
+            
+            // 3. 初级智能分句
+            let initialSegments = [];
+            if (Intl && Intl.Segmenter) {
+                const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
+                Array.from(segmenter.segment(cleanLine)).forEach(s => initialSegments.push(s.segment.trim()));
+            } else {
+                const matches = cleanLine.match(/[^.?!]+[.?!]+(["']?)(?=\s*[A-Z]|$)|[^.?!]+$/g) || [cleanLine];
+                matches.forEach(m => initialSegments.push(m.trim()));
+            }
+
+            // 4. [深度优化] 意群次级切分 (针对超长难句的降维打击)
+            initialSegments.forEach(seg => {
+                // 如果这段话超过 12 个单词，系统会自动寻找 分号(;)、冒号(:) 或破折号(--/—) 进行合理断句
+                if (seg.split(' ').length > 12) {
+                    // 保留分隔符进行切片
+                    const subParts = seg.match(/(.*?[;:]\s+|.*?(?:--|—)\s+|.+)/g) || [seg];
+                    subParts.forEach(p => {
+                        const trimmed = p.trim();
+                        if (trimmed) sentences.push(trimmed);
+                    });
+                } else {
+                    sentences.push(seg);
+                }
+            });
+        });
+        
+        return sentences.filter(s => s.length > 0);
     }
 
     function initSystem() {
         const rawText = document.getElementById('source-text').value;
         if (!rawText.trim()) return alert("ERROR: NO_DATA_STREAM");
+        syncSessionConfig();
 
         sentences = parseText(rawText).map(s => s.trim()).filter(s => s.length > 0);
         
+        // [新增] 将首页设置的语速同步到训练区的全局语速控制器
+        document.getElementById('rate').value = document.getElementById('init-rate').value;
+
         document.getElementById('input-area').style.display = 'none';
         document.getElementById('training-area').style.display = 'flex';
         document.getElementById('total-count').innerText = sentences.length;
@@ -278,6 +600,7 @@
         missedWords.clear();
         sessionMistakes = 0;
         totalBlanks = 0;
+        clearDelayCountdown();
 
         // [V5.1 iPad 优化] 解决 iOS Safari 首次播放音频需要用户手势的问题
         if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -289,6 +612,7 @@
     let isWaitingForNext = false;
 
     function loadSentence(index) {
+        clearDelayCountdown();
         // 每次加载新句子时，重置等待状态
         isWaitingForNext = false; 
 
@@ -343,13 +667,13 @@
         if (mobileCheckBtn) mobileCheckBtn.innerHTML = '✅ CHECK';
 
         // 2. 文本切分与卡拉OK游标初始化
-        // 按单词和标点切分，保留分隔符
-        const tokens = target.split(/([ \t\n\r,.?!:;"'-]+)/).filter(t => t.trim().length > 0);
+        // [核心修复] 移除单引号和连字符，防止将 don't 或 state-of-the-art 错误切碎
+        const tokens = target.split(/([ \t\n\r,.?!:;"]+)/).filter(t => t.trim().length > 0);
         let charCursor = 0; // 用于记录当前单词在语音流中的字符位置
 
         // 3. 循环生成填空题
-        tokens.forEach(token => {
-            const lower = token.toLowerCase().replace(/[^a-z]/g, '');
+        tokens.forEach((token, tokenIndex) => {
+            const lower = normalizeAnswer(token);
             const startIndex = charCursor;
             const endIndex = charCursor + token.length;
             charCursor += token.length; // 游标累加
@@ -359,7 +683,7 @@
             const isCandidate = lower.length > 1 && !functionWords.has(lower);
             // 2. 动态掩码：长难词(>6字母) 100% 挖空；短实词 50% 概率随机挖空。
             // 既保证了核心词汇的训练，又大幅减少了机械打字的工作量。
-            const isContentWord = isCandidate && (lower.length > 6 || Math.random() > 0.5);
+            const isContentWord = shouldBlankWord(lower, tokenIndex);
 
             if (isContentWord) {
                 // [V7.0] 统计总题目数量
@@ -400,7 +724,7 @@
 
                 // [视觉重构] 移除 JS 内联样式，交由 CSS .cloze-input 类统一管理胶囊样式
                 // input.style.background = 'transparent'; // 删除此行
-                input.style.border = 'none'; // 保持
+                input.style.border = '2px solid #C7C7CC';
                 // input.style.borderBottom = '1px solid var(--dim)'; // 删除此行，胶囊不需要底边框
                 // input.style.color = 'var(--fg)'; // 删除此行
                 input.style.textAlign = 'center';
@@ -415,19 +739,21 @@
                 
                 // [新增] 即时输入反馈 - 提升电脑端打字体验
                 input.addEventListener('input', function() {
-                    const val = this.value.trim().toLowerCase();
+                    const val = this.value.trim();
                     const ans = this.dataset.answer;
+                    const compareVal = simplifyForCompare(val);
+                    const compareAns = simplifyForCompare(ans);
                     
-                    if (val.length === 0) {
+                    if (compareVal.length === 0) {
                         this.style.background = '#E5E5EA';
                         this.style.color = 'var(--fg)';
                         this.style.borderColor = '#C7C7CC';
-                    } else if (val === ans) {
+                    } else if (compareVal === compareAns) {
                         // 完全正确 - 绿色（不自动跳转，让用户自己按Enter或Tab）
                         this.style.background = 'var(--success)';
                         this.style.color = '#fff';
                         this.style.borderColor = 'var(--success)';
-                    } else if (ans.startsWith(val)) {
+                    } else if (compareAns.startsWith(compareVal)) {
                         // 输入方向正确 - 保持默认，但边框变蓝
                         this.style.background = '#fff';
                         this.style.color = 'var(--fg)';
@@ -443,11 +769,14 @@
                 // [V3.0 新增] 科学功能：即时反馈与声学隔离
                 // 1. 微观反馈：离开输入框立即检查，强化记忆回路
                 input.addEventListener('blur', function() {
-                    const val = this.value.trim().toLowerCase();
+                    if (typeof isWaitingForNext !== 'undefined' && isWaitingForNext) return; // 修复：影子跟读阶段锁定样式，防止点击后变色
+                    const val = this.value.trim();
                     const ans = this.dataset.answer;
-                    const dist = levenshtein(val, ans);
+                    const compareVal = simplifyForCompare(val);
+                    const compareAns = simplifyForCompare(ans);
+                    const dist = levenshtein(compareVal, compareAns);
                     // 逻辑复用：简单判断对错
-                    if (val.length === 0) {
+                    if (compareVal.length === 0) {
                         // [V12.0 修复] 恢复默认胶囊样式 (浅灰背景，黑色字)
                         this.style.background = '#E5E5EA'; 
                         this.style.color = 'var(--fg)';
@@ -455,7 +784,7 @@
                         // 正确：绿底白字
                         this.style.background = 'var(--success)'; 
                         this.style.color = '#fff';
-                    } else if (dist <= (ans.length > 5 ? 2 : 1)) {
+                    } else if (dist <= (compareAns.length > 5 ? 2 : 1)) {
                         // 模糊：黄底白字
                         this.style.background = 'var(--warning)'; 
                         this.style.color = '#fff';
@@ -569,14 +898,15 @@
                 // [V9.0] 听觉暂留结束，视觉层显影 (Visual Reveal)
                 document.getElementById('target-text').classList.add('revealed');
 
-                if (!isWaitingForNext) {
-                    const inputs = document.querySelectorAll('.cloze-input');
-                    inputs.forEach(el => {
-                        el.disabled = false;
-                        el.style.opacity = '1';
-                    });
-                    const firstEmpty = Array.from(inputs).find(i => i.value.trim() === '') || inputs[0];
-                    if (firstEmpty) firstEmpty.focus();
+                const inputs = document.querySelectorAll('.cloze-input');
+                // [状态修复] 无论是否通关，朗读结束后必须恢复 opacity，防止影子跟读时文字灰暗
+                inputs.forEach(el => el.style.opacity = '1');
+
+                // [BUG修复] 无论是否通关，都要恢复交互能力，以免右键事件被浏览器强制屏蔽
+                if (isWaitingForNext) {
+                    inputs.forEach(el => el.disabled = false);
+                } else {
+                    startDelayedUnlock();
                 }
             };
         } else {
@@ -592,26 +922,24 @@
             if (event.name !== 'word') return;
             const charIndex = event.charIndex;
             
-            // 移除所有旧的高亮
+            // [UI解耦修复] 仅移除CSS类，绝对不覆写内联style，避免洗掉已填词的红/绿/黄状态
             document.querySelectorAll('.active-word').forEach(el => {
-                el.style.background = 'transparent';
-                el.style.color = el.tagName === 'INPUT' ? 'var(--fg)' : 'var(--dim)';
                 el.classList.remove('active-word');
             });
 
-            // 查找当前读到的元素
-            const els = document.querySelectorAll('.word-token');
-            for (let el of els) {
-                const start = parseInt(el.dataset.start);
-                const end = parseInt(el.dataset.end);
-                // 如果 TTS 的游标落在该单词范围内
-                if (charIndex >= start && charIndex < end + 2) { 
-                    // [V2.0 升级] 视觉引导：背景色高亮，保持排版稳定
-                    el.style.background = 'var(--dim)';
-                    el.style.color = '#000'; // 反色显示
-                    el.style.borderRadius = '2px';
-                    el.classList.add('active-word');
-                    break;
+            // [逻辑修复] 必须判断是否为整句朗读。单独读单词时 charIndex 始终从0开始，会导致错位
+            if (isFullSentence) {
+                // 查找当前读到的元素
+                const els = document.querySelectorAll('.word-token');
+                for (let el of els) {
+                    const start = parseInt(el.dataset.start);
+                    const end = parseInt(el.dataset.end);
+                    // 如果 TTS 的游标落在该单词范围内
+                    if (charIndex >= start && charIndex < end + 2) { 
+                        // 直接依赖 CSS 中的 .active-word (!important) 渲染，放弃 JS 硬编码
+                        el.classList.add('active-word');
+                        break;
+                    }
                 }
             }
         };
@@ -633,19 +961,21 @@
         let allCorrect = true;
 
         inputs.forEach(input => {
-            const val = input.value.trim().toLowerCase();
+            const val = input.value.trim();
             const ans = input.dataset.answer;
+            const compareVal = simplifyForCompare(val);
+            const compareAns = simplifyForCompare(ans);
             
             // [V2.0 升级] 容错逻辑：允许 1-2 个字母的拼写误差
-            const dist = levenshtein(val, ans);
-            const tolerance = ans.length > 5 ? 2 : 1; // 长词允许错2个，短词允许错1个
+            const dist = levenshtein(compareVal, compareAns);
+            const tolerance = compareAns.length > 5 ? 2 : 1; // 长词允许错2个，短词允许错1个
 
             // [V14.0 严谨逻辑] 如果用了提示(wasHinted)，即使全对也不给绿牌，强制显示为黄色(Warning)
             if (dist === 0 && !input.dataset.wasHinted) {
                 // 完美正确 - 变为绿色背景胶囊，白色文字
                 input.style.background = 'var(--success)'; 
                 input.style.color = '#fff';
-            } else if ((dist <= tolerance || input.dataset.wasHinted) && val.length > 0) {
+            } else if ((dist <= tolerance || input.dataset.wasHinted) && compareVal.length > 0) {
                 // 拼写微瑕 或 使用了提示 - 变为黄色背景
                 input.style.background = 'var(--warning)'; 
                 input.style.color = '#fff';
@@ -655,9 +985,12 @@
                 input.style.color = '#fff';
                 allCorrect = false;
                 
-                // [V7.0] 记录错词（排除未填写的空）
-                if(val.length > 0) missedWords.add(ans);
-                if(val.length > 0) sessionMistakes++;
+                // [底层逻辑修复] 幂等性记录：确保反复提交检查时，同一个空格不会被重复计入错误数
+                if (!input.dataset.mistakeLogged) {
+                    missedWords.add(ans);
+                    sessionMistakes++;
+                    input.dataset.mistakeLogged = "true";
+                }
             }
         });
         
@@ -665,7 +998,7 @@
 
         if (allCorrect) {
             // [新增] 影子跟读环节 (Shadowing Phase)
-            speedInput.value = "1.0"; 
+            rememberCurrentSentence();
             
             // 播放音频
             speak(sentences[currentIndex]);
@@ -675,7 +1008,8 @@
             
             // 禁用所有输入框，防止用户误触
             document.querySelectorAll('.cloze-input').forEach(el => {
-                el.disabled = true;
+                el.readOnly = true; // [BUG修复] 改为只读模式，禁止输入，但保留右键朗读能力
+                el.style.cursor = 'help'; // 鼠标悬浮时显示问号，提示用户可以交互
                 // [V12.0 视觉融合] 通关后，移除胶囊样式，使文字与背景融合，回归阅读本质
                 el.style.background = 'transparent';
                 el.style.color = 'var(--fg)'; // 变回黑色
@@ -726,7 +1060,7 @@
         // 2. 如果没有焦点，或者焦点不在框里，就找第一个还没填对的词
         if (!target || !target.classList.contains('cloze-input')) {
              const allInputs = Array.from(document.querySelectorAll('.cloze-input'));
-             target = allInputs.find(i => i.value.toLowerCase() !== i.dataset.answer);
+             target = allInputs.find(i => simplifyForCompare(i.value) !== simplifyForCompare(i.dataset.answer));
         }
         if (target) {
             speak(target.dataset.answer);
@@ -778,6 +1112,30 @@
             speak(sentences[currentIndex]);
             return;
         }
+
+        if (e.ctrlKey && e.code === 'Space') {
+            e.preventDefault();
+            speak(sentences[currentIndex]);
+            return;
+        }
+
+        if (e.altKey && (e.key === 'w' || e.key === 'W')) {
+            e.preventDefault();
+            speakCurrentTarget();
+            return;
+        }
+
+        if (e.altKey && e.key === 'ArrowLeft') {
+            e.preventDefault();
+            if (currentIndex > 0) loadSentence(currentIndex - 1);
+            return;
+        }
+
+        if (e.altKey && e.key === 'ArrowRight') {
+            e.preventDefault();
+            loadSentence(currentIndex + 1);
+            return;
+        }
         
         // [新增] Shift + Enter: 快速检查（不管在哪个输入框）
         if (e.shiftKey && e.key === 'Enter') {
@@ -805,13 +1163,7 @@
                 const currentVal = current.value.trim().toLowerCase();
                 const currentAns = current.dataset.answer;
                 
-                // [优化] 如果当前框已填对，跳到下一个
-                if (currentVal === currentAns && idx < inputs.length - 1) {
-                    inputs[idx + 1].focus();
-                    return;
-                }
-                
-                // [优化] 如果当前框没填对，但不是最后一个，也可以跳过
+                // [优化] 无论当前框填对与否，只要不是最后一个框，按 Enter 就跳到下一个
                 if (idx < inputs.length - 1) {
                     inputs[idx + 1].focus();
                     return; 
@@ -831,6 +1183,8 @@
         
     // [新增] 监听 ? 键打开手册 (这行代码必须在 Tab 键判断的后面，但在 }); 之前)
         if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+            // [防误触] 如果当前光标在输入框内，不触发手册弹窗
+            if (document.activeElement && document.activeElement.classList.contains('cloze-input')) return;
             toggleManual();
         }
     });
@@ -864,7 +1218,7 @@
 
         if (targetInput) {
             const ans = targetInput.dataset.answer;
-            const currentVal = targetInput.value.toLowerCase();
+            const currentVal = targetInput.value;
             
             // [V14.0] 标记错题
             missedWords.add(ans);
@@ -874,14 +1228,10 @@
             speak(ans); 
             // [V20.0 清理] speak 函数已升级为智能判断模式，此处无需再手动清除回调
             
-            showHintToast("💡 Answer: " + ans.toUpperCase()); // 弹窗显示全拼
+            showHintToast("💡 Answer: " + ans); // 弹窗显示正常拼写
 
             // 逻辑：填入字母
-            let correctLen = 0;
-            while (correctLen < currentVal.length && currentVal[correctLen] === ans[correctLen]) {
-                correctLen++;
-            }
-            targetInput.value = ans.substring(0, correctLen + 1);
+            targetInput.value = buildHintFillValue(currentVal, ans);
             
             // 样式
             targetInput.style.color = 'var(--accent)'; 
@@ -898,6 +1248,12 @@
 
     // 预加载语音列表
     window.speechSynthesis.onvoiceschanged = () => {};
+    ['session-mode', 'blank-density', 'delay-seconds', 'init-rate'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', syncSessionConfig);
+    });
+    loadPersistedSettings();
+    loadReviewQueue();
 </script>
 </body>
 </html>

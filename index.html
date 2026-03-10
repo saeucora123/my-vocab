@@ -1031,14 +1031,36 @@
             <p style="text-align:center; color:#86868b; font-size:13px; margin:0 0 20px;">登录后数据自动同步到所有设备</p>
             <input id="authEmail" type="email" placeholder="邮箱地址"
                 style="width:100%; padding:14px; border-radius:10px; border:1px solid #ddd; font-size:16px; box-sizing:border-box; margin-bottom:10px; outline:none;">
-            <input id="authPassword" type="password" placeholder="密码 (首次注册自动创建账号)"
+            <input id="authPassword" type="password" placeholder="密码"
                 style="width:100%; padding:14px; border-radius:10px; border:1px solid #ddd; font-size:16px; box-sizing:border-box; margin-bottom:16px; outline:none;">
-            <button onclick="handleLogin()"
-                style="width:100%; padding:14px; background:linear-gradient(135deg,#007aff,#005bb5); color:white; border:none; border-radius:10px; font-size:16px; font-weight:600; cursor:pointer; margin-bottom:10px;">登录
-                / 注册</button>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <button onclick="handleLogin()"
+                    style="flex: 1; padding:14px; background:linear-gradient(135deg,#007aff,#005bb5); color:white; border:none; border-radius:10px; font-size:16px; font-weight:600; cursor:pointer;">登录</button>
+                <button onclick="handleSignUp()"
+                    style="flex: 1; padding:14px; background:linear-gradient(135deg,#34c759,#28a745); color:white; border:none; border-radius:10px; font-size:16px; font-weight:600; cursor:pointer;">注册</button>
+            </div>
+            <button onclick="handleForgotPassword()"
+                style="width:100%; padding:10px; background:none; color:#007aff; border:none; font-size:14px; cursor:pointer; margin-bottom:10px;">忘记密码？通过邮箱重置</button>
             <button onclick="document.getElementById('authModal').style.display='none'"
                 style="width:100%; padding:12px; background:#f2f2f7; color:#333; border:none; border-radius:10px; font-size:15px; cursor:pointer;">暂不登录（仅本地）</button>
             <p id="authMsg" style="text-align:center; color:#ff3b30; font-size:13px; margin:10px 0 0; min-height:18px;">
+            </p>
+        </div>
+    </div>
+
+    <!-- ===== Supabase 密码重置浮层 ===== -->
+    <div id="resetPasswordModal"
+        style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(8px); z-index:10000; justify-content:center; align-items:center;">
+        <div
+            style="background:#fff; border-radius:20px; padding:30px; width:90%; max-width:360px; box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+            <h2 style="text-align:center; margin:0 0 6px; font-size:22px;">🔑 重置密码</h2>
+            <p style="text-align:center; color:#86868b; font-size:13px; margin:0 0 20px;">请设置您的新密码</p>
+            <input id="newPassword" type="password" placeholder="输入新密码"
+                style="width:100%; padding:14px; border-radius:10px; border:1px solid #ddd; font-size:16px; box-sizing:border-box; margin-bottom:16px; outline:none;">
+            <button onclick="handlePasswordReset()"
+                style="width:100%; padding:14px; background:linear-gradient(135deg,#5856d6,#af52de); color:white; border:none; border-radius:10px; font-size:16px; font-weight:600; cursor:pointer; margin-bottom:10px;">更新并保存密码</button>
+            <p id="resetMsg" style="text-align:center; color:#ff3b30; font-size:13px; margin:10px 0 0; min-height:18px;">
             </p>
         </div>
     </div>
@@ -1273,6 +1295,12 @@
         <span class="portal-icon">📝</span>
     </button>
 
+    <!-- [新增] 传送门按钮：点击进入今日检验 (Daily Quiz) -->
+    <button onclick="openDailyQuizModal()" class="portal-btn daily-quiz-portal-btn" title="今日检验"
+        style="left: 230px; background: #ff2d55; border-color: #ff5e7e; border-radius: 50%; cursor: pointer;">
+        <span class="portal-icon">🎯</span>
+    </button>
+
     <style>
         /* 这里直接写样式，方便你复制 */
         .portal-btn {
@@ -1322,26 +1350,47 @@
             </select>
 
             <div class="input-row" style="margin-bottom:12px;">
-                <input type="text" id="examModuleInput" placeholder="模块/章节（选填，如：税法一-增值税、考研政治-马原）">
-                <select id="examErrorTypeSelect" class="exam-type-select" style="max-width:180px; margin-bottom:0;">
-                    <option value="">错因（选填）</option>
+                <input type="text" id="examModuleInput" placeholder="模块/章节（如：税法一-增值税）">
+                <input type="text" id="examSourceInput" placeholder="来源/套卷（如：2023国考地市级）" style="width:140px;">
+                <input type="text" id="examQuestionNoInput" placeholder="题号/题序" style="width:80px;">
+            </div>
+
+            <div class="input-row" style="margin-bottom:12px; gap:6px; flex-wrap:wrap;">
+                <input type="text" id="examMyAnswerInput" placeholder="我的答案" style="flex:1; min-width:80px;">
+                <input type="text" id="examCorrectAnswerInput" placeholder="正确答案" style="flex:1; min-width:80px;">
+                <select id="examErrorTypeSelect" class="exam-type-select" style="max-width:120px; margin-bottom:0; font-size:13px; height:42px;">
+                    <option value="">错因(选填)</option>
                     <option value="概念混淆">概念混淆</option>
                     <option value="条件遗漏">条件遗漏</option>
                     <option value="审题偏差">审题偏差</option>
                     <option value="计算失误">计算失误</option>
                     <option value="记忆模糊">记忆模糊</option>
                 </select>
+                <select id="examReviewStatusSelect" class="exam-type-select" style="max-width:120px; margin-bottom:0; font-size:13px; height:42px;">
+                    <option value="复盘状态: 亟待复习">🎯 亟待复习</option>
+                    <option value="复盘状态: 已懂一半">🌓 已懂一半</option>
+                    <option value="复盘状态: 基本掌握">✅ 基本掌握</option>
+                </select>
             </div>
 
             <textarea id="examKnowledgeInput" class="exam-input-area" placeholder="例如：
 - 复制粘贴一道你做错的行测图推题/常识题。
 - 输入 'CPA税法中关于增值税视同销售的8种情况'。
-- 粘贴一段你看不懂的考研政治材料..."></textarea>
+- 粘贴一段你看不懂的考研政治材料..." oninput="clearExamAutoFillStatus()"></textarea>
 
-            <button id="examGenerateBtn" class="add-btn full-width-btn" style="margin-top:0;"
-                onclick="generateExamMaterial()">
-                🚀 AI 解析并制卡 (DeepSeek)
-            </button> <!-- 添加了完整的闭合标签 -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <span id="examAutoFillStatus" style="font-size:12px; color:var(--subtext);">支持直接粘贴粉笔整题原文，自动提取题号、答案、解析、考点、来源和统计。</span>
+                <button type="button" class="action-btn" style="background:#007aff; color:white; padding:8px 12px; font-size:12px; border-radius:8px; width:auto;" onclick="autofillExamFieldsFromPaste()">✨ 自动解析题目</button>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:0;">
+                <button id="examGenerateBtn" class="add-btn" style="flex:2; margin-top:0;" onclick="generateExamMaterial()">
+                    🚀 AI 解析并制卡 (DeepSeek)
+                </button>
+                <button id="examDirectSaveBtn" class="action-btn" style="flex:1; margin-top:0; background:#86868b; color:white; font-weight:bold;" onclick="saveRawExamWrongQuestion()">
+                    📥 直接保存错题 (不走 AI)
+                </button>
+            </div>
 
             <div id="examResultContainer" class="exam-result-area hidden">
                 <div id="examLoading" style="text-align:center; display:none;">
@@ -1361,11 +1410,20 @@
                 <button class="close-btn" onclick="toggleWordList()">Close</button>
             </div>
             <div id="examListFilterBar" style="display:none; gap:10px; margin-bottom:12px; flex-wrap:wrap; align-items:center;">
-                <select id="examListModuleFilter" class="exam-type-select" style="max-width:240px;" onchange="handleExamListFilterChange()">
-                    <option value="all">All modules</option>
+                <select id="examListModuleFilter" class="exam-type-select" style="max-width:180px; margin-bottom:0;" onchange="handleExamListFilterChange()">
+                    <option value="all">所有模块 (All)</option>
                 </select>
-                <select id="examListErrorFilter" class="exam-type-select" style="max-width:180px;" onchange="handleExamListFilterChange()">
-                    <option value="all">All error types</option>
+                <select id="examListErrorFilter" class="exam-type-select" style="max-width:140px; margin-bottom:0;" onchange="handleExamListFilterChange()">
+                    <option value="all">所有错因 (All)</option>
+                </select>
+                <select id="examListStatusFilter" class="exam-type-select" style="max-width:140px; margin-bottom:0;" onchange="handleExamListFilterChange()">
+                    <option value="all">所有状态 (All)</option>
+                    <option value="亟待复习">🎯 亟待复习</option>
+                    <option value="已懂一半">🌓 已懂一半</option>
+                    <option value="基本掌握">✅ 基本掌握</option>
+                </select>
+                <select id="examListSourceFilter" class="exam-type-select" style="max-width:160px; margin-bottom:0;" onchange="handleExamListFilterChange()">
+                    <option value="all">所有来源 (All)</option>
                 </select>
             </div>
             <div class="word-list" id="fullWordList"></div>
@@ -1456,10 +1514,90 @@
         </div>
     </div>
 
+    <div id="dailyQuizModal" class="modal-overlay hidden" style="z-index: 1300;">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <div class="modal-title">今日检验 (Daily Quiz)</div>
+                <button class="close-btn" onclick="closeDailyQuizModal()">Close</button>
+            </div>
+            
+            <div style="flex: 1; overflow-y: auto; padding: 10px 0;">
+                <div id="dailyQuizSetupView">
+                    <div style="margin-bottom: 20px;">
+                        <label style="font-size: 14px; font-weight: bold; display: block; margin-bottom: 8px;">1. 检测范围</label>
+                        <select id="dailyQuizSubjectScope" onchange="refreshDailyQuizSourceSummary()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd;"></select>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label style="font-size: 14px; font-weight: bold; display: block; margin-bottom: 8px;">2. 检测强度</label>
+                        <div id="dailyQuizIntensityGroup" style="display: flex; gap: 10px;">
+                            <button data-intensity="quick" onclick="setDailyQuizIntensity('quick')" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer;">快速检测 (4-6题)</button>
+                            <button data-intensity="standard" onclick="setDailyQuizIntensity('standard')" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer;">标准检测 (6-10题)</button>
+                            <button data-intensity="intense" onclick="setDailyQuizIntensity('intense')" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer;">强化检测 (9-14题)</button>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label style="font-size: 14px; font-weight: bold; display: block; margin-bottom: 8px;">3. 手动补充总结 (可选)</label>
+                        <textarea id="dailyQuizManualInput" placeholder="可以在此粘贴今天的学习内容，AI会基于错题和此内容一起生成考题" style="width: 100%; height: 80px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; resize: vertical; box-sizing: border-box;"></textarea>
+                    </div>
+                    <div style="background: #f8f9fa; border-radius: 12px; padding: 15px; margin-bottom: 20px;">
+                        <div style="font-size: 14px; font-weight: bold; margin-bottom: 10px;">来源分析</div>
+                        <div id="dailyQuizSourceSummary" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;"></div>
+                        <div id="dailyQuizRecommendation" style="font-size: 13px; color: #555; margin-bottom: 15px;"></div>
+                        <div style="font-size: 12px; color: #888; border-top: 1px solid #eee; padding-top: 10px;" id="dailyQuizSourcePreview"></div>
+                    </div>
+                    <button id="dailyQuizStartBtn" class="add-btn full-width-btn" style="background: var(--accent); color: white; padding: 14px; font-size: 16px; border-radius: 12px; border: none;">🚀 抽取题目开始检测</button>
+                </div>
+
+                <div id="dailyQuizLoadingView" class="hidden" style="text-align: center; padding: 50px 20px;">
+                    <div class="spinner" style="width: 40px; height: 40px; border-width: 4px; border-top-color: var(--accent); margin: 0 auto 20px;"></div>
+                    <h3 style="margin-bottom: 10px;">正在为您专属定制考卷...</h3>
+                    <p style="color: #666; font-size: 14px;">AI 正在分析今日笔记与错因，挖掘您的知识盲区</p>
+                </div>
+
+                <div id="dailyQuizSessionView" class="hidden">
+                    <div style="margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #666; margin-bottom: 8px;">
+                            <span id="dailyQuizProgressText">第 1 题</span>
+                        </div>
+                        <div style="width: 100%; height: 6px; background: #eee; border-radius: 3px; overflow: hidden;">
+                            <div id="dailyQuizProgressBar" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                    <div id="dailyQuizQuestionCard" style="background: white; border-bottom: 1px solid #eee; padding-bottom: 20px; margin-bottom: 20px;">
+                    </div>
+                    <div id="dailyQuizFeedback" class="hidden" style="padding: 15px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; line-height: 1.6;">
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="dailyQuizSkipBtn" style="flex: 1; padding: 14px; border-radius: 12px; border: 1px solid #ddd; background: #f8f9fa; color: #666; font-weight: bold; display: flex; justify-content: center; align-items: center; cursor: pointer;">跳过这题</button>
+                        <button id="dailyQuizSubmitBtn" style="flex: 2; padding: 14px; border-radius: 12px; border: none; background: var(--accent); color: white; font-weight: bold; font-size: 15px; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,122,255,0.3);">提交答案</button>
+                    </div>
+                </div>
+
+                <div id="dailyQuizResultView" class="hidden">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h2 style="margin-bottom: 5px;">🎉 测验完成！</h2>
+                        <p style="color: #666; font-size: 14px;">来看看这次检验的成果</p>
+                    </div>
+                    <div id="dailyQuizResultSummary" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px;">
+                    </div>
+                    <div style="background: #f8f9fa; border-radius: 12px; padding: 15px; border: 1px solid #eee; margin-bottom: 20px;">
+                        <div id="dailyQuizResultDetail">
+                        </div>
+                    </div>
+                    <button id="dailyQuizSaveFailuresBtn" class="add-btn full-width-btn" style="background: var(--accent); color: white; padding: 14px; font-size: 16px; border-radius: 12px; border: none; margin-bottom: 10px;">📝 将弱项加入复习</button>
+                    <button class="full-width-btn" onclick="closeDailyQuizModal()" style="background: transparent; color: #666; border: 1px solid #ddd; padding: 14px; border-radius: 12px; font-weight: bold;">关闭测验窗口</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- 1. Global State & FSRS Parameters ---
         let ocrWorker = null;
         let deck = [];
+        let dailyQuizSession = null;
+        let dailyQuizIntensity = 'standard';
+
 
         // 【新增】全局学科状态
         window.currentSubject = 'all';
@@ -1498,6 +1636,7 @@
                     quickAction.id = 'examPrepQuickAction';
                     quickAction.style.marginBottom = '20px';
                     inputSec.insertBefore(quickAction, inputSec.firstChild);
+                    quickSec.insertBefore(quickAction, inputSec.firstChild);
                 }
                 quickAction.style.display = 'block';
 
@@ -1643,17 +1782,30 @@
                 return subjectByMeta || subjectBySentence;
             });
         }
+
+        function isExamCardData(card) {
+            const EXAM_SUBJECTS = ['\u8003\u516c', '\u8003\u7814', 'CPA', '\u7a0e\u52a1\u5e08', '\u5176\u4ed6'];
+            const sentence = card && card.sentence ? card.sentence : '';
+            if (card && card.examMeta && EXAM_SUBJECTS.includes(card.examMeta.examType)) return true;
+            return EXAM_SUBJECTS.some(subject => sentence.includes('[' + subject + ']'));
+        }
+
+        function shouldSyncCardToCloud(card) {
+            return !!card && !isExamCardData(card);
+        }
+
         function isExamSubjectActive(subject = window.currentSubject) {
             return subject !== 'all' && subject !== '\u82f1\u8bed';
         }
+
         function getExamFocusScore(card, now = Date.now()) {
             const updatedAt = new Date(card.updated_at || 0).getTime();
             const dueAt = typeof card.due === 'number' ? card.due : now;
             const daysSinceUpdate = Number.isFinite(updatedAt) && updatedAt > 0 ? (now - updatedAt) / 86400000 : 999;
             const overdueDays = Math.max(0, (now - dueAt) / 86400000);
             let score = Math.min(overdueDays, 4);
-            if (card.reps === 0) score += 4;
-            else if (card.reps <= 2) score += 2;
+            if (card.state === 0) score += 4;
+            else if (card.state === 1 || card.state === 3) score += 2;
             if ((card.difficulty || 0) >= 7.5) score += 3;
             else if ((card.difficulty || 0) >= 6.5) score += 2;
             if (daysSinceUpdate <= 3) score += 2;
@@ -1661,63 +1813,75 @@
             if (card.examMeta && card.examMeta.errorType) score += 1;
             return score;
         }
+
         function refreshExamListFilters(baseDeck) {
             const filterBar = document.getElementById('examListFilterBar');
             const moduleSelect = document.getElementById('examListModuleFilter');
             const errorSelect = document.getElementById('examListErrorFilter');
-            if (!filterBar || !moduleSelect || !errorSelect) return;
+            const statusSelect = document.getElementById('examListStatusFilter');
+            const sourceSelect = document.getElementById('examListSourceFilter');
+            
+            if (!filterBar || !moduleSelect || !errorSelect || !statusSelect || !sourceSelect) return;
+            
             if (!isExamSubjectActive()) {
                 filterBar.style.display = 'none';
-                moduleSelect.innerHTML = '<option value="all">All modules</option>';
-                errorSelect.innerHTML = '<option value="all">All error types</option>';
                 return;
             }
             filterBar.style.display = 'flex';
-            const modules = [...new Set(baseDeck.map(card => card.examMeta && card.examMeta.module).filter(Boolean))]
-                .sort((a, b) => a.localeCompare(b, 'zh-CN'));
-            const errorTypes = [...new Set(baseDeck.map(card => card.examMeta && card.examMeta.errorType).filter(Boolean))]
-                .sort((a, b) => a.localeCompare(b, 'zh-CN'));
-            const currentModule = window.listFilters && window.listFilters.module ? window.listFilters.module : 'all';
-            const currentErrorType = window.listFilters && window.listFilters.errorType ? window.listFilters.errorType : 'all';
-            moduleSelect.innerHTML = '<option value="all">All modules</option>';
-            modules.forEach(moduleName => {
-                const option = document.createElement('option');
-                option.value = moduleName;
-                option.textContent = moduleName;
-                moduleSelect.appendChild(option);
-            });
-            moduleSelect.value = modules.includes(currentModule) ? currentModule : 'all';
-            errorSelect.innerHTML = '<option value="all">All error types</option>';
-            errorTypes.forEach(errorType => {
-                const option = document.createElement('option');
-                option.value = errorType;
-                option.textContent = errorType;
-                errorSelect.appendChild(option);
-            });
-            errorSelect.value = errorTypes.includes(currentErrorType) ? currentErrorType : 'all';
+
+            const modules = [...new Set(baseDeck.map(card => card.examMeta && card.examMeta.module).filter(Boolean))].sort();
+            const errorTypes = [...new Set(baseDeck.map(card => card.examMeta && card.examMeta.errorType).filter(Boolean))].sort();
+            const sources = [...new Set(baseDeck.map(card => card.examMeta && card.examMeta.sourceName).filter(Boolean))].sort();
+
+            const currentFilters = window.listFilters || { module: 'all', errorType: 'all', status: 'all', source: 'all' };
+
+            const populate = (select, items, current, allLabel) => {
+                select.innerHTML = `<option value="all">${allLabel}</option>`;
+                items.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item;
+                    opt.textContent = item;
+                    select.appendChild(opt);
+                });
+                select.value = items.includes(current) ? current : 'all';
+            };
+
+            populate(moduleSelect, modules, currentFilters.module, '所有模块 (All)');
+            populate(errorSelect, errorTypes, currentFilters.errorType, '所有错因 (All)');
+            populate(sourceSelect, sources, currentFilters.source, '所有来源 (All)');
+            statusSelect.value = currentFilters.status || 'all';
+
             window.listFilters = {
                 module: moduleSelect.value,
-                errorType: errorSelect.value
+                errorType: errorSelect.value,
+                status: statusSelect.value,
+                source: sourceSelect.value
             };
         }
+
         function applyExamListFilters(baseDeck) {
             if (!isExamSubjectActive()) return baseDeck;
-            const filters = window.listFilters || { module: 'all', errorType: 'all' };
+            const filters = window.listFilters || { module: 'all', errorType: 'all', status: 'all', source: 'all' };
             return baseDeck.filter(card => {
-                const moduleMatch = filters.module === 'all' || (card.examMeta && card.examMeta.module === filters.module);
-                const errorMatch = filters.errorType === 'all' || (card.examMeta && card.examMeta.errorType === filters.errorType);
-                return moduleMatch && errorMatch;
+                const meta = card.examMeta || {};
+                const moduleMatch = filters.module === 'all' || meta.module === filters.module;
+                const errorMatch = filters.errorType === 'all' || meta.errorType === filters.errorType;
+                const sourceMatch = filters.source === 'all' || meta.sourceName === filters.source;
+                const statusMatch = filters.status === 'all' || meta.reviewStatus === filters.status;
+                return moduleMatch && errorMatch && sourceMatch && statusMatch;
             });
         }
+
         function handleExamListFilterChange() {
-            const moduleSelect = document.getElementById('examListModuleFilter');
-            const errorSelect = document.getElementById('examListErrorFilter');
             window.listFilters = {
-                module: moduleSelect ? moduleSelect.value : 'all',
-                errorType: errorSelect ? errorSelect.value : 'all'
+                module: document.getElementById('examListModuleFilter').value,
+                errorType: document.getElementById('examListErrorFilter').value,
+                status: document.getElementById('examListStatusFilter').value,
+                source: document.getElementById('examListSourceFilter').value
             };
             renderListContent();
-        }        function renderWordWithEmoji(target, word, emoji = '', animated = false) {
+        }
+        function renderWordWithEmoji(target, word, emoji = '', animated = false) {
             target.innerHTML = '';
             if (emoji) {
                 const emojiBadge = document.createElement('div');
@@ -1846,17 +2010,19 @@
 
         // 初始化时检查是否已登录
         async function initAuth() {
+            // 【核心修正】处理 Supabase 密码重置回调
+            if (window.location.hash && window.location.hash.includes('type=recovery')) {
+                document.getElementById('resetPasswordModal').style.display = 'flex';
+                return;
+            }
+
             const { data: { session } } = await sbClient.auth.getSession();
             if (session && session.user) {
                 currentUser = session.user;
                 showUserBar(session.user.email);
-
-                // 【核心修复】检测到已登录后，立即从云端拉取最新数据
                 console.log("已登录，正在同步云端数据...");
-
-                // 【一次性迁移】检查新 cards 表是否为空，如果是，则从旧 vocab_data 表迁移
                 await migrateOldCloudData();
-
+                await cleanupCloudExamCards(); // 【新增】清理云端残留考试卡片
                 await pullFromCloud();
             } else {
                 document.getElementById('authModal').style.display = 'flex';
@@ -1902,7 +2068,75 @@
             }
         }
 
-        // 登录 / 注册（邮箱+密码，账号不存在自动注册）
+        /**
+         * 【清理逻辑】全量探测并删除云端残留的考试卡片
+         * 采用稳定排序 (.order('id')) + 窗口滑动策略，确保分页扫描不漏掉任何记录
+         */
+        async function cleanupCloudExamCards() {
+            if (!currentUser) return;
+            try {
+                let offset = 0;
+                const limit = 1000;
+                let hasMore = true;
+                let totalDeleted = 0;
+
+                console.log("正在开启云端全量探测，清理残留考试卡片...");
+
+                while (hasMore) {
+                    // 1. 使用稳定排序 'id' 获取当前窗口数据
+                    const { data: cloudCards, error } = await sbClient
+                        .from('cards')
+                        .select('id, card_data')
+                        .eq('user_id', currentUser.id)
+                        .order('id', { ascending: true })
+                        .range(offset, offset + limit - 1);
+
+                    if (error) throw error;
+                    if (!cloudCards || cloudCards.length === 0) {
+                        hasMore = false;
+                        break;
+                    }
+
+                    // 2. 筛选出属于考试类的卡片 ID
+                    const examCardIds = cloudCards
+                        .filter(row => isExamCardData(row.card_data))
+                        .map(row => row.id);
+
+                    if (examCardIds.length > 0) {
+                        console.log(`在范围 [${offset}, ${offset + limit - 1}] 发现 ${examCardIds.length} 张残留卡片，执行清理...`);
+                        const { error: deleteError } = await sbClient
+                            .from('cards')
+                            .delete()
+                            .eq('user_id', currentUser.id)
+                            .in('id', examCardIds);
+
+                        if (deleteError) throw deleteError;
+                        totalDeleted += examCardIds.length;
+                        
+                        // 【核心策略】由于删除了行，后续行会向上位移
+                        // 因此我们不增加 offset，下一次循环将重新扫描这个“窗口”
+                    } else {
+                        // 当前窗口无考试卡片，安全移动到下一个窗口
+                        offset += limit;
+                    }
+
+                    // 如果返回数据少于 limit，说明已经遍历到云端末尾
+                    if (cloudCards.length < limit) {
+                        hasMore = false;
+                    }
+                }
+
+                if (totalDeleted > 0) {
+                    console.log(`✅ 云端清理作业完成，共移除 ${totalDeleted} 张卡片`);
+                } else {
+                    console.log("云端探测完毕，未发现残留考试卡片");
+                }
+            } catch (e) {
+                console.error('云端清理失败:', e);
+            }
+        }
+
+        // 登录/注册模块分离
         async function handleLogin() {
             const email = document.getElementById('authEmail').value.trim();
             const password = document.getElementById('authPassword').value.trim();
@@ -1911,15 +2145,13 @@
             msg.innerText = '登录中...';
             msg.style.color = '#007aff';
 
-            // 先尝试登录
-            let { data, error } = await sbClient.auth.signInWithPassword({ email, password });
-            if (error && error.message.includes('Invalid login credentials')) {
-                // 账号不存在，自动注册
-                const res = await sbClient.auth.signUp({ email, password });
-                data = res.data; error = res.error;
-                if (!error) msg.innerText = '✅ 注册成功！请查收邮件验证后重新登录';
+            const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+            
+            if (error) { 
+                msg.style.color = '#ff3b30'; 
+                msg.innerText = '❌ 登录失败: ' + error.message; 
+                return; 
             }
-            if (error) { msg.style.color = '#ff3b30'; msg.innerText = '❌ ' + error.message; return; }
 
             if (data.user) {
                 currentUser = data.user;
@@ -1929,11 +2161,87 @@
             }
         }
 
+        async function handleSignUp() {
+            const email = document.getElementById('authEmail').value.trim();
+            const password = document.getElementById('authPassword').value.trim();
+            const msg = document.getElementById('authMsg');
+            if (!email || !password) { msg.innerText = '请填写邮箱和密码'; return; }
+            msg.innerText = '注册中...';
+            msg.style.color = '#007aff';
+            
+            const options = {
+                emailRedirectTo: window.location.origin + window.location.pathname
+            };
+
+            const { data, error } = await sbClient.auth.signUp({ email, password, options });
+            
+            if (error) { 
+                msg.style.color = '#ff3b30'; 
+                msg.innerText = '❌ 注册失败: ' + error.message;
+                return; 
+            }
+            
+            msg.style.color = '#34c759';
+            if (data?.user?.identities?.length === 0) {
+               msg.innerText = '❌ 该邮箱已被注册，请直接登录';
+               msg.style.color = '#ff3b30';
+            } else {
+               msg.innerText = '✅ 注册成功！请检查邮箱确认邮件，或视配置直接登录。';
+            }
+        }
+
+        async function handleForgotPassword() {
+            const email = document.getElementById('authEmail').value.trim();
+            const msg = document.getElementById('authMsg');
+            if (!email) { msg.innerText = '请填写需要重置密码的邮箱'; return; }
+            msg.innerText = '发送重置邮件中...';
+            msg.style.color = '#007aff';
+            
+            const { error } = await sbClient.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin + window.location.pathname
+            });
+            
+            if (error) {
+                msg.style.color = '#ff3b30';
+                msg.innerText = '❌ 发送失败: ' + error.message;
+            } else {
+                msg.style.color = '#34c759';
+                msg.innerText = '✅ 密码重置邮件已发送，请查收';
+            }
+        }
+
         async function handleLogout() {
             await sbClient.auth.signOut();
             currentUser = null;
             document.getElementById('userBar').style.display = 'none';
             document.getElementById('authModal').style.display = 'flex';
+        }
+
+        async function handlePasswordReset() {
+            const newPassword = document.getElementById('newPassword').value.trim();
+            const msg = document.getElementById('resetMsg');
+            if (!newPassword || newPassword.length < 6) {
+                msg.innerText = '❌ 密码长度至少为 6 位';
+                return;
+            }
+            msg.innerText = '正在更新密码...';
+            msg.style.color = '#007aff';
+
+            const { error } = await sbClient.auth.updateUser({ password: newPassword });
+
+            if (error) {
+                msg.style.color = '#ff3b30';
+                msg.innerText = '❌ 更新失败: ' + error.message;
+            } else {
+                msg.style.color = '#34c759';
+                msg.innerText = '✅ 密码已成功更新！正在为您自动登录...';
+                setTimeout(async () => {
+                    document.getElementById('resetPasswordModal').style.display = 'none';
+                    // 清除 URL 中的 hash，防止页面刷新再次触发
+                    window.history.replaceState(null, null, window.location.pathname);
+                    await initAuth();
+                }, 2000);
+            }
         }
 
         function showUserBar(email) {
@@ -1960,7 +2268,7 @@
                 try {
                     await flushPendingDeletions();
                     const localCards = await db.getAll();
-                    const cardsToSync = localCards.filter(c => c.needsSync === true);
+                    const cardsToSync = localCards.filter(c => c.needsSync === true && shouldSyncCardToCloud(c));
                     if (cardsToSync.length === 0) {
                         setSyncStatus(true);
                         return;
@@ -2012,10 +2320,115 @@
             document.getElementById('examPrepModal').classList.add('hidden');
             document.getElementById('examKnowledgeInput').value = '';
             document.getElementById('examModuleInput').value = '';
+            document.getElementById('examSourceInput').value = '';
+            document.getElementById('examQuestionNoInput').value = '';
+            document.getElementById('examMyAnswerInput').value = '';
+            document.getElementById('examCorrectAnswerInput').value = '';
             document.getElementById('examErrorTypeSelect').value = '';
+            document.getElementById('examReviewStatusSelect').value = '复盘状态: 亟待复习';
             document.getElementById('examResultContainer').classList.add('hidden');
             document.getElementById('examResultContent').innerHTML = '';
+            clearExamAutoFillStatus();
             window.tempExamPack = null;
+        }
+
+        // ====== 备考/错题本模式 (Exam Prep) 核心逻辑 ======
+        function getExamFormState() {
+            return {
+                examType: (document.getElementById('examTypeSelect') || {}).value || '其他',
+                module: (document.getElementById('examModuleInput') || {}).value?.trim() || '',
+                sourceName: (document.getElementById('examSourceInput') || {}).value?.trim() || '',
+                questionNo: (document.getElementById('examQuestionNoInput') || {}).value?.trim() || '',
+                userAnswer: (document.getElementById('examMyAnswerInput') || {}).value?.trim() || '',
+                correctAnswer: (document.getElementById('examCorrectAnswerInput') || {}).value?.trim() || '',
+                errorType: (document.getElementById('examErrorTypeSelect') || {}).value || '',
+                reviewStatus: (document.getElementById('examReviewStatusSelect') || {}).value?.replace('复盘状态: ', '') || '亟待复习',
+                originalContext: (document.getElementById('examKnowledgeInput') || {}).value?.trim() || ''
+            };
+        }
+
+        function extractExamPromptFromContext(text, questionNo = '') {
+            const rawLines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            if (!rawLines.length) return '';
+            let targetLines = rawLines;
+            if (questionNo) {
+                const idx = rawLines.findIndex(l => l.includes(questionNo + '.') || l.includes(questionNo + '、'));
+                if (idx !== -1) targetLines = rawLines.slice(idx);
+            }
+            if (!targetLines.length) return '';
+            
+            let prompt = targetLines[0];
+            if (prompt.length > 50) return prompt.substring(0, 48) + '...';
+            return prompt;
+        }
+
+        async function saveRawExamWrongQuestion() {
+            const form = getExamFormState();
+            if (!form.originalContext) return alert('请输入需要保存的错题内容。');
+
+            const btn = document.getElementById('examDirectSaveBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+            }
+
+            try {
+                const titlePrompt = extractExamPromptFromContext(form.originalContext, form.questionNo) || '错题收录';
+                const summaryLines = [
+                    form.questionNo ? `题号：${form.questionNo}` : '',
+                    form.correctAnswer ? `正确答案：${form.correctAnswer}` : '',
+                    form.userAnswer ? `我的答案：${form.userAnswer}` : ''
+                ].filter(Boolean).join(' | ');
+                const front = summaryLines ? `${titlePrompt}\n\n<span style="color:#86868b;font-size:0.85em;">[${summaryLines}]</span>` : titlePrompt;
+                
+                const back = `【原始题目与作答】\n${form.originalContext}`;
+
+                const tagParts = [
+                    `[${form.examType}]`,
+                    form.module ? `[模块:${form.module}]` : '',
+                    form.errorType ? `[错因:${form.errorType}]` : '',
+                    `[卡型:错题原题]`
+                ].filter(Boolean).join('');
+                const sentence = `${tagParts} 来自备考模式抓取。`;
+
+                const newCard = createCardObject(front, sentence, back, '', '', '📚');
+                newCard.examMeta = {
+                    examType: form.examType,
+                    module: form.module,
+                    errorType: form.errorType,
+                    cardType: '错题原题',
+                    summary: titlePrompt,
+                    originalContext: form.originalContext,
+                    sourceName: form.sourceName,
+                    questionNo: form.questionNo,
+                    userAnswer: form.userAnswer,
+                    correctAnswer: form.correctAnswer,
+                    reviewStatus: form.reviewStatus,
+                    entryMode: 'manual_direct_save'
+                };
+
+                deck.push(newCard);
+                await db.saveCard(newCard);
+
+                closeExamPrepModal();
+                updateDeckInfo();
+                updateStatsUI();
+
+                const msg = document.createElement('div');
+                msg.innerText = '✅ 已直接保存错题';
+                msg.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#34c759; color:white; padding:10px 20px; border-radius:20px; z-index:10000; box-shadow:0 10px 20px rgba(0,0,0,0.1);';
+                document.body.appendChild(msg);
+                setTimeout(() => msg.remove(), 2500);
+                render();
+                
+                // 【自动同步】触发后台云同步，防止多设备数据断流
+                pushToCloud();
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                }
+            }
         }
 
         // 【新增】主界面快捷进入备考状态（同步学科）
@@ -2029,10 +2442,11 @@
         }
 
         async function generateExamMaterial() {
-            const inputVal = document.getElementById('examKnowledgeInput').value.trim();
-            const examType = document.getElementById('examTypeSelect').value;
-            const examModule = document.getElementById('examModuleInput').value.trim();
-            const errorType = document.getElementById('examErrorTypeSelect').value;
+            const form = getExamFormState();
+            const inputVal = form.originalContext;
+            const examType = form.examType;
+            const examModule = form.module;
+            const errorType = form.errorType;
             if (!inputVal) return alert('请输入需要解析的知识点或错题！');
 
             const btn = document.getElementById('examGenerateBtn');
@@ -2125,6 +2539,213 @@
             }
         }
 
+        const EXAM_CAPTURE_SECTION_LABELS = {
+            analysis: '\u89e3\u6790',
+            knowledgePoint: '\u8003\u70b9',
+            sourceName: '\u6765\u6e90',
+            statsSummary: '\u7edf\u8ba1',
+            note: '\u7b14\u8bb0'
+        };
+
+        function setExamAutoFillStatus(message, tone = 'muted') {
+            const statusEl = document.getElementById('examAutoFillStatus');
+            if (!statusEl) return;
+            const colorMap = {
+                muted: '#86868b',
+                success: '#2da44e',
+                error: '#d1242f',
+                loading: '#1f6feb'
+            };
+            statusEl.textContent = message;
+            statusEl.style.color = colorMap[tone] || colorMap.muted;
+        }
+
+        function clearExamAutoFillStatus() {
+            setExamAutoFillStatus('\u652f\u6301\u76f4\u63a5\u7c98\u8d34\u7c89\u7b14\u6574\u9898\u539f\u6587\uff0c\u81ea\u52a8\u63d0\u53d6\u9898\u53f7\u3001\u7b54\u6848\u3001\u89e3\u6790\u3001\u8003\u70b9\u3001\u6765\u6e90\u548c\u7edf\u8ba1\u3002', 'muted');
+        }
+
+        function normalizeExamPreviewLine(line) {
+            return String(line || '')
+                .replace(/\s+/g, ' ')
+                .replace(/\s*([锛屻€傦紒锛燂紱锛?.!?;:])\s*/g, '$1')
+                .trim();
+        }
+
+        function normalizeManualExamPasteText(text) {
+            return String(text || '')
+                .replace(/\r/g, '')
+                .replace(/\u00a0/g, ' ')
+                .replace(/\u3000/g, ' ')
+                .replace(/[ \t]+\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+        }
+
+        function getExamSectionContent(lines, sectionName, indexMap) {
+            const startIndex = indexMap[sectionName];
+            if (typeof startIndex !== 'number' || startIndex < 0) return '';
+            const orderedIndexes = Object.values(indexMap)
+                .filter(index => typeof index === 'number' && index > startIndex)
+                .sort((a, b) => a - b);
+            const endIndex = orderedIndexes.length ? orderedIndexes[0] : lines.length;
+            const headerLine = String(lines[startIndex] || '').trim();
+            const inlineValue = headerLine.replace(new RegExp('^' + sectionName + '[:：]?\\s*'), '').trim();
+            const bodyLines = lines.slice(startIndex + 1, endIndex).map(line => String(line || '').trim()).filter(Boolean);
+            if (inlineValue) bodyLines.unshift(inlineValue);
+            return bodyLines.join('\n').trim();
+        }
+
+        function summarizeExamStatsBlock(text) {
+            const lines = String(text || '').split(/\n/).map(line => normalizeExamPreviewLine(line)).filter(Boolean);
+            if (!lines.length) return '';
+            const pairs = [];
+            for (let i = 0; i < lines.length; i++) {
+                const current = lines[i];
+                const next = lines[i + 1];
+                if (next && current.length <= 8 && !/[:：]/.test(current) && !/[:：]/.test(next)) {
+                    pairs.push(current + '：' + next);
+                    i += 1;
+                    continue;
+                }
+                pairs.push(current);
+            }
+            return pairs.join(' | ');
+        }
+        
+        function buildParsedExamContext(parsed) {
+            const sections = [];
+            if (parsed.questionNo) sections.push(parsed.questionNo + '.');
+            if (parsed.prompt) sections.push(parsed.prompt);
+            ['A', 'B', 'C', 'D'].forEach(letter => {
+                if (parsed.options[letter]) sections.push(letter + '. ' + parsed.options[letter]);
+            });
+            Object.entries(EXAM_CAPTURE_SECTION_LABELS).forEach(([key, label]) => {
+                if (!parsed[key]) return;
+                sections.push('');
+                sections.push(label);
+                sections.push(parsed[key]);
+            });
+            return sections.join('\n').trim();
+        }
+
+        function parseStructuredExamCapture(rawText) {
+            const normalizedText = normalizeManualExamPasteText(rawText);
+            if (!normalizedText) return null;
+
+            const lines = normalizedText
+                .split('\n')
+                .map(line => String(line || '').trim())
+                .filter(Boolean);
+            if (!lines.length) return null;
+
+            const sectionIndexMap = {};
+            Object.values(EXAM_CAPTURE_SECTION_LABELS).forEach(label => {
+                sectionIndexMap[label] = lines.findIndex(line => line === label || line.startsWith(label + '：') || line.startsWith(label + ':'));
+            });
+
+            const answerLinePattern = /^(?:正确答案|正确答案是|你的答案|我的答案)[:：]/;
+            const answerIndex = lines.findIndex(line => answerLinePattern.test(line));
+            const firstSectionIndex = Object.values(sectionIndexMap).filter(index => index >= 0).sort((a, b) => a - b)[0];
+            const questionEnd = answerIndex >= 0 ? answerIndex : (typeof firstSectionIndex === 'number' ? firstSectionIndex : lines.length);
+            const questionLines = lines.slice(0, questionEnd);
+            if (!questionLines.length) return null;
+
+            let questionNo = '';
+            const firstLine = questionLines[0] || '';
+            const numberOnlyMatch = firstLine.match(/^(\d{1,3})[.、．]?$/);
+            const numberInlineMatch = firstLine.match(/^(\d{1,3})[.、．]\s*(.+)$/);
+            const stemLines = [];
+            if (numberOnlyMatch) {
+                questionNo = numberOnlyMatch[1];
+            } else if (numberInlineMatch) {
+                questionNo = numberInlineMatch[1];
+                stemLines.push(numberInlineMatch[2]);
+            }
+
+            const typeLabels = new Set(['单选题', '多选题', '判断题', '不定项选择题', '材料题']);
+            const bodyLines = questionLines.slice(numberOnlyMatch || numberInlineMatch ? 1 : 0)
+                .filter(line => !typeLabels.has(line));
+
+            const options = { A: '', B: '', C: '', D: '' };
+            let currentOptionKey = '';
+            bodyLines.forEach(line => {
+                const optionMatch = line.match(/^([A-D])[.、．]?\s*(.*)$/i);
+                if (optionMatch) {
+                    currentOptionKey = optionMatch[1].toUpperCase();
+                    options[currentOptionKey] = normalizeExamPreviewLine(optionMatch[2] || '');
+                    return;
+                }
+                if (/^[A-D]$/i.test(line)) {
+                    currentOptionKey = line.toUpperCase();
+                    return;
+                }
+                if (currentOptionKey) {
+                    options[currentOptionKey] = normalizeExamPreviewLine([options[currentOptionKey], line].filter(Boolean).join(' '));
+                    return;
+                }
+                stemLines.push(line);
+            });
+
+            const answerText = answerIndex >= 0
+                ? lines.slice(answerIndex, typeof firstSectionIndex === 'number' ? firstSectionIndex : Math.min(lines.length, answerIndex + 3)).join(' ')
+                : '';
+            const correctAnswerMatch = answerText.match(/正确答案(?:是)?[:：]?\s*([A-D])/i);
+            const userAnswerMatch = answerText.match(/(?:你的答案|我的答案)(?:是)?[:：]?\s*([A-D])/i);
+            const analysis = getExamSectionContent(lines, EXAM_CAPTURE_SECTION_LABELS.analysis, sectionIndexMap);
+            const knowledgePoint = getExamSectionContent(lines, EXAM_CAPTURE_SECTION_LABELS.knowledgePoint, sectionIndexMap);
+            const sourceName = getExamSectionContent(lines, EXAM_CAPTURE_SECTION_LABELS.sourceName, sectionIndexMap);
+            const statsSummary = summarizeExamStatsBlock(getExamSectionContent(lines, EXAM_CAPTURE_SECTION_LABELS.statsSummary, sectionIndexMap));
+            const note = getExamSectionContent(lines, EXAM_CAPTURE_SECTION_LABELS.note, sectionIndexMap);
+            const prompt = normalizeExamPreviewLine(stemLines.join(' '));
+
+            const parsed = {
+                questionNo,
+                prompt,
+                options,
+                correctAnswer: correctAnswerMatch ? correctAnswerMatch[1].toUpperCase() : '',
+                userAnswer: userAnswerMatch ? userAnswerMatch[1].toUpperCase() : '',
+                analysis,
+                knowledgePoint,
+                sourceName,
+                statsSummary,
+                note
+            };
+            parsed.originalContext = buildParsedExamContext(parsed) || normalizedText;
+            return parsed;
+        }
+
+        function autofillExamFieldsFromPaste() {
+            const examInput = document.getElementById('examKnowledgeInput');
+            if (!examInput) return;
+            const parsed = parseStructuredExamCapture(examInput.value);
+            if (!parsed || (!parsed.prompt && !Object.values(parsed.options).some(Boolean))) {
+                setExamAutoFillStatus('\u8fd9\u6bb5\u5185\u5bb9\u8fd8\u6ca1\u8bc6\u522b\u6210\u5b8c\u6574\u9898\u76ee\uff0c\u8bf7\u5c3d\u91cf\u4ece\u9898\u53f7\u5f00\u59cb\u590d\u5236\u5230\u201c\u7edf\u8ba1/\u7b14\u8bb0\u201d\u3002', 'error');
+                return;
+            }
+
+            const moduleInput = document.getElementById('examModuleInput');
+            const sourceInput = document.getElementById('examSourceInput');
+            const questionNoInput = document.getElementById('examQuestionNoInput');
+            const myAnswerInput = document.getElementById('examMyAnswerInput');
+            const correctAnswerInput = document.getElementById('examCorrectAnswerInput');
+
+            if (moduleInput && parsed.knowledgePoint) moduleInput.value = parsed.knowledgePoint;
+            if (sourceInput && parsed.sourceName) sourceInput.value = parsed.sourceName;
+            if (questionNoInput && parsed.questionNo) questionNoInput.value = parsed.questionNo;
+            if (myAnswerInput && parsed.userAnswer) myAnswerInput.value = parsed.userAnswer;
+            if (correctAnswerInput && parsed.correctAnswer) correctAnswerInput.value = parsed.correctAnswer;
+            examInput.value = parsed.originalContext;
+
+            const summaryBits = [
+                parsed.questionNo ? ('第' + parsed.questionNo + '题') : '',
+                parsed.correctAnswer ? ('正确答案 ' + parsed.correctAnswer) : '',
+                parsed.sourceName ? '来源已提取' : '',
+                parsed.knowledgePoint ? '考点已提取' : '',
+                parsed.statsSummary ? '统计已保留' : ''
+            ].filter(Boolean);
+            setExamAutoFillStatus('已自动拆分：' + summaryBits.join('，') + '。现在可以直接保存。', 'success');
+        }
+
         async function saveExamCardToDeck() {
             if (!window.tempExamPack || !Array.isArray(window.tempExamPack.cards)) return;
 
@@ -2205,18 +2826,24 @@
                         const tx = dbInst.transaction('cards', 'readwrite');
                         const store = tx.objectStore('cards');
                         localCards.forEach(c => {
-                            c.needsSync = true;
-                            c.updated_at = c.updated_at || new Date().toISOString();
-                            store.put(c);
+                            if (shouldSyncCardToCloud(c)) {
+                                c.needsSync = true;
+                                c.updated_at = c.updated_at || new Date().toISOString();
+                                store.put(c);
+                            }
                         });
-                        deck.forEach(c => { c.needsSync = true; });
+                        deck.forEach(c => { 
+                            if (shouldSyncCardToCloud(c)) c.needsSync = true; 
+                        });
                     }
                     await pushToCloud();
                     return;
                 }
 
-                // 提取云端卡片对象
-                const cloudCards = data.map(row => row.card_data);
+                // 提取云端卡片对象，并严格过滤掉考试卡片（确保云端脏数据不拉回本地）
+                const cloudCards = data
+                    .map(row => row.card_data)
+                    .filter(c => shouldSyncCardToCloud(c));
 
                 // 【时间戳冲突解决】逐张比对，只保留更新的版本
                 const localCards = await db.getAll();
@@ -2662,7 +3289,7 @@
 
             // 【新增】Apollo's Prophecy & CMRR Display
             // 1. 计算"明天"的整体记忆保留率 (基于过滤后的卡片)
-            const activeCards = filteredDeck.filter(c => c.reps > 0);
+            const activeCards = filteredDeck.filter(c => c.state > 0);
             let predictedR = 0;
             if (activeCards.length > 0) {
                 // 预测每张卡片在明天(1天后)的 R 值并取平均
@@ -2785,8 +3412,8 @@
                     // 【Expert Visual】形态学合成器 - 极简稳定版
                     // 逻辑：不再尝试用碎片拼凑单词，而是"大字显示单词，小字显示分析"
 
-                    // 【修改】复习模式(reps>0)隐藏Emoji，只有新卡片才显示，防止线索依赖
-                    const isReview = currentCard.reps > 0;
+                    // 【修改】复习/学习模式(state>0)隐藏Emoji，只有新卡片才显示，防止线索依赖
+                    const isReview = currentCard.state > 0;
                     const safeEmoji = currentCard.emoji ? escapeHTML(currentCard.emoji) : '';
                     const emojiHtml = (safeEmoji && !isReview) ? `<div class="emoji-badge">${safeEmoji}</div>` : "";
 
@@ -2810,7 +3437,7 @@
                         if (m.suffix) parts.push(`<span style="color:#007aff">${clean(m.suffix)}</span>`);
 
                         // 【Pedagogy Fix】复习模式默认模糊 (Blur)，点击揭示，防止“看答案”错觉
-                        const isReview = currentCard.reps > 0;
+                        const isReview = currentCard.state > 0;
                         const blurClass = isReview ? "cognitive-blur" : "";
                         const clickAction = isReview ? "this.classList.remove('cognitive-blur')" : "";
 
@@ -2853,8 +3480,9 @@
                 srArea.classList.add('hidden'); // 先默认隐藏
                 srText.innerHTML = "";          // 先清空内容
 
-                // 如果是新词 (reps===0) 且有 Self-Ref 内容，立刻显示 (Priming Effect)
-                if (currentCard.reps === 0 && currentCard.selfRef) {
+                // 【修改】逻辑：复习卡隐藏，新词(New Card)立即显示 Self-Ref 以激活情景记忆
+                // (只有绝对的新词，即尚未进入 Learning 状态)
+                if (currentCard.state === 0 && currentCard.selfRef) {
                     renderSelfRefCard(srText, 'Self-Reflection (Priming):', currentCard.selfRef);
                     srArea.classList.remove('hidden');
                 }
@@ -2897,11 +3525,13 @@
                 }
 
                 // Stats
-                const isNew = currentCard.reps === 0;
+                const isNew = currentCard.state === 0;
                 // 【Expert UI】Apollo Prophecy: 实时显示记忆保留率
                 // 计算逻辑：R = 算法预测你此刻大脑中还剩多少记忆
-                let statsHtml = "New Card";
-                if (!isNew) {
+                let statsHtml = (currentCard.state === 0) ? "New Card" :
+                                (currentCard.state === 1) ? "Learning..." :
+                                (currentCard.state === 3) ? "Relearning..." : "Review";
+                if (!isNew && currentCard.state === 2) {
                     const elapsed = (now - currentCard.lastReview) / 86400000;
                     const currentR = (predictR(currentCard.stability, elapsed) * 100).toFixed(1);
                     // 颜色编码：低于 70% 变红，激发危机感；高于 90% 变绿，建立自信
@@ -3157,7 +3787,7 @@
             // SelfRef 总是有按钮(要么显示内容，要么显示生成按钮)，所以不用变淡
 
             // 新卡片直接显示，复习卡片默认模糊
-            if (currentCard.reps > 0) {
+            if (currentCard.state > 0) {
                 const cleanSentence = document.getElementById('currentSentence').innerHTML; // 此时可能已经有文字了
                 // 重新包裹模糊逻辑
                 ctxContent.classList.remove('revealed'); // 重置状态
@@ -3218,14 +3848,23 @@
 
         function updateButtonLabels(card) {
             // 【新增】更新 Again 按钮的时间显示
-            const againTime = (card.difficulty > 6) ? '5m' : '1m';
+            // 预测按 Again 后的真实难度 (如果是新卡，按 initDifficulty计算)
+            const predictedD = card.state === 0 ? initDifficulty(1) : card.difficulty;
+            const againTime = (predictedD > 6) ? '5m' : '1m';
             document.querySelector('.btn-again small').innerText = againTime;
 
-            if (card.reps === 0) {
+            if (card.state === 0) {
+                // New
                 document.getElementById('ivl-hard').innerText = '1d';
                 document.getElementById('ivl-good').innerText = '3d';
                 document.getElementById('ivl-easy').innerText = '4d';
+            } else if (card.state === 1 || card.state === 3) {
+                // Learning & Relearning
+                document.getElementById('ivl-hard').innerText = '15m';
+                document.getElementById('ivl-good').innerText = '1d';
+                document.getElementById('ivl-easy').innerText = '2d';
             } else {
+                // Review
                 const ivl = getInterval(card.stability);
                 document.getElementById('ivl-hard').innerText = Math.max(1, Math.floor(ivl * 0.5)) + 'd';
                 document.getElementById('ivl-good').innerText = ivl + 'd';
@@ -3242,23 +3881,32 @@
                 elapsed = (now - currentCard.lastReview) / 86400000;
             }
 
+            // Migrate legacy data state
+            if (currentCard.state === undefined) {
+                currentCard.state = (currentCard.reps === 0) ? 0 : 2;
+            }
+
             let s = currentCard.stability, d = currentCard.difficulty;
-            let r = currentCard.reps === 0 ? 0 : Math.exp(Math.log(0.9) * elapsed / (s || 1));
-            if (currentCard.reps === 0) {
+            // Internal Consistency: FSRS v4 power-law based retrievability
+            let r = (currentCard.state === 0) ? 0 : 1 / (1 + elapsed / (9 * (s || 1)));
+
+            const originalState = currentCard.state;
+
+            // 4-State Finite State Machine (0: New, 1: Learning, 2: Review, 3: Relearning)
+            if (currentCard.state === 0) {
                 s = initStability(g);
                 d = initDifficulty(g);
-            } else {
-                // 【Expert Kernel】计算预测误差 (Reward Prediction Error)
-                // R = 当前时刻大脑理应还剩多少记忆 (0.0 - 1.0)
-                const currentR = predictR(currentCard.stability, elapsed);
-
+                currentCard.state = (g === 1) ? 1 : 2;
+            } else if (currentCard.state === 1 || currentCard.state === 3) {
+                if (g !== 1) {
+                    currentCard.state = 2;
+                }
+            } else if (currentCard.state === 2) {
                 d = nextDifficulty(d, g);
                 s = nextStability(s, d, g, r);
-
-                // 【Logic Fix】移除 RPE 动态数学修改
-                // 专家的审计指出：手动修改 s 和 d 会破坏 FSRS 算法的数学收敛性。
-                // 我们保留下方的“视觉特效”来提供多巴胺，但在“数学调度”上严格遵守 FSRS 标准公式。
-
+                if (g === 1) {
+                    currentCard.state = 3;
+                }
             }
 
             // 【Expert Gamification】变比强化系统 (Variable Ratio Reinforcement)
@@ -3293,6 +3941,41 @@
             currentCard.difficulty = d;
             currentCard.reps++;
 
+            let scheduledDays = 0;
+
+            if (g === 1 || (originalState === 1 || originalState === 3) && g === 2) {
+                // 【修改】动态 Again：如果难度 D > 6，说明是难词，间隔延长至 5分钟 (300000ms)，增加提取难度
+                // FSM补充：如果处于学习/重新学习阶段，选择 Hard(2) 也会进入分钟级循环 (比如 15分钟)
+                let minutesInterval = 60000; // default 1m
+                
+                if (g === 1) {
+                    minutesInterval = currentCard.difficulty > 6 ? 300000 : 60000;
+                    
+                    // 【Hypercorrection 逻辑钩子】
+                    if (currentConfidence === 3) {
+                        minutesInterval = 10000; // 10秒后立即重来
+                        alert("💡 Surprise! \nYou were sure, but got it wrong.\nThis is the BEST time to learn. Reviewing in 10s.");
+                    }
+                } else if (g === 2 && (originalState === 1 || originalState === 3)) {
+                    // Hard button pressed while learning -> 15m step
+                    minutesInterval = 900000;
+                }
+
+                currentCard.due = now + minutesInterval;
+                scheduledDays = minutesInterval / 86400000;
+
+            } else {
+                let days = 1;
+                if (originalState === 1 || originalState === 3) {
+                     // Graduating from learning/relearning manually based on updateButtonLabels approximations
+                     days = (g === 3) ? 1 : 2; 
+                } else {
+                     days = getInterval(s);
+                }
+                currentCard.due = now + (days * 86400000);
+                scheduledDays = days;
+            }
+
             // --- 记录详细复习历史 ---
             if (!currentCard.history) currentCard.history = [];
             currentCard.history.push({
@@ -3300,34 +3983,13 @@
                 rating: g,
                 state: currentCard.state,
                 elapsed_days: elapsed,
-                scheduled_days: getInterval(currentCard.stability),
+                scheduled_days: scheduledDays,
                 review_duration: 0 // 暂留，未来可接计时器
             });
             // -----------------------
 
             currentCard.lastReview = now;
 
-            if (g === 1) {
-                // 【修改】动态 Again：如果难度 D > 6，说明是难词，间隔延长至 5分钟 (300000ms)，增加提取难度
-                let againInterval = currentCard.difficulty > 6 ? 300000 : 60000;
-
-                // 【Hypercorrection 逻辑钩子】
-                // 如果用户之前“完全确定”(3) 但现在选了 Again，说明发生了“高自信错误”
-                // 此时大脑处于惊奇状态 (P300波)，我们立即进行超短间隔复习 (例如 10秒后)，利用这个窗口
-                if (currentConfidence === 3) {
-                    againInterval = 10000; // 10秒后立即重来
-                    alert("💡 Surprise! \nYou were sure, but got it wrong.\nThis is the BEST time to learn. Reviewing in 10s.");
-                }
-
-                currentCard.due = now + againInterval;
-
-                // 【逻辑修改】移除了此处不稳定的 setTimeout。
-                // 现在改由 render() 函数统一管理“自动刷新”，避免逻辑冲突。
-
-            } else {
-                const days = getInterval(s);
-                currentCard.due = now + (days * 86400000);
-            }
             // 【修改】只保存当前复习的这张卡片
             currentCard.needsSync = true;
             currentCard.updated_at = new Date().toISOString();
@@ -3588,42 +4250,197 @@
             }
         }
 
+        function getSubjectFilteredDeck(sourceDeck = deck) {
+            const currentSubject = window.currentSubject || 'all';
+            if (currentSubject === 'all') return sourceDeck;
+            if (currentSubject === '\u82f1\u8bed') {
+                return sourceDeck.filter(card => !isExamCardData(card));
+            }
+            return sourceDeck.filter(card => {
+                const sentence = card && card.sentence ? card.sentence : '';
+                const subjectByMeta = card && card.examMeta && card.examMeta.examType === currentSubject;
+                const subjectBySentence = sentence.includes(`[${currentSubject}]`);
+                return subjectByMeta || subjectBySentence;
+            });
+        }
+
+        function refreshExamListFilters(baseDeck) {
+            const filterBar = document.getElementById('examListFilterBar');
+            const moduleSelect = document.getElementById('examListModuleFilter');
+            const errorSelect = document.getElementById('examListErrorFilter');
+            const statusSelect = document.getElementById('examListStatusFilter');
+            const sourceSelect = document.getElementById('examListSourceFilter');
+            
+            if (!filterBar || !moduleSelect || !errorSelect || !statusSelect || !sourceSelect) return;
+            
+            const examCards = baseDeck.filter(card => card && card.examMeta);
+            if (examCards.length === 0) {
+                filterBar.style.display = 'none';
+                moduleSelect.innerHTML = '<option value="all">All modules</option>';
+                errorSelect.innerHTML = '<option value="all">All error types</option>';
+                statusSelect.innerHTML = '<option value="all">All statuses</option>';
+                sourceSelect.innerHTML = '<option value="all">All sources</option>';
+                return;
+            }
+            
+            filterBar.style.display = 'flex';
+            const modules = [...new Set(examCards.map(card => card.examMeta && card.examMeta.module).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+            const errorTypes = [...new Set(examCards.map(card => card.examMeta && card.examMeta.errorType).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+            const reviewStatuses = [...new Set(examCards.map(card => card.examMeta && card.examMeta.reviewStatus).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+            const sourceNames = [...new Set(examCards.map(card => card.examMeta && card.examMeta.sourceName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+            
+            const currentModule = window.listFilters && window.listFilters.module ? window.listFilters.module : 'all';
+            const currentErrorType = window.listFilters && window.listFilters.errorType ? window.listFilters.errorType : 'all';
+            const currentReviewStatus = window.listFilters && window.listFilters.reviewStatus ? window.listFilters.reviewStatus : 'all';
+            const currentSourceName = window.listFilters && window.listFilters.sourceName ? window.listFilters.sourceName : 'all';
+            
+            moduleSelect.innerHTML = '<option value="all">All modules</option>';
+            modules.forEach(moduleName => {
+                const option = document.createElement('option');
+                option.value = moduleName;
+                option.textContent = moduleName;
+                moduleSelect.appendChild(option);
+            });
+            moduleSelect.value = modules.includes(currentModule) ? currentModule : 'all';
+            
+            errorSelect.innerHTML = '<option value="all">All error types</option>';
+            errorTypes.forEach(errorType => {
+                const option = document.createElement('option');
+                option.value = errorType;
+                option.textContent = errorType;
+                errorSelect.appendChild(option);
+            });
+            errorSelect.value = errorTypes.includes(currentErrorType) ? currentErrorType : 'all';
+            
+            statusSelect.innerHTML = '<option value="all">All statuses</option>';
+            reviewStatuses.forEach(reviewStatus => {
+                const option = document.createElement('option');
+                option.value = reviewStatus;
+                option.textContent = reviewStatus;
+                statusSelect.appendChild(option);
+            });
+            statusSelect.value = reviewStatuses.includes(currentReviewStatus) ? currentReviewStatus : 'all';
+            
+            sourceSelect.innerHTML = '<option value="all">All sources</option>';
+            sourceNames.forEach(sourceName => {
+                const option = document.createElement('option');
+                option.value = sourceName;
+                option.textContent = sourceName;
+                sourceSelect.appendChild(option);
+            });
+            sourceSelect.value = sourceNames.includes(currentSourceName) ? currentSourceName : 'all';
+            
+            window.listFilters = {
+                module: moduleSelect.value,
+                errorType: errorSelect.value,
+                reviewStatus: statusSelect.value,
+                sourceName: sourceSelect.value
+            };
+        }
+
+        function applyExamListFilters(baseDeck) {
+            const filters = window.listFilters || { module: 'all', errorType: 'all', reviewStatus: 'all', sourceName: 'all' };
+            const hasActiveFilter = filters.module !== 'all' || filters.errorType !== 'all' || filters.reviewStatus !== 'all' || filters.sourceName !== 'all';
+            if (!hasActiveFilter) return baseDeck;
+            
+            return baseDeck.filter(card => {
+                const moduleMatch = filters.module === 'all' || (card.examMeta && card.examMeta.module === filters.module);
+                const errorMatch = filters.errorType === 'all' || (card.examMeta && card.examMeta.errorType === filters.errorType);
+                const statusMatch = filters.reviewStatus === 'all' || (card.examMeta && card.examMeta.reviewStatus === filters.reviewStatus);
+                const sourceMatch = filters.sourceName === 'all' || (card.examMeta && card.examMeta.sourceName === filters.sourceName);
+                return moduleMatch && errorMatch && statusMatch && sourceMatch;
+            });
+        }
+
+        function handleExamListFilterChange() {
+            const moduleSelect = document.getElementById('examListModuleFilter');
+            const errorSelect = document.getElementById('examListErrorFilter');
+            const statusSelect = document.getElementById('examListStatusFilter');
+            const sourceSelect = document.getElementById('examListSourceFilter');
+            window.listFilters = {
+                module: moduleSelect ? moduleSelect.value : 'all',
+                errorType: errorSelect ? errorSelect.value : 'all',
+                reviewStatus: statusSelect ? statusSelect.value : 'all',
+                sourceName: sourceSelect ? sourceSelect.value : 'all'
+            };
+            renderListContent();
+        }
+
         function renderListContent() {
             const listContainer = document.getElementById('fullWordList');
             const subjectDeck = getSubjectFilteredDeck(deck);
             refreshExamListFilters(subjectDeck);
             const filteredDeck = applyExamListFilters(subjectDeck);
+            
             document.getElementById('totalWordCount').innerText = filteredDeck.length;
             listContainer.innerHTML = '';
+            
             const sortedDeck = [...filteredDeck].reverse();
             const displayDeck = sortedDeck.slice(0, 100);
+            
             if (displayDeck.length === 0) {
                 const emptyText = subjectDeck.length === 0 ? 'No cards in this subject.' : 'No cards match current filters.';
                 listContainer.innerHTML = `<div style="text-align:center;color:#999;padding:20px;">${emptyText}</div>`;
                 return;
             }
+            
             displayDeck.forEach(card => {
                 const item = document.createElement('div');
-                item.className = 'word-item';
-                let preview = card.definition ? card.definition : (card.sentence ? card.sentence : 'No context');
-                if (preview.length > 50) preview = preview.substring(0, 50) + '...';
+                const isExamCard = isExamCardData(card);
+                item.className = isExamCard ? 'word-item exam-card-item' : 'word-item';
+                
+                let preview = isExamCard 
+                    ? buildExamListPreview(card) 
+                    : (card.originalContext ? card.originalContext : (card.definition ? card.definition : (card.sentence ? card.sentence : 'No context')));
+                
+                const maxPreviewLength = isExamCard ? 110 : 50;
+                if (preview.length > maxPreviewLength) preview = preview.substring(0, maxPreviewLength) + '...';
+                
                 const header = document.createElement('div');
                 header.className = 'word-header';
+                
                 const info = document.createElement('div');
                 info.className = 'word-info';
+                
                 const strong = document.createElement('strong');
-                strong.textContent = card.word;
+                strong.textContent = isExamCard ? getExamDisplayTitle(card) : card.word;
                 info.appendChild(strong);
+                
+                if (isExamCard) {
+                    const subtitle = getExamDisplaySubtitle(card);
+                    if (subtitle) {
+                        const subtitleEl = document.createElement('div');
+                        subtitleEl.className = 'exam-item-subtitle';
+                        subtitleEl.textContent = subtitle;
+                        info.appendChild(subtitleEl);
+                    }
+                }
+                
                 header.appendChild(info);
+                
                 const previewEl = document.createElement('div');
-                previewEl.className = 'word-context-preview';
+                previewEl.className = isExamCard ? 'word-context-preview exam-context-preview' : 'word-context-preview';
                 previewEl.textContent = preview;
+                
+                let answerSummaryEl = null;
+                if (isExamCard) {
+                    const answerSummary = buildExamAnswerSummary(card);
+                    if (answerSummary) {
+                        answerSummaryEl = document.createElement('div');
+                        answerSummaryEl.className = 'exam-answer-preview';
+                        answerSummaryEl.textContent = answerSummary;
+                    }
+                }
+                
                 let metaRow = null;
                 const metaLabels = [
                     card.examMeta && card.examMeta.module,
                     card.examMeta && card.examMeta.cardType,
-                    card.examMeta && card.examMeta.errorType
+                    card.examMeta && card.examMeta.errorType,
+                    card.examMeta && card.examMeta.reviewStatus,
+                    card.examMeta && card.examMeta.sourceName
                 ].filter(Boolean);
+                
                 if (metaLabels.length > 0) {
                     metaRow = document.createElement('div');
                     metaRow.style.display = 'flex';
@@ -3642,8 +4459,10 @@
                         metaRow.appendChild(chip);
                     });
                 }
+                
                 const actions = document.createElement('div');
                 actions.className = 'item-actions';
+                
                 const editBtn = document.createElement('button');
                 editBtn.className = 'edit-btn';
                 editBtn.textContent = 'Edit';
@@ -4422,6 +5241,959 @@
             if (confirm("Clear all words from Inbox?")) {
                 localStorage.removeItem('simple_vocab_sync');
                 openInboxModal(true);
+            }
+        }
+
+        
+        // ====== 每日检验 (Daily Quiz) ======
+        function openDailyQuizModal() {
+            resetDailyQuizModal();
+            const modal = document.getElementById('dailyQuizModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeDailyQuizModal() {
+            const modal = document.getElementById('dailyQuizModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function resetDailyQuizModal() {
+            dailyQuizSession = null;
+            dailyQuizIntensity = 'standard';
+            const manualInput = document.getElementById('dailyQuizManualInput');
+            if (manualInput) {
+                manualInput.value = '';
+                manualInput.oninput = refreshDailyQuizSourceSummary;
+            }
+            ['dailyQuizLoadingView', 'dailyQuizSessionView', 'dailyQuizResultView', 'dailyQuizFeedback'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            const setupView = document.getElementById('dailyQuizSetupView');
+            if (setupView) setupView.classList.remove('hidden');
+            const questionCard = document.getElementById('dailyQuizQuestionCard');
+            if (questionCard) questionCard.innerHTML = '';
+            const resultSummary = document.getElementById('dailyQuizResultSummary');
+            if (resultSummary) resultSummary.innerHTML = '';
+            const resultDetail = document.getElementById('dailyQuizResultDetail');
+            if (resultDetail) resultDetail.innerHTML = '';
+            const startBtn = document.getElementById('dailyQuizStartBtn');
+            if (startBtn) {
+                startBtn.onclick = startDailyQuiz;
+                startBtn.disabled = false;
+                startBtn.style.opacity = '1';
+            }
+            const saveBtn = document.getElementById('dailyQuizSaveFailuresBtn');
+            if (saveBtn) {
+                saveBtn.textContent = '保存薄弱项到复习';
+                saveBtn.disabled = true;
+                saveBtn.style.opacity = '0.5';
+            }
+            renderDailyQuizSubjectScopeOptions();
+            setDailyQuizIntensity('standard');
+            refreshDailyQuizSourceSummary();
+        }
+
+
+        function setDailyQuizIntensity(mode) {
+            dailyQuizIntensity = mode;
+            document.querySelectorAll('#dailyQuizIntensityGroup [data-intensity]').forEach(btn => {
+                const active = btn.getAttribute('data-intensity') === mode;
+                btn.style.boxShadow = active ? '0 0 0 2px rgba(47,124,246,0.18)' : 'none';
+                btn.style.transform = active ? 'translateY(-1px)' : 'none';
+                btn.style.opacity = active ? '1' : '0.78';
+            });
+            refreshDailyQuizSourceSummary();
+        }
+
+        function getDayStart(ts = Date.now()) {
+            const d = new Date(ts);
+            d.setHours(0, 0, 0, 0);
+            return d.getTime();
+        }
+
+        function isTodayTimestamp(ts) {
+            const num = typeof ts === 'number' ? ts : new Date(ts || 0).getTime();
+            if (!Number.isFinite(num) || num <= 0) return false;
+            const start = getDayStart();
+            return num >= start && num < start + 86400000;
+        }
+
+        function getCardSourceText(card) {
+            const parts = [];
+            if (card.word) parts.push(String(card.word).trim());
+            if (card.definition) parts.push(String(card.definition).trim());
+            if (card.originalContext) parts.push(String(card.originalContext).trim());
+            else if (card.sentence) parts.push(String(card.sentence).replace(/\[[^\]]+\]/g, '').trim());
+            if (card.examMeta && card.examMeta.summary) parts.push(String(card.examMeta.summary).trim());
+            return parts.filter(Boolean).join(' | ');
+        }
+
+        function uniqueById(cards) {
+            const seen = new Set();
+            return cards.filter(card => {
+                if (!card || !card.id || seen.has(card.id)) return false;
+                seen.add(card.id);
+                return true;
+            });
+        }
+
+        function getDailyQuizScopedDeck(subject = window.currentSubject, sourceDeck = deck) {
+            function isExamCard(card) {
+                const sentence = card && card.sentence ? card.sentence : '';
+                if (card && card.examMeta && EXAM_SUBJECTS.includes(card.examMeta.examType)) return true;
+                return EXAM_SUBJECTS.some(examSubject => sentence.includes(`[${examSubject}]`));
+            }
+            if (!subject || subject === 'current' || subject === 'all') return sourceDeck;
+            if (subject === ENGLISH_SUBJECT) {
+                return sourceDeck.filter(card => !isExamCard(card));
+            }
+            return sourceDeck.filter(card => {
+                const sentence = card && card.sentence ? card.sentence : '';
+                const subjectByMeta = card && card.examMeta && card.examMeta.examType === subject;
+                const subjectBySentence = sentence.includes(`[${subject}]`);
+                return subjectByMeta || subjectBySentence;
+            });
+        }
+
+        function renderDailyQuizSubjectScopeOptions() {
+            const selectEl = document.getElementById('dailyQuizSubjectScope');
+            if (!selectEl) return;
+            const defaultScope = window.currentSubject === 'all' ? 'all' : window.currentSubject;
+            const options = [];
+            if (window.currentSubject === 'all') {
+                options.push({ value: 'all', label: '\u5168\u90e8\u5b66\u79d1\uff08\u6df7\u5408\uff09' });
+                [ENGLISH_SUBJECT].concat(EXAM_SUBJECTS).forEach(subject => {
+                    if (getDailyQuizScopedDeck(subject).length) {
+                        options.push({ value: subject, label: subject });
+                    }
+                });
+            } else {
+                options.push({ value: window.currentSubject, label: `\u5f53\u524d\u5b66\u79d1\uff1a${window.currentSubject}` });
+            }
+            if (!options.length) {
+                options.push({ value: defaultScope, label: defaultScope === 'all' ? '\u5168\u90e8\u5b66\u79d1\uff08\u6df7\u5408\uff09' : defaultScope });
+            }
+            const previous = selectEl.value || defaultScope;
+            selectEl.innerHTML = options.map(option => `<option value="${escapeHTML(option.value)}">${escapeHTML(option.label)}</option>`).join('');
+            const values = options.map(option => option.value);
+            selectEl.value = values.includes(previous) ? previous : options[0].value;
+        }
+
+        function collectDailyQuizSources() {
+            const dayStart = getDayStart();
+            const scopeEl = document.getElementById('dailyQuizSubjectScope');
+            const scope = scopeEl ? scopeEl.value : window.currentSubject;
+            const subjectDeck = getDailyQuizScopedDeck(scope);
+            const todayNotes = uniqueById(subjectDeck.filter(card => {
+                const updatedTs = new Date(card.updated_at || 0).getTime();
+                const isDirectWrong = card.examMeta && ['direct_wrong_capture', 'pdf_exam_import'].includes(card.examMeta.entryMode);
+                return updatedTs >= dayStart && !isDirectWrong;
+            }));
+            const todayWrongs = uniqueById(subjectDeck.filter(card => {
+                const history = Array.isArray(card.history) ? card.history : [];
+                const isReviewWrong = history.some(entry => isTodayTimestamp(entry.date) && Number(entry.rating || 0) <= 2);
+                const isDirectWrong = card.examMeta && ['direct_wrong_capture', 'pdf_exam_import'].includes(card.examMeta.entryMode) && new Date(card.updated_at || 0).getTime() >= dayStart;
+                return isReviewWrong || isDirectWrong;
+            }));
+            return {
+                subject: scope,
+                todayNotes,
+                todayWrongs,
+                dayStart
+            };
+        }
+
+
+        function getDailyQuizConfig(bundle, manualSummary = '') {
+            const presetMap = {
+                quick: { min: 4, max: 6, followUps: 1, label: '快速检测' },
+                standard: { min: 6, max: 10, followUps: 1, label: '标准检测' },
+                intense: { min: 9, max: 14, followUps: 2, label: '强化检测' }
+            };
+            const preset = presetMap[dailyQuizIntensity] || presetMap.standard;
+            const loadScore = bundle.todayNotes.length + bundle.todayWrongs.length * 1.4 + Math.min(5, Math.ceil((manualSummary || '').trim().length / 120));
+            const desired = Math.max(preset.min, Math.min(preset.max, preset.min + Math.floor(loadScore / 2)));
+            const estMinutes = dailyQuizIntensity === 'quick' ? [5, 8] : dailyQuizIntensity === 'intense' ? [18, 30] : [10, 18];
+            return {
+                desiredQuestions: desired,
+                followUps: preset.followUps,
+                label: preset.label,
+                estimateText: `预计 ${estMinutes[0]}-${estMinutes[1]} 分钟，系统会优先抽取最能暴露掌握情况的题。`
+            };
+        }
+
+        function refreshDailyQuizSourceSummary() {
+            const bundle = collectDailyQuizSources();
+            const manualSummary = (document.getElementById('dailyQuizManualInput') || { value: '' }).value.trim();
+            const config = getDailyQuizConfig(bundle, manualSummary);
+            const scopeLabel = bundle.subject === 'all' ? '全部学科（混合）' : bundle.subject;
+            const chips = [
+                { label: '今日新增笔记', value: bundle.todayNotes.length, color: '#2f7cf6' },
+                { label: '今日错题/低表现', value: bundle.todayWrongs.length, color: '#ff9500' },
+                { label: '手动总结', value: manualSummary ? '已填写' : '未填写', color: '#34c759' },
+                { label: '检测范围', value: scopeLabel, color: '#5856d6' }
+            ];
+            const summaryEl = document.getElementById('dailyQuizSourceSummary');
+            if (summaryEl) {
+                summaryEl.innerHTML = chips.map(chip => `<span style="background:${chip.color}12; color:${chip.color}; border:1px solid ${chip.color}33; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700;">${escapeHTML(chip.label)}: ${escapeHTML(String(chip.value))}</span>`).join('');
+            }
+            const recommendationEl = document.getElementById('dailyQuizRecommendation');
+            if (recommendationEl) {
+                recommendationEl.innerHTML = `${config.label} · 预计 ${config.desiredQuestions} 题 · ${escapeHTML(config.estimateText)}`;
+            }
+            const previewLines = [];
+            previewLines.push(bundle.subject === 'all'
+                ? '当前会混合多个学科的材料出题。为了减少串题，建议切到单学科再测。'
+                : `当前只会使用 ${escapeHTML(scopeLabel)} 的材料组卷。`);
+            if (bundle.todayNotes.length) {
+                previewLines.push(`今日新增示例：${escapeHTML(bundle.todayNotes.slice(0, 2).map(card => card.word || card.definition || '未命名内容').join(' / '))}`);
+            }
+            if (bundle.todayWrongs.length) {
+                previewLines.push(`今日错题示例：${escapeHTML(bundle.todayWrongs.slice(0, 2).map(card => card.word || card.definition || '未命名内容').join(' / '))}`);
+            }
+            if (!bundle.todayNotes.length && !bundle.todayWrongs.length && !manualSummary) {
+                previewLines.push('今天还没有可用素材。你可以直接粘贴一段总结来出题。');
+            }
+            const previewEl = document.getElementById('dailyQuizSourcePreview');
+            if (previewEl) previewEl.innerHTML = previewLines.join('<br>');
+        }
+
+
+        async function requestDeepSeekJson(systemPrompt, userPrompt) {
+            const response = await fetch(AI_CONFIG.baseUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + AI_CONFIG.apiKey
+                },
+                body: JSON.stringify({
+                    model: AI_CONFIG.model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.2,
+                    response_format: { type: 'json_object' }
+                })
+            });
+            if (!response.ok) throw new Error('API request failed');
+            const data = await response.json();
+            let jsonStr = data.choices[0].message.content.trim();
+            jsonStr = jsonStr.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+            return JSON.parse(jsonStr);
+        }
+        function normalizeQuizOptionList(type, options, answerRaw) {
+            let normalizedOptions = Array.isArray(options) ? options.map(opt => String(opt).trim()).filter(Boolean) : [];
+            if (type === 'true_false') {
+                normalizedOptions = normalizedOptions.length >= 2 ? normalizedOptions.slice(0, 2) : ['姝ｇ‘', '閿欒'];
+            }
+            if (!normalizedOptions.length) normalizedOptions = ['选项 A', '选项 B', '选项 C', '选项 D'];
+            let answerIndices = [];
+            if (Array.isArray(answerRaw)) {
+                answerIndices = answerRaw.map(v => Number(v)).filter(v => Number.isInteger(v) && v >= 0 && v < normalizedOptions.length);
+            } else if (typeof answerRaw === 'number') {
+                answerIndices = [answerRaw].filter(v => v >= 0 && v < normalizedOptions.length);
+            } else if (typeof answerRaw === 'string') {
+                const directIndex = normalizedOptions.findIndex(opt => opt === answerRaw.trim());
+                if (directIndex > -1) answerIndices = [directIndex];
+                const asNum = Number(answerRaw);
+                if (!answerIndices.length && Number.isInteger(asNum) && asNum >= 0 && asNum < normalizedOptions.length) answerIndices = [asNum];
+                if (!answerIndices.length && type === 'true_false') {
+                    const lowered = answerRaw.trim().toLowerCase();
+                    answerIndices = [lowered === 'true' || lowered === '姝ｇ‘' ? 0 : 1];
+                }
+            } else if (typeof answerRaw === 'boolean') {
+                answerIndices = [answerRaw ? 0 : 1];
+            }
+            if (!answerIndices.length) answerIndices = [0];
+            return {
+                options: normalizedOptions,
+                correctIndices: Array.from(new Set(answerIndices)).sort((a, b) => a - b)
+            };
+        }
+
+        function normalizeQuizTextAnswers(answerRaw, acceptedRaw) {
+            const answers = [];
+            const pushText = (value) => {
+                if (value === undefined || value === null) return;
+                const text = String(value).trim();
+                if (text) answers.push(text);
+            };
+
+            if (Array.isArray(acceptedRaw)) acceptedRaw.forEach(pushText);
+            else pushText(acceptedRaw);
+
+            if (Array.isArray(answerRaw)) {
+                answerRaw.forEach(value => {
+                    if (typeof value !== 'number') pushText(value);
+                });
+            } else if (typeof answerRaw === 'string') {
+                pushText(answerRaw);
+            }
+
+            return Array.from(new Set(answers));
+        }
+
+        function normalizeQuizQuestion(rawQuestion, index) {
+            const rawType = String(rawQuestion.type || rawQuestion.question_type || 'single_choice').trim().toLowerCase();
+            const type = rawType === 'multi_select' || rawType === 'multiple_choice_multi'
+                ? 'multi_select'
+                : rawType === 'true_false' || rawType === 'judgement'
+                    ? 'true_false'
+                    : rawType === 'short_answer' || rawType === 'fill_in_blank' || rawType === 'short_text'
+                        ? 'short_answer'
+                        : 'single_choice';
+            const answerRaw = rawQuestion.correct_indices ?? rawQuestion.answer_indices ?? rawQuestion.answer_index ?? rawQuestion.correct_answer ?? rawQuestion.answer;
+            const optionData = type === 'short_answer'
+                ? { options: [], correctIndices: [] }
+                : normalizeQuizOptionList(type, rawQuestion.options, answerRaw);
+            const acceptedAnswers = type === 'short_answer'
+                ? normalizeQuizTextAnswers(answerRaw, rawQuestion.accepted_answers ?? rawQuestion.answers ?? rawQuestion.keywords)
+                : [];
+            const followUps = Array.isArray(rawQuestion.follow_ups) ? rawQuestion.follow_ups.map((item, i) => normalizeQuizQuestion({ ...item, follow_ups: [] }, `${index}_f${i}`)).filter(item => item && item.question) : [];
+            return {
+                id: rawQuestion.id || `q_${index}`,
+                focus: String(rawQuestion.focus || rawQuestion.skill || rawQuestion.topic || `知识点 ?${index + 1}`).trim(),
+                sourceKey: String(rawQuestion.source_key || rawQuestion.source || '').trim(),
+                sourceNote: String(rawQuestion.source_note || rawQuestion.source_excerpt || '').trim(),
+                type,
+                question: String(rawQuestion.question || rawQuestion.prompt || '').trim(),
+                options: optionData.options,
+                correctIndices: optionData.correctIndices,
+                acceptedAnswers,
+                explanation: String(rawQuestion.explanation || rawQuestion.analysis || '').trim(),
+                followUps
+            };
+        }
+
+        function normalizeDailyQuizPayload(payload) {
+            const rawQuestions = Array.isArray(payload.questions) ? payload.questions : [];
+            const questions = rawQuestions
+                .map((question, index) => normalizeQuizQuestion(question, index))
+                .filter(question => question.question && (
+                    (question.type === 'short_answer' && Array.isArray(question.acceptedAnswers) && question.acceptedAnswers.length > 0) ||
+                    (Array.isArray(question.options) && question.options.length >= 2)
+                ));
+            return {
+                title: String(payload.title || '今日测验').trim(),
+                intro: String(payload.intro || payload.summary || '').trim(),
+                questions
+            };
+        }
+
+        function buildDailyQuizSourcePayload(bundle, manualSummary) {
+            const notePayload = bundle.todayNotes.slice(0, 12).map((card, index) => ({
+                source_key: `note_${index + 1}`,
+                source_type: 'today_note',
+                focus: card.word || card.definition || `笔记 ${index + 1}`,
+                content: getCardSourceText(card)
+            }));
+            const wrongPayload = bundle.todayWrongs.slice(0, 12).map((card, index) => ({
+                source_key: `wrong_${index + 1}`,
+                source_type: 'today_wrong',
+                focus: card.word || card.definition || `错题 ${index + 1}`,
+                content: getCardSourceText(card),
+                weak_history: (Array.isArray(card.history) ? card.history.filter(entry => isTodayTimestamp(entry.date) && Number(entry.rating || 0) <= 2).length : 0)
+            }));
+            return {
+                notes: notePayload,
+                wrongs: wrongPayload,
+                manual_summary: manualSummary ? [{ source_key: 'manual_1', source_type: 'manual_summary', focus: '手动总结', content: manualSummary }] : []
+            };
+        }
+
+        async function startDailyQuiz() {
+            const bundle = collectDailyQuizSources();
+            const manualSummary = (document.getElementById('dailyQuizManualInput') || { value: '' }).value.trim();
+            if (!bundle.todayNotes.length && !bundle.todayWrongs.length && !manualSummary) {
+                alert('今天还没有可组卷的素材，请先记录内容或粘贴一段总结。');
+                return;
+            }
+            if (!AI_CONFIG.apiKey || AI_CONFIG.apiKey.includes('濉叆')) {
+                alert('请先配置 DeepSeek API Key。');
+                return;
+            }
+            const config = getDailyQuizConfig(bundle, manualSummary);
+            const startBtn = document.getElementById('dailyQuizStartBtn');
+            if (startBtn) {
+                startBtn.disabled = true;
+                startBtn.style.opacity = '0.5';
+            }
+            document.getElementById('dailyQuizSetupView').classList.add('hidden');
+            document.getElementById('dailyQuizResultView').classList.add('hidden');
+            document.getElementById('dailyQuizSessionView').classList.add('hidden');
+            document.getElementById('dailyQuizLoadingView').classList.remove('hidden');
+
+            const sourcePayload = buildDailyQuizSourcePayload(bundle, manualSummary);
+            const systemPrompt = [
+                '你是一个高诊断价值的学习测验生成器。你的任务不是安抚用户，也不是自由发挥教学总结。',
+                '请基于用户今天的笔记、今天做错或表现不佳的内容，以及手动补充总结，生成一轮可自动判分的小测。',
+                '严格要求：',
+                '1. 允许题型：single_choice、multi_select、true_false、short_answer。',
+                '2. 如果是 objective 题型，必须给出 options、correct_indices、explanation。',
+                '3. 如果是 short_answer，必须给出 accepted_answers（数组）和 explanation。',
+                '4. 每题必须给出 1 到 2 个 follow_ups，follow_ups 也可以是 short_answer。',
+                '5. 题目优先暴露用户有没有真正掌握，不要出空泛或鸡汤式问题。',
+                '6. 如果材料只是短笔记或定义，优先出 short_answer 或 fill-in-the-blank 风格，逼用户主动回忆。',
+                '7. 输出严格 JSON，不要 markdown。',
+                '{"title":"今日测验","intro":"...","questions":[{"id":"q1","focus":"知识点","source_key":"note_1","source_note":"原始材料摘录","type":"short_answer","question":"请直接写出核心条件","accepted_answers":["答案1","答案2"],"explanation":"...","follow_ups":[{"type":"true_false","question":"...","options":["正确","错误"],"correct_indices":[0],"explanation":"..."}]}]}'
+            ].join('\n');
+            const userPrompt = JSON.stringify({
+                scope: bundle.subject === 'all' ? '全部学科' : bundle.subject,
+                intensity: dailyQuizIntensity,
+                desired_questions: config.desiredQuestions,
+                follow_up_depth: config.followUps,
+                sources: sourcePayload
+            }, null, 2);
+
+            try {
+                const payload = await requestDeepSeekJson(systemPrompt, userPrompt);
+                const quiz = normalizeDailyQuizPayload(payload);
+                if (!quiz.questions.length) throw new Error('AI did not return valid quiz questions');
+                dailyQuizSession = {
+                    quiz,
+                    bundle,
+                    config,
+                    manualSummary,
+                    questionIndex: 0,
+                    currentFollowUpIndex: -1,
+                    currentSelection: [],
+                    currentTextAnswer: '',
+                    results: quiz.questions.map(question => ({
+                        focus: question.focus,
+                        sourceKey: question.sourceKey,
+                        sourceNote: question.sourceNote,
+                        status: 'pending',
+                        attempts: []
+                    }))
+                };
+                document.getElementById('dailyQuizLoadingView').classList.add('hidden');
+                document.getElementById('dailyQuizSessionView').classList.remove('hidden');
+                renderDailyQuizStep();
+            } catch (error) {
+                console.error(error);
+                document.getElementById('dailyQuizLoadingView').classList.add('hidden');
+                document.getElementById('dailyQuizSetupView').classList.remove('hidden');
+                const previewEl = document.getElementById('dailyQuizSourcePreview');
+                if (previewEl) previewEl.innerHTML = `<span style="color:#d93025;">组卷失败：${escapeHTML(error.message)}</span>`;
+            } finally {
+                if (startBtn) {
+                    startBtn.disabled = false;
+                    startBtn.style.opacity = '1';
+                }
+            }
+        }
+
+        function getDailyQuizActiveItem() {
+            if (!dailyQuizSession || !dailyQuizSession.quiz || !Array.isArray(dailyQuizSession.quiz.questions)) return null;
+            const question = dailyQuizSession.quiz.questions[dailyQuizSession.questionIndex];
+            if (!question) return null;
+            if (dailyQuizSession.currentFollowUpIndex >= 0) {
+                const followUps = Array.isArray(question.followUps) ? question.followUps : [];
+                const followUp = followUps[dailyQuizSession.currentFollowUpIndex];
+                if (!followUp) return null;
+                return {
+                    ...followUp,
+                    isFollowUp: true,
+                    stageIndex: dailyQuizSession.currentFollowUpIndex + 2,
+                    totalStages: followUps.length + 1,
+                    focus: question.focus,
+                    sourceKey: question.sourceKey,
+                    sourceNote: question.sourceNote,
+                    mainQuestion: question
+                };
+            }
+            return {
+                ...question,
+                isFollowUp: false,
+                stageIndex: 1,
+                totalStages: (Array.isArray(question.followUps) ? question.followUps.length : 0) + 1,
+                mainQuestion: question
+            };
+        }
+
+        function updateDailyQuizSelection(index, checked) {
+            if (!dailyQuizSession) return;
+            const activeItem = getDailyQuizActiveItem();
+            if (!activeItem) return;
+            if (activeItem.type === 'multi_select') {
+                const next = new Set(dailyQuizSession.currentSelection || []);
+                if (checked) next.add(index);
+                else next.delete(index);
+                dailyQuizSession.currentSelection = [...next].sort((a, b) => a - b);
+            } else {
+                dailyQuizSession.currentSelection = [index];
+            }
+            syncDailyQuizSelectionUI();
+        }
+
+        function updateDailyQuizTextAnswer(value) {
+            if (!dailyQuizSession) return;
+            dailyQuizSession.currentTextAnswer = String(value || '');
+        }
+
+        function syncDailyQuizSelectionUI() {
+            const selectedSet = new Set(dailyQuizSession && Array.isArray(dailyQuizSession.currentSelection) ? dailyQuizSession.currentSelection : []);
+            document.querySelectorAll('#dailyQuizQuestionCard [data-quiz-option]').forEach(button => {
+                const idx = Number(button.getAttribute('data-quiz-option'));
+                const active = selectedSet.has(idx);
+                button.style.border = active ? '1.5px solid #2f7cf6' : '1px solid #dfe5ee';
+                button.style.background = active ? '#eef4ff' : '#fff';
+                button.style.boxShadow = active ? '0 0 0 3px rgba(47,124,246,0.12)' : 'none';
+                const marker = button.querySelector('[data-quiz-marker]');
+                if (marker) {
+                    marker.style.borderColor = active ? '#2f7cf6' : '#c8d0dd';
+                    marker.style.background = active ? '#2f7cf6' : '#fff';
+                    marker.style.color = active ? '#fff' : '#7b8794';
+                }
+            });
+        }
+
+        function handleDailyQuizOptionClick(index) {
+            if (!dailyQuizSession) return;
+            const activeItem = getDailyQuizActiveItem();
+            if (!activeItem) return;
+            if (activeItem.type === 'multi_select') {
+                const selectedSet = new Set(dailyQuizSession.currentSelection || []);
+                updateDailyQuizSelection(index, !selectedSet.has(index));
+            } else {
+                updateDailyQuizSelection(index, true);
+            }
+            renderDailyQuizStep();
+        }
+
+
+        function renderDailyQuizStep() {
+            if (!dailyQuizSession) return;
+            const activeItem = getDailyQuizActiveItem();
+            if (!activeItem) {
+                finishDailyQuizSession();
+                return;
+            }
+            const totalQuestions = dailyQuizSession.quiz.questions.length || 1;
+            const progressBase = dailyQuizSession.questionIndex + (activeItem.isFollowUp ? 0.6 : 0.2);
+            const progressPercent = Math.max(6, Math.min(100, Math.round((progressBase / totalQuestions) * 100)));
+            const progressBar = document.getElementById('dailyQuizProgressBar');
+            if (progressBar) progressBar.style.width = `${progressPercent}%`;
+            const progressText = document.getElementById('dailyQuizProgressText');
+            if (progressText) {
+                const stageText = activeItem.isFollowUp
+                    ? `第 ${dailyQuizSession.questionIndex + 1} 题 · 追打 ${dailyQuizSession.currentFollowUpIndex + 1}`
+                    : `第 ${dailyQuizSession.questionIndex + 1} / ${totalQuestions} 题`;
+                progressText.textContent = `${stageText} · ${activeItem.focus || '未命名知识点'}`;
+            }
+
+            const feedbackEl = document.getElementById('dailyQuizFeedback');
+            if (feedbackEl) {
+                feedbackEl.classList.add('hidden');
+                feedbackEl.innerHTML = '';
+            }
+
+            const submitBtn = document.getElementById('dailyQuizSubmitBtn');
+            if (submitBtn) {
+                submitBtn.textContent = '提交答案';
+                submitBtn.onclick = submitDailyQuizAnswer;
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+            }
+            const skipBtn = document.getElementById('dailyQuizSkipBtn');
+            if (skipBtn) {
+                skipBtn.textContent = activeItem.isFollowUp ? '跳过这道追打' : '跳过这题';
+                skipBtn.onclick = skipCurrentDailyQuizItem;
+                skipBtn.disabled = false;
+                skipBtn.style.opacity = '1';
+            }
+
+            const questionTypeLabel = activeItem.type === 'multi_select'
+                ? '多选题'
+                : activeItem.type === 'true_false'
+                    ? '判断题'
+                    : activeItem.type === 'short_answer'
+                        ? '简答题'
+                        : '单选题';
+            const selectedSet = new Set(dailyQuizSession.currentSelection || []);
+            const optionList = Array.isArray(activeItem.options) ? activeItem.options : [];
+            const optionsHtml = optionList.map((option, idx) => {
+                const markerText = String.fromCharCode(65 + idx);
+                return `
+                    <button type="button" data-quiz-option="${idx}" onclick="handleDailyQuizOptionClick(${idx})" style="display:flex; width:100%; gap:12px; align-items:flex-start; background:#fff; border:1px solid #dfe5ee; border-radius:14px; padding:12px; cursor:pointer; transition:all 0.16s ease; text-align:left;">
+                        <span data-quiz-marker="${idx}" style="width:24px; height:24px; border-radius:999px; border:1px solid #c8d0dd; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#7b8794; background:${selectedSet.has(idx) ? '#2f7cf6' : '#fff'}; color:${selectedSet.has(idx) ? '#fff' : '#7b8794'}; border-color:${selectedSet.has(idx) ? '#2f7cf6' : '#c8d0dd'}; flex:0 0 24px; margin-top:1px;">${escapeHTML(markerText)}</span>
+                        <span style="flex:1; color:#222; line-height:1.6;">${escapeHTML(option)}</span>
+                    </button>
+                `;
+            }).join('');
+            const answerAreaHtml = activeItem.type === 'short_answer'
+                ? `
+                    <div style="display:grid; gap:10px;">
+                        <textarea id="dailyQuizShortAnswerInput" oninput="updateDailyQuizTextAnswer(this.value)" placeholder="先自己回忆，再输入关键词或完整答案" style="width:100%; min-height:110px; border:1px solid #dfe5ee; border-radius:14px; padding:12px; font-size:15px; line-height:1.6; box-sizing:border-box; resize:vertical;">${escapeHTML(dailyQuizSession.currentTextAnswer || '')}</textarea>
+                        <div style="font-size:12px; color:#666; line-height:1.7;">尽量先不看提示，直接回忆并写下关键词、条件或完整答案。</div>
+                    </div>
+                `
+                : `<div style="display:grid; gap:10px;">${optionsHtml}</div>`;
+
+            const questionCard = document.getElementById('dailyQuizQuestionCard');
+            if (questionCard) {
+                const sourceHint = activeItem.sourceNote ? '<div style="margin-top:14px; padding:10px 12px; border-radius:12px; background:#fff; border:1px dashed #d7dce5; font-size:12px; color:#666; line-height:1.7;">来源材料会在你提交答案后再展示，避免直接暴露答案。</div>' : '';
+                questionCard.innerHTML = `
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+                        <span style="background:#eef4ff; color:#2f7cf6; border-radius:999px; padding:5px 10px; font-size:12px; font-weight:700;">${escapeHTML(questionTypeLabel)}</span>
+                        <span style="background:${activeItem.isFollowUp ? '#fff4e6' : '#eafaf0'}; color:${activeItem.isFollowUp ? '#c96a00' : '#177245'}; border-radius:999px; padding:5px 10px; font-size:12px; font-weight:700;">${activeItem.isFollowUp ? `追打 ${dailyQuizSession.currentFollowUpIndex + 1}` : '主问题'}</span>
+                        <span style="background:#f1f3f5; color:#555; border-radius:999px; padding:5px 10px; font-size:12px; font-weight:700;">${escapeHTML(activeItem.focus || '未命名知识点')}</span>
+                    </div>
+                    <div style="font-size:20px; font-weight:800; line-height:1.45; color:#1d1d1f; margin-bottom:14px;">${escapeHTML(activeItem.question)}</div>
+                    ${answerAreaHtml}
+                    ${sourceHint}
+                `;
+                syncDailyQuizSelectionUI();
+            }
+        }
+
+
+        function compareIndexArrays(a, b) {
+            const left = [...new Set(Array.isArray(a) ? a : [])].map(Number).filter(Number.isInteger).sort((x, y) => x - y);
+            const right = [...new Set(Array.isArray(b) ? b : [])].map(Number).filter(Number.isInteger).sort((x, y) => x - y);
+            if (left.length !== right.length) return false;
+            return left.every((value, index) => value === right[index]);
+        }
+
+        function normalizeDailyQuizAnswerText(text) {
+            return String(text || '')
+                .trim()
+                .toLowerCase()
+                .replace(/[\u3000\s]+/g, ' ')
+                .replace(/[锛屻€傦紒锛燂紱锛?.!?;:'"`~()\[\]{}]/g, '')
+                .trim();
+        }
+
+        function compareTextAnswer(input, acceptedAnswers) {
+            const normalizedInput = normalizeDailyQuizAnswerText(input);
+            const compactInput = normalizedInput.replace(/\s+/g, '');
+            if (!normalizedInput) return false;
+            return (Array.isArray(acceptedAnswers) ? acceptedAnswers : []).some(answer => {
+                const normalizedAnswer = normalizeDailyQuizAnswerText(answer);
+                const compactAnswer = normalizedAnswer.replace(/\s+/g, '');
+                return normalizedInput === normalizedAnswer || compactInput === compactAnswer;
+            });
+        }
+
+        function isDailyQuizWeakStatus(status) {
+            return status === 'recovered' || status === 'failed' || status === 'aborted';
+        }
+
+        function getDailyQuizStatusLabel(status) {
+            if (status === 'recovered') return '追打通过（建议回流）';
+            if (status === 'failed') return '未通过';
+            if (status === 'aborted') return '中断';
+            return '首答通过';
+        }
+
+        function showDailyQuizFeedback(kind, title, explanation, nextLabel) {
+            const palette = {
+                success: { bg: '#eafaf0', border: '#34c75955', color: '#177245' },
+                warn: { bg: '#fff7e8', border: '#ffb34055', color: '#c96a00' },
+                error: { bg: '#ffecec', border: '#ff6b6b55', color: '#b42318' }
+            };
+            const tone = palette[kind] || palette.warn;
+            const feedbackEl = document.getElementById('dailyQuizFeedback');
+            const activeItem = getDailyQuizActiveItem();
+            const sourceNote = activeItem && activeItem.sourceNote
+                ? `<div style="margin-top:10px; padding:10px 12px; border-radius:12px; background:#fff; border:1px solid ${tone.border}; color:#444;"><div style="font-size:11px; color:#666; font-weight:700; margin-bottom:6px;">来源材料（答后展示）</div><div style="font-size:13px; line-height:1.7;">${escapeHTML(activeItem.sourceNote)}</div></div>`
+                : '';
+            if (feedbackEl) {
+                feedbackEl.style.background = tone.bg;
+                feedbackEl.style.border = `1px solid ${tone.border}`;
+                feedbackEl.style.color = tone.color;
+                feedbackEl.innerHTML = `<div style="font-weight:800; margin-bottom:4px;">${escapeHTML(title)}</div><div>${escapeHTML(explanation || '')}</div>${sourceNote}`;
+                feedbackEl.classList.remove('hidden');
+            }
+            const submitBtn = document.getElementById('dailyQuizSubmitBtn');
+            if (submitBtn) {
+                submitBtn.textContent = nextLabel || '继续';
+                submitBtn.onclick = advanceDailyQuiz;
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+            }
+            const skipBtn = document.getElementById('dailyQuizSkipBtn');
+            if (skipBtn) {
+                skipBtn.disabled = true;
+                skipBtn.style.opacity = '0.45';
+            }
+        }
+
+
+        function submitDailyQuizAnswer() {
+            if (!dailyQuizSession) return;
+            const activeItem = getDailyQuizActiveItem();
+            if (!activeItem) return;
+            const textAnswer = activeItem.type === 'short_answer'
+                ? (((document.getElementById('dailyQuizShortAnswerInput') || {}).value) || dailyQuizSession.currentTextAnswer || '').trim()
+                : '';
+            const selection = activeItem.type === 'short_answer'
+                ? []
+                : [...new Set(dailyQuizSession.currentSelection || [])].sort((a, b) => a - b);
+            if (activeItem.type === 'short_answer' && !textAnswer) {
+                alert('请先写出答案。');
+                return;
+            }
+            if (activeItem.type !== 'short_answer' && !selection.length) {
+                alert(activeItem.type === 'multi_select' ? '请至少选择一个选项。' : '请先选择一个答案。');
+                return;
+            }
+            const result = dailyQuizSession.results[dailyQuizSession.questionIndex];
+            if (!result) return;
+            const correct = activeItem.type === 'short_answer'
+                ? compareTextAnswer(textAnswer, activeItem.acceptedAnswers || [])
+                : compareIndexArrays(selection, activeItem.correctIndices || []);
+            result.question = activeItem.mainQuestion || activeItem;
+            result.attempts.push({
+                stage: activeItem.isFollowUp ? `follow_up_${dailyQuizSession.currentFollowUpIndex + 1}` : 'main',
+                correct,
+                selection,
+                correctIndices: [...(activeItem.correctIndices || [])],
+                answerText: textAnswer,
+                acceptedAnswers: [...(activeItem.acceptedAnswers || [])],
+                question: activeItem.question,
+                explanation: activeItem.explanation || ''
+            });
+
+            if (correct) {
+                result.status = activeItem.isFollowUp ? 'recovered' : 'first_pass';
+                showDailyQuizFeedback(
+                    'success',
+                    activeItem.isFollowUp ? '追打通过' : '首答通过',
+                    activeItem.explanation || (activeItem.isFollowUp ? '这道追打题已经答对。' : '这题第一反应就答对了。'),
+                    dailyQuizSession.questionIndex >= dailyQuizSession.quiz.questions.length - 1 ? '查看结果' : '下一题'
+                );
+                return;
+            }
+
+            if (!activeItem.isFollowUp) {
+                const followUps = Array.isArray(activeItem.followUps) ? activeItem.followUps : [];
+                if (followUps.length) {
+                    result.status = 'in_progress';
+                    dailyQuizSession.currentFollowUpIndex = 0;
+                    dailyQuizSession.currentSelection = [];
+                    dailyQuizSession.currentTextAnswer = '';
+                    showDailyQuizFeedback('warn', '首答未通过', activeItem.explanation || '主问题先没过，进入一轮追打。', '进入追打');
+                } else {
+                    result.status = 'failed';
+                    showDailyQuizFeedback('error', '未通过', activeItem.explanation || '这题本轮未通过。', dailyQuizSession.questionIndex >= dailyQuizSession.quiz.questions.length - 1 ? '查看结果' : '下一题');
+                }
+                return;
+            }
+
+            const followUps = Array.isArray(activeItem.mainQuestion.followUps) ? activeItem.mainQuestion.followUps : [];
+            const nextIndex = dailyQuizSession.currentFollowUpIndex + 1;
+            if (nextIndex < followUps.length) {
+                result.status = 'in_progress';
+                dailyQuizSession.currentFollowUpIndex = nextIndex;
+                dailyQuizSession.currentSelection = [];
+                dailyQuizSession.currentTextAnswer = '';
+                showDailyQuizFeedback('warn', '继续追打', activeItem.explanation || '这次还没过，继续换一道变式题。', '继续');
+            } else {
+                result.status = 'failed';
+                showDailyQuizFeedback('error', '未通过', activeItem.explanation || '追打后仍未通过，这个点会进入后续强化。', dailyQuizSession.questionIndex >= dailyQuizSession.quiz.questions.length - 1 ? '查看结果' : '下一题');
+            }
+        }
+
+        function skipCurrentDailyQuizItem() {
+            if (!dailyQuizSession) return;
+            const activeItem = getDailyQuizActiveItem();
+            if (!activeItem) return;
+            const result = dailyQuizSession.results[dailyQuizSession.questionIndex];
+            if (!result) return;
+            result.question = activeItem.mainQuestion || activeItem;
+            result.attempts.push({
+                stage: activeItem.isFollowUp ? `follow_up_${dailyQuizSession.currentFollowUpIndex + 1}` : 'main',
+                skipped: true,
+                question: activeItem.question
+            });
+
+            if (!activeItem.isFollowUp) {
+                const followUps = Array.isArray(activeItem.followUps) ? activeItem.followUps : [];
+                if (followUps.length) {
+                    result.status = 'in_progress';
+                    dailyQuizSession.currentFollowUpIndex = 0;
+                    dailyQuizSession.currentSelection = [];
+                    dailyQuizSession.currentTextAnswer = '';
+                    showDailyQuizFeedback('warn', '已跳过主问题', '主问题已跳过，直接进入追打。', '进入追打');
+                } else {
+                    result.status = 'aborted';
+                    showDailyQuizFeedback('error', '本题中断', '这题被跳过，本轮记为中断。', dailyQuizSession.questionIndex >= dailyQuizSession.quiz.questions.length - 1 ? '查看结果' : '下一题');
+                }
+                return;
+            }
+
+            const followUps = Array.isArray(activeItem.mainQuestion.followUps) ? activeItem.mainQuestion.followUps : [];
+            const nextIndex = dailyQuizSession.currentFollowUpIndex + 1;
+            if (nextIndex < followUps.length) {
+                result.status = 'in_progress';
+                dailyQuizSession.currentFollowUpIndex = nextIndex;
+                dailyQuizSession.currentSelection = [];
+                dailyQuizSession.currentTextAnswer = '';
+                showDailyQuizFeedback('warn', '已跳过追打题', '这道追打题已跳过，继续下一道追打。', '继续');
+            } else {
+                result.status = 'aborted';
+                showDailyQuizFeedback('error', '本题中断', '追打阶段被跳过，本轮记为中断。', dailyQuizSession.questionIndex >= dailyQuizSession.quiz.questions.length - 1 ? '查看结果' : '下一题');
+            }
+        }
+
+        function advanceDailyQuiz() {
+            if (!dailyQuizSession) return;
+            const result = dailyQuizSession.results[dailyQuizSession.questionIndex];
+            if (result && result.status === 'in_progress') {
+                renderDailyQuizStep();
+                return;
+            }
+            dailyQuizSession.questionIndex += 1;
+            dailyQuizSession.currentFollowUpIndex = -1;
+            dailyQuizSession.currentSelection = [];
+            dailyQuizSession.currentTextAnswer = '';
+            if (dailyQuizSession.questionIndex >= dailyQuizSession.quiz.questions.length) {
+                finishDailyQuizSession();
+            } else {
+                renderDailyQuizStep();
+            }
+        }
+
+        function finishDailyQuizSession() {
+            if (!dailyQuizSession) return;
+            document.getElementById('dailyQuizLoadingView').classList.add('hidden');
+            document.getElementById('dailyQuizSetupView').classList.add('hidden');
+            document.getElementById('dailyQuizSessionView').classList.add('hidden');
+            document.getElementById('dailyQuizResultView').classList.remove('hidden');
+
+            const counts = {
+                first_pass: dailyQuizSession.results.filter(item => item.status === 'first_pass').length,
+                recovered: dailyQuizSession.results.filter(item => item.status === 'recovered').length,
+                failed: dailyQuizSession.results.filter(item => item.status === 'failed').length,
+                aborted: dailyQuizSession.results.filter(item => item.status === 'aborted').length
+            };
+            const summaryEl = document.getElementById('dailyQuizResultSummary');
+            if (summaryEl) {
+                const cards = [
+                    { label: '首答通过', value: counts.first_pass, color: '#177245', bg: '#eafaf0' },
+                    { label: '追打通过', value: counts.recovered, color: '#c96a00', bg: '#fff7e8' },
+                    { label: '鏈€氳繃', value: counts.failed, color: '#b42318', bg: '#ffecec' },
+                    { label: '涓柇', value: counts.aborted, color: '#555', bg: '#f1f3f5' }
+                ];
+                summaryEl.innerHTML = cards.map(card => `
+                    <div style="background:${card.bg}; border:1px solid ${card.color}22; border-radius:16px; padding:14px;">
+                        <div style="font-size:12px; color:${card.color}; font-weight:700; margin-bottom:6px;">${card.label}</div>
+                        <div style="font-size:28px; font-weight:900; color:${card.color};">${card.value}</div>
+                    </div>
+                `).join('');
+            }
+
+            const detailEl = document.getElementById('dailyQuizResultDetail');
+            if (detailEl) {
+                const pendingLines = dailyQuizSession.results
+                    .map((item, index) => ({ item, question: dailyQuizSession.quiz.questions[index] }))
+                    .filter(({ item }) => isDailyQuizWeakStatus(item.status))
+                    .map(({ item, question }, index) => `
+                        <div style="padding:10px 0; border-top:${index === 0 ? 'none' : '1px solid #e5e7eb'};">
+                            <div style="font-weight:800; color:#222; margin-bottom:4px;">${escapeHTML(item.focus || question.focus || `知识点 ${index + 1}`)}</div>
+                            <div style="font-size:12px; color:#666; margin-bottom:4px;">状态：${escapeHTML(getDailyQuizStatusLabel(item.status))}</div>
+                            <div style="font-size:13px; color:#444; line-height:1.7;">${escapeHTML((question && question.question) || '')}</div>
+                        </div>
+                    `)
+                    .join('');
+                detailEl.innerHTML = `
+                    <div style="font-weight:700; color:#111; margin-bottom:8px;">本轮结果只根据答题行为统计，不使用 AI 自由总结。</div>
+                    <div style="font-size:13px; color:#555; line-height:1.7;">总题数：${dailyQuizSession.quiz.questions.length}。首答通过表示主问题一次通过；追打通过表示主问题未过但在后续追打里纠正；未通过、中断，以及追打通过项都建议回流到复习系统。</div>
+                    <div style="margin-top:14px; font-weight:700; color:#111;">待处理项</div>
+                    ${pendingLines || '<div style="margin-top:8px; font-size:13px; color:#177245;">本轮没有需要回流到复习系统的弱项。</div>'}
+                `;
+            }
+
+            const saveBtn = document.getElementById('dailyQuizSaveFailuresBtn');
+            const pendingCount = counts.recovered + counts.failed + counts.aborted;
+            if (saveBtn) {
+                saveBtn.textContent = pendingCount ? `📝 将 ${pendingCount} 个弱项加入复习` : '📝 本轮没有需要加入复习的弱项';
+                saveBtn.disabled = pendingCount === 0;
+                saveBtn.style.opacity = pendingCount ? '1' : '0.5';
+                saveBtn.onclick = saveDailyQuizFailuresToDeck;
+            }
+        }
+
+        async function saveDailyQuizFailuresToDeck() {
+            if (!dailyQuizSession) return;
+            const pendingEntries = dailyQuizSession.results
+                .map((item, index) => ({ item, question: dailyQuizSession.quiz.questions[index] }))
+                .filter(({ item }) => isDailyQuizWeakStatus(item.status) && !item.savedToDeck);
+            if (!pendingEntries.length) {
+                alert('当前没有可加入复习的弱项。');
+                return;
+            }
+
+            const saveBtn = document.getElementById('dailyQuizSaveFailuresBtn');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.style.opacity = '0.5';
+            }
+
+            try {
+                const createdCards = [];
+                const subjectLabel = dailyQuizSession.bundle && dailyQuizSession.bundle.subject && dailyQuizSession.bundle.subject !== 'all' ? dailyQuizSession.bundle.subject : '其他';
+                for (const entry of pendingEntries) {
+                    const item = entry.item;
+                    const question = entry.question;
+                    const focus = (item.focus || (question && question.focus) || (question && question.question) || '今日测验补强').trim();
+                    const correctAnswers = question.type === 'short_answer'
+                        ? (question.acceptedAnswers || []).join(' / ')
+                        : (question.correctIndices || []).map(idx => question.options[idx]).filter(Boolean).join(' / ');
+                    const originalContext = [item.sourceNote || question.sourceNote || '', dailyQuizSession.manualSummary || ''].filter(Boolean).join('\n\n').trim();
+                    const definitionLines = [
+                        `题目：${question.question}`,
+                        correctAnswers ? `正确答案：${correctAnswers}` : '',
+                        question.explanation ? `解析：${question.explanation}` : '',
+                        `本轮结果：${getDailyQuizStatusLabel(item.status)}`
+                    ].filter(Boolean);
+                    const newCard = createCardObject(
+                        focus,
+                        `[今日测验][${subjectLabel}][卡型:测验补强]`,
+                        definitionLines.join('\n'),
+                        '',
+                        '',
+                        '📝',
+                        '',
+                        '',
+                        '',
+                        '',
+                        null,
+                        '',
+                        originalContext
+                    );
+                    if (isExamSubjectActive(subjectLabel)) {
+                        newCard.examMeta = {
+                            examType: subjectLabel,
+                            module: '',
+                            errorType: '测验未通过',
+                            cardType: '今日测验补强',
+                            summary: focus
+                        };
+                    }
+                    await db.saveCard(newCard);
+                    deck.push(newCard);
+                    item.savedToDeck = true;
+                    createdCards.push(newCard);
+                }
+                await pushToCloud();
+                render();
+                updateDeckInfo();
+                finishDailyQuizSession();
+                alert(`已将 ${createdCards.length} 个弱项加入复习。`);
+            } catch (error) {
+                console.error(error);
+                alert('保存弱项失败：' + error.message);
+            } finally {
+                const pendingCount = dailyQuizSession.results.filter(item => isDailyQuizWeakStatus(item.status) && !item.savedToDeck).length;
+                if (saveBtn) {
+                    saveBtn.disabled = pendingCount === 0;
+                    saveBtn.style.opacity = pendingCount ? '1' : '0.5';
+                    saveBtn.textContent = pendingCount ? `📝 将 ${pendingCount} 个弱项加入复习` : '📝 本轮没有需要加入复习的弱项';
+                }
             }
         }
 
