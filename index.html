@@ -1985,6 +1985,22 @@
         const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         let currentUser = null;
         let syncPromise = null;
+        let isPasswordRecovery = false;
+
+        // 【核心修正】更可靠的恢复检测：监听 Supabase 的状态改变事件
+        sbClient.auth.onAuthStateChange((event, session) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                isPasswordRecovery = true;
+                console.log("检测到 PASSWORD_RECOVERY 事件，显示密码重置窗口");
+                document.getElementById('authModal').style.display = 'none';
+                document.getElementById('resetPasswordModal').style.display = 'flex';
+                const resetMsg = document.getElementById('resetMsg');
+                if (resetMsg) {
+                    resetMsg.style.color = '#007aff';
+                    resetMsg.innerText = '⚠️ 链接验证通过。请在上方输入您的新密码并保存。';
+                }
+            }
+        });
 
         async function getPendingDeletions() {
             const pending = await db.getSetting(PENDING_DELETE_KEY);
@@ -2010,11 +2026,24 @@
 
         // 初始化时检查是否已登录
         async function initAuth() {
-            // 【核心修正】处理 Supabase 密码重置回调
+            // 安全策略一：如果 URL 明确有 recovery 标记，强制设为恢复模式作为兜底
             if (window.location.hash && window.location.hash.includes('type=recovery')) {
+                isPasswordRecovery = true;
+                document.getElementById('authModal').style.display = 'none';
                 document.getElementById('resetPasswordModal').style.display = 'flex';
+                const resetMsg = document.getElementById('resetMsg');
+                if (resetMsg) {
+                    resetMsg.style.color = '#007aff';
+                    resetMsg.innerText = '⚠️ 这是您的密码重置安全链接。请在此输入新密码。';
+                }
                 return;
             }
+
+            // 等待短暂时间，以确保 onAuthStateChange 可以被回调
+            await new Promise(r => setTimeout(r, 100));
+
+            // 如果已经被事件监听到是恢复模式，则终止正常初始化流程
+            if (isPasswordRecovery) return;
 
             const { data: { session } } = await sbClient.auth.getSession();
             if (session && session.user) {
@@ -2239,6 +2268,7 @@
                     document.getElementById('resetPasswordModal').style.display = 'none';
                     // 清除 URL 中的 hash，防止页面刷新再次触发
                     window.history.replaceState(null, null, window.location.pathname);
+                    isPasswordRecovery = false; // 重置标识，允许正常初始化流程
                     await initAuth();
                 }, 2000);
             }
