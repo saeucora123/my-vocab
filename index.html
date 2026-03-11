@@ -1601,12 +1601,12 @@
 
         // 【新增】全局学科状态
         window.currentSubject = 'all';
-        window.listFilters = { module: 'all', errorType: 'all' };
+        window.listFilters = { module: 'all', errorType: 'all', reviewStatus: 'all', sourceName: 'all' };
 
         // 【新增】学科切换逻辑
         function switchSubject(subject) {
             window.currentSubject = subject;
-            window.listFilters = { module: 'all', errorType: 'all' };
+            window.listFilters = { module: 'all', errorType: 'all', reviewStatus: 'all', sourceName: 'all' };
 
             // 下拉框状态同步 (处理从其他途径触发的调用)
             const selectEl = document.getElementById('mainSubjectSelect');
@@ -2976,6 +2976,19 @@
                 if (customW && Array.isArray(customW)) {
                     p.w = customW;
                     console.log("Loaded custom FSRS parameters");
+                }
+
+                // 4. 【向下兼容修复】处理历史版本导入后 state 为 0 但 reps > 0 的卡片
+                let needsMigration = false;
+                deck.forEach(card => {
+                    if (card.reps > 0 && card.state === 0) {
+                        card.state = 2; // Migrate to Review state
+                        needsMigration = true;
+                    }
+                });
+                if (needsMigration) {
+                    await db.saveAll(deck); // Silent save of migrated states
+                    console.log("Auto-migrated old cards to Review state based on reps.");
                 }
 
             } catch (e) {
