@@ -101,6 +101,29 @@
         .missed-tag { background: rgba(255, 59, 48, 0.1); color: var(--err); padding: 8px 16px; border-radius: 99px; font-weight: 600; font-size: 1rem; border: 1px solid rgba(255, 59, 48, 0.2); transition: 0.2s; }
         .missed-tag:hover { background: var(--err); color: #fff; transform: scale(1.05); }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        #session-config { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+        .config-chip { background:#F2F2F7; border-radius:16px; padding: 12px 14px; }
+        .config-chip label { display:block; font-size:0.72rem; color:var(--dim); font-weight:700; letter-spacing:0.6px; margin-bottom:8px; }
+        .config-chip select, .config-chip input { width:100%; background:transparent; color:var(--fg); border:none; font-weight:700; font-size:0.95rem; outline:none; }
+        #audio-import-panel { background: var(--card-bg); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); border: 1px solid rgba(255,255,255,0.4); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 20px 22px; margin-bottom: 18px; }
+        #audio-import-panel h4 { margin: 0 0 6px 0; font-size: 1rem; letter-spacing: -0.2px; }
+        #audio-import-panel p { margin: 0; color: var(--dim); font-size: 0.88rem; line-height: 1.5; }
+        .audio-panel-row { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top: 14px; }
+        #audio-file-input { flex: 1; min-width: 240px; background:#F2F2F7; border:none; border-radius: 14px; padding: 12px 14px; color: var(--fg); font-family: var(--font); }
+        #audio-file-input::file-selector-button { border:none; background: var(--accent); color:#fff; border-radius: 99px; padding: 8px 14px; margin-right: 12px; cursor:pointer; font-weight:600; }
+        #audio-transcribe-btn[disabled] { opacity: 0.55; cursor: not-allowed; transform:none; box-shadow:none; }
+        #audio-transcribe-btn[disabled]:hover { background: var(--accent); transform:none; box-shadow:none; }
+        #audio-import-status { margin-top: 10px; font-size: 0.86rem; color: var(--dim); line-height: 1.5; white-space: pre-wrap; }
+        #audio-import-status.status-error { color: var(--err); }
+        #audio-import-status.status-success { color: #1F6B2A; }
+        #audio-import-status.status-working { color: var(--accent); }
+        #imported-audio-player { width: 100%; margin-top: 12px; display:none; }
+        #review-queue-panel { margin-top: 18px; background: rgba(255,255,255,0.72); border: 1px solid rgba(0,0,0,0.06); border-radius: 20px; padding: 16px; }
+        #review-queue-items { display:grid; gap:10px; margin-top: 12px; }
+        .review-queue-item { background:#fff; border:1px solid rgba(0,0,0,0.05); border-radius:14px; padding:12px 14px; }
+        .review-queue-item p { margin:0; font-size:0.92rem; line-height:1.5; }
+        .review-queue-meta { margin-top:6px; color:var(--dim); font-size:0.75rem; line-height:1.4; }
+        #countdown-banner { display:none; width:100%; margin-bottom: 12px; background: rgba(255,149,0,0.12); color:#9a5d00; border:1px solid rgba(255,149,0,0.2); border-radius: 14px; padding: 12px 16px; font-weight:700; text-align:center; }
 
         /* [V19.0 新增] iOS Dynamic Toast (动态提示浮窗) */
         #hint-toast { position: fixed; top: 15%; left: 50%; transform: translate(-50%, 20px); background: rgba(29, 29, 31, 0.85); color: #fff; padding: 12px 24px; border-radius: 99px; z-index: 2000; opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); font-weight: 600; font-size: 1.1rem; box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
@@ -109,6 +132,7 @@
         /* [新增] 返回背单词基地的按钮样式 */
         .home-link { position: fixed; top: 10px; right: 10px; font-size: 1.5rem; text-decoration: none; z-index: 1001; opacity: 0.5; transition: opacity 0.2s; filter: grayscale(100%); }
         .home-link:hover { opacity: 1; filter: grayscale(0%); text-shadow: 0 0 8px var(--fg); }
+        @media (max-width: 900px) { #session-config { grid-template-columns: 1fr; } .audio-panel-row { flex-direction: column; align-items: stretch; } }
     </style>
 </head>
 <body>
@@ -117,18 +141,60 @@
 <a href="index.html" class="home-link" title="Return to Vocabulary Base">🏠</a>
 
 <div id="terminal">
+    <div id="audio-import-panel">
+        <h4>音频导入</h4>
+        <p>只有听力文件也可以先练。先导入本地音频，再点“转写到文本”，软件会把转写结果回填到下面的文本框里。首次转写会下载浏览器端模型，通常会比较慢。</p>
+        <div class="audio-panel-row">
+            <input id="audio-file-input" type="file" accept="audio/*">
+            <button id="audio-transcribe-btn" onclick="transcribeImportedAudio()" disabled>转写到文本</button>
+        </div>
+        <audio id="imported-audio-player" controls preload="metadata"></audio>
+        <div id="audio-import-status">还没有选择音频文件。</div>
+    </div>
+
     <div id="input-area">
         <h3 style="margin-top:0; font-weight:700; font-size:1.4rem; letter-spacing:-0.5px;">Import Content</h3>
         <p style="color:var(--dim); font-size: 0.95rem; margin-bottom: 20px; line-height:1.4;">Paste your English article, transcript, or study material here. The system will process it for deep listening training.</p>
         <textarea id="source-text" placeholder="Paste English text here..."></textarea>
+        <div id="session-config">
+            <div class="config-chip">
+                <label for="session-mode">模式</label>
+                <select id="session-mode">
+                    <option value="blind" selected>普通听写</option>
+                    <option value="delayed">延迟听写</option>
+                </select>
+            </div>
+            <div class="config-chip">
+                <label for="blank-density">挖空密度</label>
+                <select id="blank-density">
+                    <option value="light">低</option>
+                    <option value="balanced" selected>中</option>
+                    <option value="dense">高</option>
+                </select>
+            </div>
+            <div class="config-chip">
+                <label for="delay-seconds">延迟秒数</label>
+                <input type="number" id="delay-seconds" value="5" step="1" min="0" max="12">
+            </div>
+        </div>
         <div style="display:flex; gap:12px; align-items: center; margin-top: 20px;">
-            <button onclick="initSystem()">Start Session</button>
+            <button onclick="initSystem()">开始训练</button>
+            <button onclick="applyFirstPassPreset()" style="background:#EAF7E8; color:#1F6B2A; box-shadow:none;">第一遍预设</button>
+            <button onclick="applySecondPassPreset()" style="background:#FFF2D9; color:#8A4B00; box-shadow:none;">第二遍强化预设</button>
+            <button onclick="loadReviewQueueToTextarea()" style="background:#E8F2FF; color:var(--accent); box-shadow:none;">练习复盘队列</button>
             <div style="display:flex; align-items:center; background:#F2F2F7; padding:4px 12px; border-radius:99px; height: 44px; box-sizing: border-box;">
-                 <label style="font-size: 0.75rem; color: var(--dim); font-weight:700; margin-right:8px; letter-spacing:0.5px;">SPEED</label>
+                 <label style="font-size: 0.75rem; color: var(--dim); font-weight:700; margin-right:8px; letter-spacing:0.5px;">语速</label>
                  <!-- [修改] id 改为 init-rate，作为初始传值使用 -->
                  <input type="number" id="init-rate" value="1.0" step="0.1" min="0.5" max="2.0" style="width: 40px; background:transparent; color:var(--fg); border:none; font-weight:bold; font-size:1rem; outline:none; text-align:center;">
             </div>
-            <button onclick="toggleManual()" style="margin-left: auto; background: transparent; color: var(--accent); box-shadow: none; padding: 0;">How it works</button>
+            <button onclick="toggleManual()" style="margin-left: auto; background: transparent; color: var(--accent); box-shadow: none; padding: 0;">使用说明</button>
+        </div>
+        <div id="review-queue-panel">
+            <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
+                <strong style="font-size:0.92rem;">复盘队列</strong>
+                <span id="review-queue-count" style="font-size:0.78rem; color:var(--accent); font-weight:700;">0 条</span>
+            </div>
+            <div id="review-queue-items"></div>
         </div>
     </div>
 
@@ -138,13 +204,14 @@
             
             <!-- [新增] 训练中实时语速调节器 (继承原有 id="rate" 以完美兼容底层逻辑) -->
             <span style="display:flex; align-items:center; background: rgba(0,113,227,0.08); padding: 4px 12px; border-radius: 12px; border: 1px solid rgba(0,113,227,0.2);">
-                <label style="font-size: 0.7rem; color: var(--accent); font-weight: 800; margin-right: 6px; letter-spacing: 0.5px;">SPEED</label>
+                <label style="font-size: 0.7rem; color: var(--accent); font-weight: 800; margin-right: 6px; letter-spacing: 0.5px;">语速</label>
                 <input type="number" id="rate" value="1.0" step="0.1" min="0.4" max="2.0" title="可随时点击修改语速" style="width: 45px; background: transparent; color: var(--accent); border: none; font-weight: 800; font-size: 0.95rem; outline: none; text-align: center; cursor: pointer;">
             </span>
 
-            <span>MODE: BLIND_ECHO</span>
+            <span>模式: <span id="mode-label">普通听写</span></span>
         </div>
 
+        <div id="countdown-banner"></div>
         <div id="target-text">Waiting for stream...</div>
         <!-- 旧输入框保留但隐藏 -->
         <input type="text" id="user-input" placeholder="Type what you hear..." autocomplete="off" spellcheck="false" style="display:none">
@@ -182,7 +249,7 @@
 </div>
 
 <div id="help">
-    <span class="key">?</span> Manual | <span class="key">Ctrl+Enter</span> Replay | <span class="key">Enter</span> Next Field | <span class="key">Shift+Enter</span> Check All | <span class="key">Tab</span> Hint | <span class="key">Right Click</span> Speak Word
+    <span class="key">?</span> 说明 | <span class="key">Ctrl+Enter</span> 重播 | <span class="key">Ctrl+Space</span> 重播 | <span class="key">Alt+W</span> 重听单词 | <span class="key">Alt+←/→</span> 上一句/下一句 | <span class="key">Enter</span> 下一个空 | <span class="key">Shift+Enter</span> 检查整句 | <span class="key">Tab</span> 提示 | <span class="key">右键</span> 读单词
 </div>
 
 <!-- [新增] 操作手册内容结构 -->
@@ -225,6 +292,7 @@
         <ul>
             <li><span class="key">Enter</span> : 提交检查 / 跳至下一空 / 下一句</li>
             <li><span class="key">Ctrl</span> + <span class="key">Enter</span> : 重播整句 (Replay)</li>
+            <li><span class="key">Alt</span> + <span class="key">W</span> : 重听当前单词 (Word Replay)</li>
             <li><span class="key">Tab</span> : 请求提示 (Hint)</li>
             <li><span class="key">?</span> (Shift+/) : 打开/关闭本手册</li>
         </ul>
@@ -242,6 +310,653 @@
     let missedWords = new Set(); 
     let sessionMistakes = 0;
     let totalBlanks = 0;
+    let delayUnlockTimer = null;
+    let speechRequestId = 0;
+    let speechStartFallbackTimer = null;
+    let speechFinishFallbackTimer = null;
+    let currentWordTokens = [];
+    let activeWordToken = null;
+    let importedAudioFile = null;
+    let importedAudioUrl = '';
+    let audioTranscriberPromise = null;
+    let isAudioTranscribing = false;
+    let importedAudioChunks = [];
+    let sentenceAudioTimeline = [];
+    let importedSegmentPlaybackTimer = null;
+    let isImportedSegmentPlaybackActive = false;
+    const REVIEW_QUEUE_KEY = 'neuro_echo_review_queue_v1';
+    const SETTINGS_KEY = 'neuro_echo_settings_v1';
+    let reviewQueue = [];
+    let sessionConfig = {
+        mode: 'blind',
+        blankDensity: 'balanced',
+        delaySeconds: 5
+    };
+
+    function syncSessionConfig() {
+        sessionConfig = {
+            mode: document.getElementById('session-mode').value,
+            blankDensity: document.getElementById('blank-density').value,
+            delaySeconds: Math.max(0, parseInt(document.getElementById('delay-seconds').value || '0', 10) || 0),
+            initRate: document.getElementById('init-rate').value || '1.0'
+        };
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(sessionConfig));
+        document.getElementById('mode-label').innerText = sessionConfig.mode === 'delayed' ? '延迟听写' : '普通听写';
+    }
+
+    function setAudioImportStatus(message, tone = 'info') {
+        const el = document.getElementById('audio-import-status');
+        el.innerText = message;
+        el.className = '';
+        if (tone !== 'info') el.classList.add(`status-${tone}`);
+    }
+
+    function setAudioTranscribeBusy(isBusy) {
+        isAudioTranscribing = isBusy;
+        const button = document.getElementById('audio-transcribe-btn');
+        button.disabled = isBusy || !importedAudioFile;
+        button.innerText = isBusy ? '转写中...' : '转写到文本';
+    }
+
+    function handleAudioFileSelection(event) {
+        const file = event.target.files && event.target.files[0];
+        const player = document.getElementById('imported-audio-player');
+        stopImportedSegmentPlayback();
+
+        if (importedAudioUrl) {
+            URL.revokeObjectURL(importedAudioUrl);
+            importedAudioUrl = '';
+        }
+
+        importedAudioFile = file || null;
+        importedAudioChunks = [];
+        sentenceAudioTimeline = [];
+
+        if (!importedAudioFile) {
+            player.removeAttribute('src');
+            player.style.display = 'none';
+            setAudioTranscribeBusy(false);
+            setAudioImportStatus('还没有选择音频文件。');
+            return;
+        }
+
+        importedAudioUrl = URL.createObjectURL(importedAudioFile);
+        player.src = importedAudioUrl;
+        player.style.display = 'block';
+        setAudioTranscribeBusy(false);
+        setAudioImportStatus(`已载入音频：${importedAudioFile.name}\n你可以先试听，再点“转写到文本”。`);
+    }
+
+    function normalizeAlignmentText(text) {
+        return (text || '')
+            .toLowerCase()
+            .replace(/[’‘]/g, "'")
+            .replace(/&/g, ' and ')
+            .replace(/[^a-z0-9']+/g, '')
+            .trim();
+    }
+
+    function extractAudioChunksFromTranscriptionResult(result) {
+        const rawChunks = Array.isArray(result?.chunks)
+            ? result.chunks
+            : Array.isArray(result?.segments)
+                ? result.segments
+                : [];
+
+        return rawChunks.map(chunk => {
+            const timestamp = Array.isArray(chunk.timestamp)
+                ? chunk.timestamp
+                : [chunk.start, chunk.end];
+            const start = Number(timestamp[0]);
+            const end = Number(timestamp[1]);
+
+            return {
+                text: normalizeTranscriptText(chunk.text || ''),
+                start: Number.isFinite(start) ? start : 0,
+                end: Number.isFinite(end) ? end : (Number.isFinite(start) ? start : 0)
+            };
+        }).filter(chunk => chunk.text);
+    }
+
+    function alignSentencesToAudioChunks(sentenceList, chunks) {
+        if (!Array.isArray(sentenceList) || sentenceList.length === 0 || !Array.isArray(chunks) || chunks.length === 0) {
+            return [];
+        }
+
+        const mergedChars = [];
+        const charToChunk = [];
+
+        chunks.forEach((chunk, chunkIndex) => {
+            const normalized = normalizeAlignmentText(chunk.text);
+            for (const char of normalized) {
+                mergedChars.push(char);
+                charToChunk.push(chunkIndex);
+            }
+        });
+
+        const mergedText = mergedChars.join('');
+        let searchOffset = 0;
+
+        return sentenceList.map(sentence => {
+            const normalizedSentence = normalizeAlignmentText(sentence);
+            if (!normalizedSentence) return null;
+
+            const foundAt = mergedText.indexOf(normalizedSentence, searchOffset);
+            if (foundAt === -1) return null;
+
+            const startChunkIndex = charToChunk[foundAt];
+            const endChunkIndex = charToChunk[Math.max(foundAt, foundAt + normalizedSentence.length - 1)];
+            const startChunk = chunks[startChunkIndex];
+            const endChunk = chunks[endChunkIndex];
+
+            searchOffset = foundAt + normalizedSentence.length;
+
+            const clipStart = Math.max(0, (startChunk?.start ?? 0) - 0.12);
+            const clipEnd = Math.max(clipStart + 0.35, (endChunk?.end ?? startChunk?.end ?? clipStart) + 0.18);
+            return { start: clipStart, end: clipEnd };
+        });
+    }
+
+    function stopImportedSegmentPlayback() {
+        if (importedSegmentPlaybackTimer) clearInterval(importedSegmentPlaybackTimer);
+        importedSegmentPlaybackTimer = null;
+
+        const player = document.getElementById('imported-audio-player');
+        if (player) {
+            player.onplay = null;
+            player.onended = null;
+            player.onerror = null;
+            if (isImportedSegmentPlaybackActive) player.pause();
+        }
+
+        isImportedSegmentPlaybackActive = false;
+    }
+
+    function getSentenceAudioClip(text) {
+        if (text !== sentences[currentIndex]) return null;
+        return sentenceAudioTimeline[currentIndex] || null;
+    }
+
+    function getAudioTranscriberTimeouts() {
+        const overrides = window.__audioTranscriberTimeouts || {};
+        return {
+            factoryMs: Math.max(250, Number(overrides.factoryMs) || 25000),
+            libraryMs: Math.max(250, Number(overrides.libraryMs) || 20000),
+            pipelineMs: Math.max(500, Number(overrides.pipelineMs) || 90000)
+        };
+    }
+
+    function withAsyncTimeout(task, timeoutMs, message) {
+        let timerId = null;
+        const work = typeof task === 'function' ? Promise.resolve().then(task) : Promise.resolve(task);
+        const timeout = new Promise((_, reject) => {
+            timerId = setTimeout(() => reject(new Error(message)), timeoutMs);
+        });
+        return Promise.race([work, timeout]).finally(() => {
+            if (timerId) clearTimeout(timerId);
+        });
+    }
+
+    async function createAudioTranscriber(reportStatus = () => {}) {
+        const timeouts = getAudioTranscriberTimeouts();
+        const safeReport = typeof reportStatus === 'function' ? reportStatus : () => {};
+
+        if (window.__audioTranscriberFactory) {
+            safeReport('正在连接转写引擎...', 'working');
+            return await withAsyncTimeout(
+                () => window.__audioTranscriberFactory(),
+                timeouts.factoryMs,
+                '转写引擎初始化超时，请再点一次“转写到文本”重试。'
+            );
+        }
+
+        safeReport('正在加载转写库...', 'working');
+        const module = await withAsyncTimeout(
+            () => import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.0-next.6'),
+            timeouts.libraryMs,
+            '加载浏览器端转写库超时，请确认网络正常后重试。'
+        );
+
+        const attempts = [
+            {
+                label: '转写库已加载，正在初始化模型（稳定模式）...\n首次会下载模型文件，这一步可能要等几十秒。',
+                options: { device: 'wasm' },
+                timeoutMessage: '稳定模式初始化超时，模型没有成功就绪。'
+            },
+            {
+                label: '稳定模式未就绪，正在切换兼容模式重试...\n首次仍可能需要继续下载模型。',
+                options: {},
+                timeoutMessage: '兼容模式初始化超时，模型仍未成功就绪。'
+            }
+        ];
+
+        if (navigator.gpu) {
+            attempts.push({
+                label: '兼容模式仍未就绪，正在尝试 GPU 模式...',
+                options: { device: 'webgpu' },
+                timeoutMessage: 'GPU 模式初始化超时。'
+            });
+        }
+
+        let lastError = null;
+        for (const attempt of attempts) {
+            safeReport(attempt.label, 'working');
+            try {
+                return await withAsyncTimeout(
+                    () => module.pipeline(
+                        'automatic-speech-recognition',
+                        'onnx-community/whisper-tiny.en',
+                        attempt.options
+                    ),
+                    timeouts.pipelineMs,
+                    attempt.timeoutMessage
+                );
+            } catch (error) {
+                console.warn('[audio-transcriber-init]', attempt.options.device || 'default', error);
+                lastError = error;
+            }
+        }
+
+        throw new Error(lastError?.message || '转写模型初始化失败，请稍后重试。');
+    }
+
+    async function getAudioTranscriber(reportStatus = () => {}) {
+        if (window.__audioTranscriberFactory) {
+            return createAudioTranscriber(reportStatus);
+        }
+
+        const safeReport = typeof reportStatus === 'function' ? reportStatus : () => {};
+        if (!audioTranscriberPromise) {
+            audioTranscriberPromise = createAudioTranscriber(safeReport).catch(error => {
+                audioTranscriberPromise = null;
+                throw error;
+            });
+        } else {
+            safeReport('正在等待当前模型初始化完成...', 'working');
+        }
+
+        try {
+            return await audioTranscriberPromise;
+        } catch (error) {
+            audioTranscriberPromise = null;
+            throw error;
+        }
+    }
+
+    async function decodeAudioFileToMonoFloat32(file) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) {
+            throw new Error('当前浏览器不支持音频解码。');
+        }
+
+        const arrayBuffer = await file.arrayBuffer();
+        const audioContext = new AudioContextClass();
+
+        try {
+            const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+            const monoSamples = new Float32Array(decodedBuffer.length);
+            const channelCount = decodedBuffer.numberOfChannels;
+
+            for (let channel = 0; channel < channelCount; channel++) {
+                const channelData = decodedBuffer.getChannelData(channel);
+                for (let i = 0; i < channelData.length; i++) {
+                    monoSamples[i] += channelData[i] / channelCount;
+                }
+            }
+
+            if (decodedBuffer.sampleRate === 16000) {
+                return monoSamples;
+            }
+
+            const targetLength = Math.ceil(monoSamples.length * 16000 / decodedBuffer.sampleRate);
+            const offlineContext = new OfflineAudioContext(1, targetLength, 16000);
+            const buffer = offlineContext.createBuffer(1, monoSamples.length, decodedBuffer.sampleRate);
+            buffer.copyToChannel(monoSamples, 0);
+
+            const source = offlineContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(offlineContext.destination);
+            source.start(0);
+
+            const rendered = await offlineContext.startRendering();
+            return rendered.getChannelData(0).slice();
+        } finally {
+            if (audioContext.state !== 'closed') {
+                await audioContext.close();
+            }
+        }
+    }
+
+    function normalizeTranscriptText(text) {
+        return (text || '')
+            .replace(/\s+/g, ' ')
+            .replace(/\s+([.?!,;:])/g, '$1')
+            .replace(/([.?!])([A-Z])/g, '$1 $2')
+            .trim();
+    }
+
+    async function transcribeImportedAudio() {
+        if (!importedAudioFile || isAudioTranscribing) return;
+
+        const sourceTextarea = document.getElementById('source-text');
+        if (sourceTextarea.value.trim() && !confirm('文本框里已经有内容了。要用新的转写结果覆盖它吗？')) {
+            return;
+        }
+
+        try {
+            setAudioTranscribeBusy(true);
+            setAudioImportStatus('正在检查转写环境...', 'working');
+
+            const transcriber = await getAudioTranscriber(setAudioImportStatus);
+            setAudioImportStatus('模型已就绪，正在解码音频...', 'working');
+
+            const audioData = await decodeAudioFileToMonoFloat32(importedAudioFile);
+            setAudioImportStatus('正在转写音频。这一步取决于音频长度，通常需要几十秒到几分钟。', 'working');
+
+            let result;
+            try {
+                result = await transcriber(audioData, {
+                    chunk_length_s: 20,
+                    stride_length_s: 5,
+                    return_timestamps: true
+                });
+            } catch (error) {
+                result = await transcriber(audioData);
+            }
+
+            const transcript = normalizeTranscriptText(typeof result === 'string' ? result : (result && result.text) || '');
+            if (!transcript) {
+                throw new Error('转写结果为空，可能是音频过短、浏览器资源不足，或者模型没有正常跑完。');
+            }
+
+            importedAudioChunks = extractAudioChunksFromTranscriptionResult(result);
+            sentenceAudioTimeline = alignSentencesToAudioChunks(parseText(transcript), importedAudioChunks);
+            const alignedCount = sentenceAudioTimeline.filter(Boolean).length;
+
+            sourceTextarea.value = transcript;
+            if (alignedCount > 0) {
+                setAudioImportStatus(`转写完成，已回填到文本框。\n已生成 ${alignedCount} 句原音频片段，开始训练后会优先播放原音频。`, 'success');
+            } else {
+                setAudioImportStatus(`转写完成，已回填到文本框。\n当前没有拿到可用时间戳，训练时会继续用 TTS 朗读。`, 'success');
+            }
+            showHintToast('音频转写完成，文本已回填');
+        } catch (error) {
+            console.error(error);
+            setAudioImportStatus(`转写失败：${error.message || error}\n如果网络正常但刚才一直卡住，现在可以直接再点一次“转写到文本”重试。`, 'error');
+        } finally {
+            setAudioTranscribeBusy(false);
+        }
+    }
+
+    function loadPersistedSettings() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+            if (saved.mode) document.getElementById('session-mode').value = saved.mode;
+            if (saved.blankDensity) document.getElementById('blank-density').value = saved.blankDensity;
+            if (saved.delaySeconds !== undefined) document.getElementById('delay-seconds').value = saved.delaySeconds;
+            if (saved.initRate) document.getElementById('init-rate').value = saved.initRate;
+        } catch (error) {}
+        syncSessionConfig();
+    }
+
+    function applyFirstPassPreset() {
+        document.getElementById('session-mode').value = 'blind';
+        document.getElementById('blank-density').value = 'light';
+        document.getElementById('delay-seconds').value = '0';
+        document.getElementById('init-rate').value = '1.0';
+        syncSessionConfig();
+        showHintToast('已切换到第一遍预设');
+    }
+
+    function applySecondPassPreset() {
+        document.getElementById('session-mode').value = 'delayed';
+        document.getElementById('blank-density').value = 'balanced';
+        document.getElementById('delay-seconds').value = '4';
+        document.getElementById('init-rate').value = '1.0';
+        syncSessionConfig();
+        showHintToast('已切换到第二遍强化预设');
+    }
+
+    function loadReviewQueue() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(REVIEW_QUEUE_KEY) || '[]');
+            reviewQueue = Array.isArray(saved) ? saved : [];
+        } catch (error) {
+            reviewQueue = [];
+        }
+        renderReviewQueue();
+    }
+
+    function saveReviewQueue() {
+        reviewQueue = reviewQueue.slice(0, 20);
+        localStorage.setItem(REVIEW_QUEUE_KEY, JSON.stringify(reviewQueue));
+        renderReviewQueue();
+    }
+
+    function renderReviewQueue() {
+        const itemsEl = document.getElementById('review-queue-items');
+        const countEl = document.getElementById('review-queue-count');
+        if (!itemsEl || !countEl) return;
+        countEl.innerText = `${reviewQueue.length} 条`;
+        itemsEl.innerHTML = '';
+        if (reviewQueue.length === 0) {
+            itemsEl.innerHTML = '<div class="review-queue-item"><p>还没有复盘内容。只要某句用过提示或出过错，它就会自动进入这里。</p></div>';
+            return;
+        }
+        reviewQueue.slice(0, 4).forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'review-queue-item';
+            const textEl = document.createElement('p');
+            textEl.innerText = item.text;
+            const metaEl = document.createElement('div');
+            metaEl.className = 'review-queue-meta';
+            metaEl.innerText = `Focus: ${(item.focusWords || []).join(', ') || 'n/a'}`;
+            const actionsEl = document.createElement('div');
+            actionsEl.style.marginTop = '8px';
+            actionsEl.style.display = 'flex';
+            actionsEl.style.gap = '8px';
+            const singleBtn = document.createElement('button');
+            singleBtn.innerText = '单句训练';
+            singleBtn.style.background = '#EAF7E8';
+            singleBtn.style.color = '#1F6B2A';
+            singleBtn.style.boxShadow = 'none';
+            singleBtn.style.padding = '8px 14px';
+            singleBtn.onclick = () => startSingleReviewItem(item.text);
+            const speakBtn = document.createElement('button');
+            speakBtn.innerText = '朗读这句';
+            speakBtn.style.background = '#E8F2FF';
+            speakBtn.style.color = 'var(--accent)';
+            speakBtn.style.boxShadow = 'none';
+            speakBtn.style.padding = '8px 14px';
+            speakBtn.onclick = () => speak(item.text);
+            actionsEl.appendChild(singleBtn);
+            actionsEl.appendChild(speakBtn);
+            card.appendChild(textEl);
+            card.appendChild(metaEl);
+            card.appendChild(actionsEl);
+            itemsEl.appendChild(card);
+        });
+    }
+
+    function loadReviewQueueToTextarea() {
+        if (reviewQueue.length === 0) {
+            alert('复盘队列还是空的。');
+            return;
+        }
+        document.getElementById('source-text').value = reviewQueue.map(item => item.text).join('\n');
+    }
+
+    function startSingleReviewItem(text) {
+        if (!text) return;
+        document.getElementById('source-text').value = text;
+        initSystem();
+    }
+
+    function rememberCurrentSentence() {
+        const focusWords = Array.from(document.querySelectorAll('.cloze-input'))
+            .filter(input => input.dataset.wasHinted || input.dataset.mistakeLogged === 'true')
+            .map(input => input.dataset.answer);
+        if (focusWords.length === 0) return;
+        const text = sentences[currentIndex];
+        const existing = reviewQueue.find(item => item.text === text);
+        if (existing) {
+            existing.focusWords = Array.from(new Set([...(existing.focusWords || []), ...focusWords]));
+        } else {
+            reviewQueue.unshift({
+                text,
+                focusWords: Array.from(new Set(focusWords))
+            });
+        }
+        saveReviewQueue();
+    }
+
+    function shouldBlankWord(lower, tokenIndex) {
+        const isCandidate = lower.length > 1 && !functionWords.has(lower);
+        if (!isCandidate) return false;
+        const densityRules = {
+            light: { force: 8, chance: 28 },
+            balanced: { force: 7, chance: 50 },
+            dense: { force: 5, chance: 74 }
+        };
+        const rule = densityRules[sessionConfig.blankDensity] || densityRules.balanced;
+        if (lower.length >= rule.force) return true;
+        const seed = (lower + ':' + currentIndex + ':' + tokenIndex).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        return (seed % 100) < rule.chance;
+    }
+
+    function normalizeAnswer(text) {
+        return (text || '')
+            .toLowerCase()
+            .replace(/[’‘]/g, "'")
+            .replace(/[^a-z']/g, '')
+            .replace(/^'+|'+$/g, '');
+    }
+
+    function simplifyForCompare(text) {
+        return normalizeAnswer(text).replace(/'/g, '');
+    }
+
+    function buildHintFillValue(currentValue, answer) {
+        const normalizedAnswer = normalizeAnswer(answer);
+        const simplifiedInput = simplifyForCompare(currentValue);
+        const simplifiedAnswer = simplifyForCompare(answer);
+        let matchedLetters = 0;
+        while (
+            matchedLetters < simplifiedInput.length &&
+            matchedLetters < simplifiedAnswer.length &&
+            simplifiedInput[matchedLetters] === simplifiedAnswer[matchedLetters]
+        ) {
+            matchedLetters++;
+        }
+        const targetLetters = Math.min(simplifiedAnswer.length, matchedLetters + 1);
+        let visibleLetters = 0;
+        let result = '';
+        for (const char of normalizedAnswer) {
+            result += char;
+            if (char !== "'") visibleLetters++;
+            if (visibleLetters >= targetLetters) break;
+        }
+        return result || normalizedAnswer;
+    }
+
+    function clearDelayCountdown() {
+        if (delayUnlockTimer) clearInterval(delayUnlockTimer);
+        delayUnlockTimer = null;
+        const banner = document.getElementById('countdown-banner');
+        banner.style.display = 'none';
+        banner.innerText = '';
+    }
+
+    function clearSpeechFallbacks() {
+        if (speechStartFallbackTimer) clearTimeout(speechStartFallbackTimer);
+        if (speechFinishFallbackTimer) clearTimeout(speechFinishFallbackTimer);
+        speechStartFallbackTimer = null;
+        speechFinishFallbackTimer = null;
+    }
+
+    function setTrainingInputsState({ disabled = false, readOnly = false, opacity = '1', cursor = '' } = {}) {
+        document.querySelectorAll('.cloze-input').forEach(el => {
+            el.disabled = disabled;
+            el.readOnly = readOnly;
+            el.style.opacity = opacity;
+            if (cursor) el.style.cursor = cursor;
+        });
+    }
+
+    function unlockInputsAfterDelay() {
+        const inputs = document.querySelectorAll('.cloze-input');
+        inputs.forEach(el => {
+            el.disabled = false;
+            el.readOnly = false;
+            el.style.opacity = '1';
+            el.style.cursor = '';
+        });
+        if (!isWaitingForNext) {
+            const firstEmpty = Array.from(inputs).find(i => i.value.trim() === '') || inputs[0];
+            if (firstEmpty) firstEmpty.focus();
+        }
+    }
+
+    function estimateSpeechDurationMs(text, rate) {
+        const safeRate = Math.max(0.6, rate || 1);
+        const estimatedCharsPerSecond = 11 * safeRate;
+        const estimatedMs = (text.length / estimatedCharsPerSecond) * 1000;
+        return Math.max(4500, Math.min(30000, estimatedMs + 2500));
+    }
+
+    function finalizeSpeechPlayback(requestId, isFullSentence) {
+        if (requestId !== speechRequestId) return;
+        clearSpeechFallbacks();
+        stopImportedSegmentPlayback();
+        if (activeWordToken) {
+            activeWordToken.classList.remove('active-word');
+            activeWordToken = null;
+        }
+
+        if (!isFullSentence) {
+            if (window.activeInput) window.activeInput.focus();
+            return;
+        }
+
+        document.getElementById('target-text').classList.add('revealed');
+        const inputs = document.querySelectorAll('.cloze-input');
+        inputs.forEach(el => {
+            el.disabled = false;
+            el.style.opacity = '1';
+        });
+
+        if (isWaitingForNext) {
+            inputs.forEach(el => {
+                el.readOnly = true;
+                el.style.cursor = 'help';
+            });
+            return;
+        }
+
+        startDelayedUnlock();
+    }
+
+    function startDelayedUnlock() {
+        clearDelayCountdown();
+        if (sessionConfig.mode !== 'delayed' || sessionConfig.delaySeconds === 0) {
+            unlockInputsAfterDelay();
+            return;
+        }
+        const banner = document.getElementById('countdown-banner');
+        let remaining = sessionConfig.delaySeconds;
+        banner.style.display = 'block';
+        banner.innerText = `延迟听写：先在脑中默想 ${remaining} 秒，再开始输入。`;
+        delayUnlockTimer = setInterval(() => {
+            remaining -= 1;
+            if (remaining <= 0) {
+                clearDelayCountdown();
+                unlockInputsAfterDelay();
+                flashFeedback('>> MEMORY PHASE COMPLETE. TYPE WHAT YOU HEARD.', true);
+                return;
+            }
+            banner.innerText = `延迟听写：先在脑中默想 ${remaining} 秒，再开始输入。`;
+        }, 1000);
+    }
 
     // [V2.0 升级] 编辑距离算法：用于允许轻微拼写错误
     function levenshtein(a, b) {
@@ -262,6 +977,82 @@
 
     // 文本处理：利用正则进行 NLP 级别的分句
     function parseText(text) {
+        const DOT_PLACEHOLDER = '__DOT__';
+
+        function protectSentenceDots(line) {
+            let protectedLine = line;
+            const protectAllDots = match => match.replace(/\./g, DOT_PLACEHOLDER);
+            const protectInnerDots = match => {
+                const chars = match.split('');
+                let dotCount = 0;
+                const totalDots = chars.filter(char => char === '.').length;
+                return chars.map(char => {
+                    if (char !== '.') return char;
+                    dotCount += 1;
+                    return dotCount < totalDots ? DOT_PLACEHOLDER : '.';
+                }).join('');
+            };
+            const abbreviationPatterns = [
+                /\b(?:Mr|Mrs|Ms|Miss|Dr|Prof|Sr|Jr|St|Mt|No|Dept|Inc|Ltd|Corp|Co|Ave|Blvd)\./gi,
+                /\b(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.(?=\s+\d)/gi,
+                /\b[A-Z]\.(?=\s+[A-Z][a-z])/g,
+                /\b(?:[A-Za-z]{1,3}\.){2,}/g,
+                /(\d)\.(\d)/g
+            ];
+
+            protectedLine = protectedLine.replace(abbreviationPatterns[0], protectAllDots);
+            protectedLine = protectedLine.replace(abbreviationPatterns[1], protectAllDots);
+            protectedLine = protectedLine.replace(abbreviationPatterns[2], protectAllDots);
+            protectedLine = protectedLine.replace(abbreviationPatterns[3], protectInnerDots);
+            protectedLine = protectedLine.replace(abbreviationPatterns[4], protectAllDots);
+
+            return protectedLine;
+        }
+
+        function restoreSentenceDots(line) {
+            return line.replaceAll(DOT_PLACEHOLDER, '.');
+        }
+
+        function splitLongSegment(segment) {
+            const trimmedSegment = segment.trim();
+            if (!trimmedSegment) return [];
+
+            let clauseChunks = [trimmedSegment];
+
+            if (trimmedSegment.split(/\s+/).length > 18 && trimmedSegment.includes(',')) {
+                const commaParts = trimmedSegment.split(/,\s+/).map(part => part.trim()).filter(Boolean);
+                if (commaParts.length > 1) {
+                    clauseChunks = [];
+                    let buffer = '';
+
+                    commaParts.forEach((part, index) => {
+                        const candidate = buffer ? `${buffer}, ${part}` : part;
+                        const candidateWords = candidate.split(/\s+/).length;
+                        const isLastPart = index === commaParts.length - 1;
+
+                        if (candidateWords < 7 && !isLastPart) {
+                            buffer = candidate;
+                            return;
+                        }
+
+                        clauseChunks.push(candidate);
+                        buffer = '';
+                    });
+
+                    if (buffer) clauseChunks.push(buffer);
+                }
+            }
+
+            return clauseChunks.flatMap(chunk => {
+                if (chunk.split(/\s+/).length > 12) {
+                    return (chunk.match(/(.*?[;:]\s+|.*?(?:--|—)\s+|.+)/g) || [chunk])
+                        .map(part => part.trim())
+                        .filter(Boolean);
+                }
+                return [chunk];
+            });
+        }
+
         // [核心优化] 先按换行符拆分，尊重段落排版
         const lines = text.split(/\n+/).map(line => line.trim()).filter(line => line.length > 0);
         let sentences = [];
@@ -273,32 +1064,29 @@
             // 2. 修复原文本常见的排版缺陷（导致无法正确分句的罪魁祸首）：
             // 2.1 消除标点前多余的空格 (如 "closely at ." -> "closely at.")
             cleanLine = cleanLine.replace(/\s+([.?!;:,])/g, '$1');
+            const protectedLine = protectSentenceDots(cleanLine);
             // 2.2 强制在紧贴大写字母的句末标点后加空格 (如 "survive.You" -> "survive. You")
-            cleanLine = cleanLine.replace(/([.?!])([A-Z])/g, '$1 $2');
+            const normalizedLine = protectedLine.replace(/([.?!])([A-Z])/g, '$1 $2');
             
             // 3. 初级智能分句
             let initialSegments = [];
             if (Intl && Intl.Segmenter) {
                 const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
-                Array.from(segmenter.segment(cleanLine)).forEach(s => initialSegments.push(s.segment.trim()));
+                Array.from(segmenter.segment(normalizedLine)).forEach(s => {
+                    const restored = restoreSentenceDots(s.segment.trim());
+                    if (restored) initialSegments.push(restored);
+                });
             } else {
-                const matches = cleanLine.match(/[^.?!]+[.?!]+(["']?)(?=\s*[A-Z]|$)|[^.?!]+$/g) || [cleanLine];
-                matches.forEach(m => initialSegments.push(m.trim()));
+                const matches = normalizedLine.match(/[^.?!]+[.?!]+(["']?)(?=\s*[A-Z]|$)|[^.?!]+$/g) || [normalizedLine];
+                matches.forEach(m => {
+                    const restored = restoreSentenceDots(m.trim());
+                    if (restored) initialSegments.push(restored);
+                });
             }
 
             // 4. [深度优化] 意群次级切分 (针对超长难句的降维打击)
             initialSegments.forEach(seg => {
-                // 如果这段话超过 12 个单词，系统会自动寻找 分号(;)、冒号(:) 或破折号(--/—) 进行合理断句
-                if (seg.split(' ').length > 12) {
-                    // 保留分隔符进行切片
-                    const subParts = seg.match(/(.*?[;:]\s+|.*?(?:--|—)\s+|.+)/g) || [seg];
-                    subParts.forEach(p => {
-                        const trimmed = p.trim();
-                        if (trimmed) sentences.push(trimmed);
-                    });
-                } else {
-                    sentences.push(seg);
-                }
+                splitLongSegment(seg).forEach(part => sentences.push(part));
             });
         });
         
@@ -308,8 +1096,10 @@
     function initSystem() {
         const rawText = document.getElementById('source-text').value;
         if (!rawText.trim()) return alert("ERROR: NO_DATA_STREAM");
+        syncSessionConfig();
 
         sentences = parseText(rawText).map(s => s.trim()).filter(s => s.length > 0);
+        sentenceAudioTimeline = alignSentencesToAudioChunks(sentences, importedAudioChunks);
         
         // [新增] 将首页设置的语速同步到训练区的全局语速控制器
         document.getElementById('rate').value = document.getElementById('init-rate').value;
@@ -322,6 +1112,11 @@
         missedWords.clear();
         sessionMistakes = 0;
         totalBlanks = 0;
+        clearDelayCountdown();
+        clearSpeechFallbacks();
+        stopImportedSegmentPlayback();
+        speechRequestId++;
+        setTrainingInputsState({ disabled: false, readOnly: false, opacity: '1' });
 
         // [V5.1 iPad 优化] 解决 iOS Safari 首次播放音频需要用户手势的问题
         if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -333,6 +1128,11 @@
     let isWaitingForNext = false;
 
     function loadSentence(index) {
+        clearDelayCountdown();
+        clearSpeechFallbacks();
+        stopImportedSegmentPlayback();
+        speechRequestId++;
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
         // 每次加载新句子时，重置等待状态
         isWaitingForNext = false; 
 
@@ -376,6 +1176,8 @@
         const target = sentences[currentIndex];
         const displayEl = document.getElementById('target-text');
         const inputEl = document.getElementById('user-input'); // 旧输入框
+        currentWordTokens = [];
+        activeWordToken = null;
         
         // 1. 界面初始化
         inputEl.style.display = 'none'; // 隐藏旧输入框
@@ -392,8 +1194,8 @@
         let charCursor = 0; // 用于记录当前单词在语音流中的字符位置
 
         // 3. 循环生成填空题
-        tokens.forEach(token => {
-            const lower = token.toLowerCase().replace(/[^a-z]/g, '');
+        tokens.forEach((token, tokenIndex) => {
+            const lower = normalizeAnswer(token);
             const startIndex = charCursor;
             const endIndex = charCursor + token.length;
             charCursor += token.length; // 游标累加
@@ -403,7 +1205,7 @@
             const isCandidate = lower.length > 1 && !functionWords.has(lower);
             // 2. 动态掩码：长难词(>6字母) 100% 挖空；短实词 50% 概率随机挖空。
             // 既保证了核心词汇的训练，又大幅减少了机械打字的工作量。
-            const isContentWord = isCandidate && (lower.length > 6 || Math.random() > 0.5);
+            const isContentWord = shouldBlankWord(lower, tokenIndex);
 
             if (isContentWord) {
                 // [V7.0] 统计总题目数量
@@ -418,9 +1220,11 @@
                 
                 // [V12.0 体验优化] 移动端防遮挡：聚焦时自动滚动到屏幕垂直居中位置
                 input.addEventListener('focus', function() {
-                    setTimeout(() => {
-                        this.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }, 300); // 延时300ms等待键盘完全弹起
+                    if (window.innerWidth <= 900) {
+                        setTimeout(() => {
+                            this.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 300); // 延时300ms等待键盘完全弹起
+                    }
                 });
 
                 // 样式设置
@@ -444,7 +1248,7 @@
 
                 // [视觉重构] 移除 JS 内联样式，交由 CSS .cloze-input 类统一管理胶囊样式
                 // input.style.background = 'transparent'; // 删除此行
-                input.style.border = 'none'; // 保持
+                input.style.border = '2px solid #C7C7CC';
                 // input.style.borderBottom = '1px solid var(--dim)'; // 删除此行，胶囊不需要底边框
                 // input.style.color = 'var(--fg)'; // 删除此行
                 input.style.textAlign = 'center';
@@ -459,19 +1263,21 @@
                 
                 // [新增] 即时输入反馈 - 提升电脑端打字体验
                 input.addEventListener('input', function() {
-                    const val = this.value.trim().toLowerCase();
+                    const val = this.value.trim();
                     const ans = this.dataset.answer;
+                    const compareVal = simplifyForCompare(val);
+                    const compareAns = simplifyForCompare(ans);
                     
-                    if (val.length === 0) {
+                    if (compareVal.length === 0) {
                         this.style.background = '#E5E5EA';
                         this.style.color = 'var(--fg)';
                         this.style.borderColor = '#C7C7CC';
-                    } else if (val === ans) {
+                    } else if (compareVal === compareAns) {
                         // 完全正确 - 绿色（不自动跳转，让用户自己按Enter或Tab）
                         this.style.background = 'var(--success)';
                         this.style.color = '#fff';
                         this.style.borderColor = 'var(--success)';
-                    } else if (ans.startsWith(val)) {
+                    } else if (compareAns.startsWith(compareVal)) {
                         // 输入方向正确 - 保持默认，但边框变蓝
                         this.style.background = '#fff';
                         this.style.color = 'var(--fg)';
@@ -488,11 +1294,13 @@
                 // 1. 微观反馈：离开输入框立即检查，强化记忆回路
                 input.addEventListener('blur', function() {
                     if (typeof isWaitingForNext !== 'undefined' && isWaitingForNext) return; // 修复：影子跟读阶段锁定样式，防止点击后变色
-                    const val = this.value.trim().toLowerCase();
+                    const val = this.value.trim();
                     const ans = this.dataset.answer;
-                    const dist = levenshtein(val, ans);
+                    const compareVal = simplifyForCompare(val);
+                    const compareAns = simplifyForCompare(ans);
+                    const dist = levenshtein(compareVal, compareAns);
                     // 逻辑复用：简单判断对错
-                    if (val.length === 0) {
+                    if (compareVal.length === 0) {
                         // [V12.0 修复] 恢复默认胶囊样式 (浅灰背景，黑色字)
                         this.style.background = '#E5E5EA'; 
                         this.style.color = 'var(--fg)';
@@ -500,7 +1308,7 @@
                         // 正确：绿底白字
                         this.style.background = 'var(--success)'; 
                         this.style.color = '#fff';
-                    } else if (dist <= (ans.length > 5 ? 2 : 1)) {
+                    } else if (dist <= (compareAns.length > 5 ? 2 : 1)) {
                         // 模糊：黄底白字
                         this.style.background = 'var(--warning)'; 
                         this.style.color = '#fff';
@@ -537,6 +1345,7 @@
                 input.addEventListener('touchmove', cancelPress); // 关键：手指一滑动，马上取消长按，防止误触
 
                 displayEl.appendChild(input);
+                currentWordTokens.push(input);
             } else {
                 // === 生成文本显示 ===
                 const span = document.createElement('span');
@@ -549,6 +1358,7 @@
                 span.style.color = 'var(--dim)';
                 span.style.marginRight = '4px'; // 微调间距
                 displayEl.appendChild(span);
+                currentWordTokens.push(span);
             }
         });
 
@@ -572,14 +1382,92 @@
     let globalUtterance = null;
 
     function speak(text) {
+        const requestId = ++speechRequestId;
+        clearSpeechFallbacks();
+        stopImportedSegmentPlayback();
+
+        // [V20.0 逻辑修复] 上下文感知：判断是读"整句"还是"单词"
+        // 只有读整句时，才执行锁定屏幕和揭示答案的操作
+        const isFullSentence = (text === sentences[currentIndex]);
+        const sentenceClip = isFullSentence ? getSentenceAudioClip(text) : null;
+
+        if (sentenceClip && importedAudioUrl) {
+            const player = document.getElementById('imported-audio-player');
+            let clipStarted = false;
+
+            player.onplay = () => {
+                if (requestId !== speechRequestId) return;
+                clipStarted = true;
+                isImportedSegmentPlaybackActive = true;
+                if (speechStartFallbackTimer) {
+                    clearTimeout(speechStartFallbackTimer);
+                    speechStartFallbackTimer = null;
+                }
+                setTrainingInputsState({ disabled: false, readOnly: true, opacity: '0.7', cursor: 'wait' });
+            };
+
+            player.onended = () => {
+                finalizeSpeechPlayback(requestId, true);
+            };
+
+            player.onerror = () => {
+                if (requestId !== speechRequestId) return;
+                flashPlaybackStatus('>> AUDIO CLIP ERROR. FALLING BACK TO TTS.', false);
+                clearSpeechFallbacks();
+                stopImportedSegmentPlayback();
+                speakWithTts(text, requestId, true);
+            };
+
+            speechStartFallbackTimer = setTimeout(() => {
+                if (requestId !== speechRequestId || clipStarted) return;
+                flashPlaybackStatus('>> AUDIO CLIP START DELAYED. FALLING BACK TO TTS.', false);
+                clearSpeechFallbacks();
+                stopImportedSegmentPlayback();
+                speakWithTts(text, requestId, true);
+            }, 1500);
+
+            speechFinishFallbackTimer = setTimeout(() => {
+                if (requestId !== speechRequestId || !clipStarted) return;
+                flashPlaybackStatus('>> AUDIO CLIP CALLBACK MISSED. INPUTS RESTORED.', false);
+                finalizeSpeechPlayback(requestId, true);
+            }, Math.max(3000, ((sentenceClip.end - sentenceClip.start) * 1000) + 1200));
+
+            importedSegmentPlaybackTimer = setInterval(() => {
+                if (requestId !== speechRequestId) return;
+                if (player.currentTime >= sentenceClip.end) {
+                    player.pause();
+                    finalizeSpeechPlayback(requestId, true);
+                }
+            }, 60);
+
+            setTimeout(async () => {
+                if (requestId !== speechRequestId) return;
+                try {
+                    player.currentTime = sentenceClip.start;
+                    await player.play();
+                } catch (error) {
+                    flashPlaybackStatus('>> AUDIO CLIP PLAY FAILED. FALLING BACK TO TTS.', false);
+                    clearSpeechFallbacks();
+                    stopImportedSegmentPlayback();
+                    speakWithTts(text, requestId, true);
+                }
+            }, 0);
+            return;
+        }
+
+        speakWithTts(text, requestId, isFullSentence);
+    }
+
+    function speakWithTts(text, requestId, isFullSentence) {
         // 添加浏览器兼容性检查
         if (!('speechSynthesis' in window)) {
             console.warn('浏览器不支持语音功能');
             return;
         }
-        
-        if (synth.speaking) synth.cancel();
-        
+
+        const hadActiveSpeech = synth.speaking || synth.pending;
+        if (hadActiveSpeech) synth.cancel();
+
         globalUtterance = new SpeechSynthesisUtterance(text);
         
         // [V18.0 语音优选] 针对 iOS/iPad 优化语音选择顺序
@@ -596,72 +1484,84 @@
         
         globalUtterance.rate = parseFloat(document.getElementById('rate').value);
 
-        // [V20.0 逻辑修复] 上下文感知：判断是读"整句"还是"单词"
-        // 只有读整句时，才执行锁定屏幕和揭示答案的操作
-        const isFullSentence = (text === sentences[currentIndex]);
+        let speechStarted = false;
 
         if (isFullSentence) {
             // [V8.0 核心机制] 语音回路锁定：播放时禁止输入，强迫启用短时记忆
             globalUtterance.onstart = () => {
-                document.querySelectorAll('.cloze-input').forEach(el => {
-                    el.disabled = true; 
-                    el.style.opacity = '0.7'; 
-                });
+                if (requestId !== speechRequestId) return;
+                speechStarted = true;
+                if (speechStartFallbackTimer) {
+                    clearTimeout(speechStartFallbackTimer);
+                    speechStartFallbackTimer = null;
+                }
+                setTrainingInputsState({ disabled: false, readOnly: true, opacity: '0.7', cursor: 'wait' });
             };
 
             // 播放结束：释放输入控制权 + 视觉显影
             globalUtterance.onend = () => {
-                // [V9.0] 听觉暂留结束，视觉层显影 (Visual Reveal)
-                document.getElementById('target-text').classList.add('revealed');
-
-                const inputs = document.querySelectorAll('.cloze-input');
-                // [状态修复] 无论是否通关，朗读结束后必须恢复 opacity，防止影子跟读时文字灰暗
-                inputs.forEach(el => el.style.opacity = '1');
-
-                // [BUG修复] 无论是否通关，都要恢复交互能力，以免右键事件被浏览器强制屏蔽
-                inputs.forEach(el => el.disabled = false);
-
-                if (!isWaitingForNext) {
-                    const firstEmpty = Array.from(inputs).find(i => i.value.trim() === '') || inputs[0];
-                    if (firstEmpty) firstEmpty.focus();
-                }
+                finalizeSpeechPlayback(requestId, true);
             };
         } else {
             // [单词模式] 仅播放，不干扰界面状态，也不去除模糊
             globalUtterance.onend = () => {
-                // 如果需要，可以在这里恢复焦点到刚才点击的单词框
-                if (window.activeInput) window.activeInput.focus();
+                finalizeSpeechPlayback(requestId, false);
             };
         }
+
+        globalUtterance.onerror = () => {
+            if (requestId !== speechRequestId) return;
+            flashPlaybackStatus('>> AUDIO INTERRUPTED. INPUTS RESTORED.', false);
+            finalizeSpeechPlayback(requestId, isFullSentence);
+        };
         
         // [激活] 卡拉OK 高亮逻辑
         globalUtterance.onboundary = (event) => {
+            if (requestId !== speechRequestId) return;
             if (event.name !== 'word') return;
             const charIndex = event.charIndex;
-            
-            // [UI解耦修复] 仅移除CSS类，绝对不覆写内联style，避免洗掉已填词的红/绿/黄状态
-            document.querySelectorAll('.active-word').forEach(el => {
-                el.classList.remove('active-word');
-            });
 
             // [逻辑修复] 必须判断是否为整句朗读。单独读单词时 charIndex 始终从0开始，会导致错位
             if (isFullSentence) {
                 // 查找当前读到的元素
-                const els = document.querySelectorAll('.word-token');
-                for (let el of els) {
+                for (let el of currentWordTokens) {
                     const start = parseInt(el.dataset.start);
                     const end = parseInt(el.dataset.end);
                     // 如果 TTS 的游标落在该单词范围内
                     if (charIndex >= start && charIndex < end + 2) { 
+                        if (activeWordToken && activeWordToken !== el) {
+                            activeWordToken.classList.remove('active-word');
+                        }
                         // 直接依赖 CSS 中的 .active-word (!important) 渲染，放弃 JS 硬编码
                         el.classList.add('active-word');
+                        activeWordToken = el;
                         break;
                     }
                 }
             }
         };
 
-        synth.speak(globalUtterance);
+        speechStartFallbackTimer = setTimeout(() => {
+            if (requestId !== speechRequestId || speechStarted) return;
+            flashPlaybackStatus('>> AUDIO STARTUP DELAYED. INPUTS RESTORED.', false);
+            finalizeSpeechPlayback(requestId, isFullSentence);
+        }, 1500);
+
+        speechFinishFallbackTimer = setTimeout(() => {
+            if (requestId !== speechRequestId || !speechStarted) return;
+            flashPlaybackStatus('>> AUDIO CALLBACK MISSED. INPUTS RESTORED.', false);
+            finalizeSpeechPlayback(requestId, isFullSentence);
+        }, estimateSpeechDurationMs(text, globalUtterance.rate));
+
+        setTimeout(() => {
+            if (requestId !== speechRequestId) return;
+            try {
+                synth.speak(globalUtterance);
+            } catch (error) {
+                flashPlaybackStatus('>> AUDIO ENGINE ERROR. INPUTS RESTORED.', false);
+                finalizeSpeechPlayback(requestId, isFullSentence);
+            }
+        }, hadActiveSpeech ? 60 : 0);
     }
 
     // 极客逻辑：Levenshtein Distance 并不是必须的，我们需要的是精准匹配
@@ -678,19 +1578,21 @@
         let allCorrect = true;
 
         inputs.forEach(input => {
-            const val = input.value.trim().toLowerCase();
+            const val = input.value.trim();
             const ans = input.dataset.answer;
+            const compareVal = simplifyForCompare(val);
+            const compareAns = simplifyForCompare(ans);
             
             // [V2.0 升级] 容错逻辑：允许 1-2 个字母的拼写误差
-            const dist = levenshtein(val, ans);
-            const tolerance = ans.length > 5 ? 2 : 1; // 长词允许错2个，短词允许错1个
+            const dist = levenshtein(compareVal, compareAns);
+            const tolerance = compareAns.length > 5 ? 2 : 1; // 长词允许错2个，短词允许错1个
 
             // [V14.0 严谨逻辑] 如果用了提示(wasHinted)，即使全对也不给绿牌，强制显示为黄色(Warning)
             if (dist === 0 && !input.dataset.wasHinted) {
                 // 完美正确 - 变为绿色背景胶囊，白色文字
                 input.style.background = 'var(--success)'; 
                 input.style.color = '#fff';
-            } else if ((dist <= tolerance || input.dataset.wasHinted) && val.length > 0) {
+            } else if ((dist <= tolerance || input.dataset.wasHinted) && compareVal.length > 0) {
                 // 拼写微瑕 或 使用了提示 - 变为黄色背景
                 input.style.background = 'var(--warning)'; 
                 input.style.color = '#fff';
@@ -713,7 +1615,7 @@
 
         if (allCorrect) {
             // [新增] 影子跟读环节 (Shadowing Phase)
-            speedInput.value = "1.0"; 
+            rememberCurrentSentence();
             
             // 播放音频
             speak(sentences[currentIndex]);
@@ -775,7 +1677,7 @@
         // 2. 如果没有焦点，或者焦点不在框里，就找第一个还没填对的词
         if (!target || !target.classList.contains('cloze-input')) {
              const allInputs = Array.from(document.querySelectorAll('.cloze-input'));
-             target = allInputs.find(i => i.value.toLowerCase() !== i.dataset.answer);
+             target = allInputs.find(i => simplifyForCompare(i.value) !== simplifyForCompare(i.dataset.answer));
         }
         if (target) {
             speak(target.dataset.answer);
@@ -808,6 +1710,14 @@
         el.style.color = success ? 'var(--fg)' : 'var(--err)';
     }
 
+    function flashPlaybackStatus(msg, success) {
+        if (isWaitingForNext) {
+            console.warn(msg);
+            return;
+        }
+        flashFeedback(msg, success);
+    }
+
     function shakeInput() {
         const input = document.getElementById('user-input');
         input.animate([
@@ -825,6 +1735,30 @@
         // CTRL + Enter: 重播 (Replay)
         if (e.ctrlKey && e.key === 'Enter') {
             speak(sentences[currentIndex]);
+            return;
+        }
+
+        if (e.ctrlKey && e.code === 'Space') {
+            e.preventDefault();
+            speak(sentences[currentIndex]);
+            return;
+        }
+
+        if (e.altKey && (e.key === 'w' || e.key === 'W')) {
+            e.preventDefault();
+            speakCurrentTarget();
+            return;
+        }
+
+        if (e.altKey && e.key === 'ArrowLeft') {
+            e.preventDefault();
+            if (currentIndex > 0) loadSentence(currentIndex - 1);
+            return;
+        }
+
+        if (e.altKey && e.key === 'ArrowRight') {
+            e.preventDefault();
+            loadSentence(currentIndex + 1);
             return;
         }
         
@@ -909,7 +1843,7 @@
 
         if (targetInput) {
             const ans = targetInput.dataset.answer;
-            const currentVal = targetInput.value.toLowerCase();
+            const currentVal = targetInput.value;
             
             // [V14.0] 标记错题
             missedWords.add(ans);
@@ -922,11 +1856,7 @@
             showHintToast("💡 Answer: " + ans); // 弹窗显示正常拼写
 
             // 逻辑：填入字母
-            let correctLen = 0;
-            while (correctLen < currentVal.length && currentVal[correctLen] === ans[correctLen]) {
-                correctLen++;
-            }
-            targetInput.value = ans.substring(0, correctLen + 1);
+            targetInput.value = buildHintFillValue(currentVal, ans);
             
             // 样式
             targetInput.style.color = 'var(--accent)'; 
@@ -943,6 +1873,17 @@
 
     // 预加载语音列表
     window.speechSynthesis.onvoiceschanged = () => {};
+    ['session-mode', 'blank-density', 'delay-seconds', 'init-rate'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', syncSessionConfig);
+    });
+    const audioFileInput = document.getElementById('audio-file-input');
+    if (audioFileInput) audioFileInput.addEventListener('change', handleAudioFileSelection);
+    window.addEventListener('beforeunload', () => {
+        if (importedAudioUrl) URL.revokeObjectURL(importedAudioUrl);
+    });
+    loadPersistedSettings();
+    loadReviewQueue();
 </script>
 </body>
 </html>
