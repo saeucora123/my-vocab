@@ -4199,12 +4199,35 @@
             downloadAnchorNode.remove();
         }
 
-        function clearData() {
-            if (confirm("Delete ALL words?")) {
+        async function clearData() {
+            if (!confirm("Delete ALL words?")) return;
+
+            try {
+                const localCards = await db.getAll();
+                for (const card of localCards) {
+                    await queuePendingDeletion(card.id);
+                }
+
+                const conn = await db.open();
+                await new Promise((resolve, reject) => {
+                    const tx = conn.transaction('cards', 'readwrite');
+                    tx.objectStore('cards').clear();
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+
                 localStorage.removeItem('fsrs_deck_context_v2');
                 deck = [];
+                currentCard = null;
                 render();
                 renderListContent();
+
+                if (currentUser) {
+                    await pushToCloud();
+                }
+            } catch (e) {
+                console.error('Clear all data failed', e);
+                alert('❌ 清空失败，请稍后再试');
             }
         }
 
