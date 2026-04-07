@@ -1658,6 +1658,9 @@
 
         // --- IndexedDB Wrapper (解决 5MB 限制) ---
         const PENDING_DELETE_KEY = 'fsrs_pending_deletes';
+        const CLOUD_CLEAR_MARKER_ID = '__fsrs_cloud_clear_marker__';
+        const CLOUD_CLEAR_MARKER_TYPE = 'cloud_clear_marker';
+        let isClearingAllData = false;
         const db = {
             _syncTimer: null,
             open: function() {
@@ -1790,8 +1793,29 @@
             return EXAM_SUBJECTS.some(subject => sentence.includes('[' + subject + ']'));
         }
 
+        function isCloudClearMarkerCard(card) {
+            return !!card && (
+                card.id === CLOUD_CLEAR_MARKER_ID ||
+                card.__metaType === CLOUD_CLEAR_MARKER_TYPE
+            );
+        }
+
+        function getCardUpdatedTime(card) {
+            const raw = card && (card.updated_at || card.cleared_at);
+            const time = new Date(raw || 0).getTime();
+            return Number.isFinite(time) ? time : 0;
+        }
+
+        function getCloudRowUpdatedTime(row) {
+            if (!row) return 0;
+            const card = row.card_data || {};
+            const raw = row.updated_at || card.updated_at || card.cleared_at;
+            const time = new Date(raw || 0).getTime();
+            return Number.isFinite(time) ? time : 0;
+        }
+
         function shouldSyncCardToCloud(card) {
-            return !!card && !isExamCardData(card);
+            return !!card && !isCloudClearMarkerCard(card) && !isExamCardData(card);
         }
 
         function isExamSubjectActive(subject = window.currentSubject) {
@@ -2015,12 +2039,122 @@
             }
         }
 
+        function chunkArray(items, size = 100) {
+            const chunks = [];
+            for (let i = 0; i < items.length; i += size) {
+                chunks.push(items.slice(i, i + size));
+            }
+            return chunks;
+        }
+
+        async function clearLocalCards() {
+            const conn = await db.open();
+            await new Promise((resolve, reject) => {
+                const tx = conn.transaction('cards', 'readwrite');
+                tx.objectStore('cards').clear();
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function removeLocalCardsByIds(ids) {
+            const uniqueIds = [...new Set((ids || []).filter(id => id && id !== CLOUD_CLEAR_MARKER_ID))];
+            if (uniqueIds.length === 0) return;
+            const idSet = new Set(uniqueIds);
+
+            const conn = await db.open();
+            await new Promise((resolve, reject) => {
+                const tx = conn.transaction('cards', 'readwrite');
+                const store = tx.objectStore('cards');
+                uniqueIds.forEach(id => store.delete(id));
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+
+            deck = deck.filter(card => !idSet.has(card.id));
+            if (currentCard && idSet.has(currentCard.id)) currentCard = null;
+        }
+
+        async function deleteCloudCardsByIds(ids) {
+            if (!currentUser) return;
+            const uniqueIds = [...new Set((ids || []).filter(id => id && id !== CLOUD_CLEAR_MARKER_ID))];
+            if (uniqueIds.length === 0) return;
+
+            for (const chunk of chunkArray(uniqueIds)) {
+                const { error } = await sbClient
+                    .from('cards')
+                    .delete()
+                    .eq('user_id', currentUser.id)
+                    .in('id', chunk);
+                if (error) throw error;
+            }
+        }
+
+        async function deleteAllCloudCards() {
+            if (!currentUser) return;
+            const { error } = await sbClient
+                .from('cards')
+                .delete()
+                .eq('user_id', currentUser.id)
+                .neq('id', CLOUD_CLEAR_MARKER_ID);
+            if (error) throw error;
+        }
+
+        async function upsertCloudClearMarker() {
+            if (!currentUser) return null;
+            const clearedAt = new Date().toISOString();
+            const marker = {
+                id: CLOUD_CLEAR_MARKER_ID,
+                __metaType: CLOUD_CLEAR_MARKER_TYPE,
+                cleared_at: clearedAt,
+                updated_at: clearedAt,
+                needsSync: false
+            };
+            const { error } = await sbClient.from('cards').upsert([{
+                id: CLOUD_CLEAR_MARKER_ID,
+                user_id: currentUser.id,
+                updated_at: clearedAt,
+                card_data: marker
+            }], { onConflict: 'id,user_id' });
+            if (error) throw error;
+            return clearedAt;
+        }
+
+        function isIgnorableLegacyCloudError(error) {
+            const message = String(error && (error.message || error.details || error.hint) || '');
+            return /vocab_data|schema cache|does not exist|not found/i.test(message);
+        }
+
+        async function clearLegacyCloudData() {
+            if (!currentUser) return;
+
+            const deleteResult = await sbClient
+                .from('vocab_data')
+                .delete()
+                .eq('user_id', currentUser.id);
+
+            if (!deleteResult.error) return;
+
+            const updateResult = await sbClient
+                .from('vocab_data')
+                .update({ data: [] })
+                .eq('user_id', currentUser.id);
+
+            if (updateResult.error && !isIgnorableLegacyCloudError(updateResult.error)) {
+                throw updateResult.error;
+            }
+
+            if (updateResult.error) {
+                console.warn('旧 vocab_data 表清理跳过:', updateResult.error.message || updateResult.error);
+            }
+        }
+
         async function flushPendingDeletions() {
             if (!currentUser) return;
             const pending = await getPendingDeletions();
             if (pending.length === 0) return;
-            const { error } = await sbClient.from('cards').delete().eq('user_id', currentUser.id).in('id', pending);
-            if (error) throw error;
+            await removeLocalCardsByIds(pending);
+            await deleteCloudCardsByIds(pending);
             await db.saveSetting(PENDING_DELETE_KEY, []);
         }
 
@@ -2289,7 +2423,7 @@
 
         // 把本地数据推送到云端（增量同步：只推送带 needsSync 标记的卡片）
         async function pushToCloud() {
-            if (!currentUser) return;
+            if (!currentUser || isClearingAllData) return;
             if (syncPromise) return syncPromise;
 
             syncPromise = (async () => {
@@ -2841,13 +2975,57 @@
 
         // 从云端拉取数据（增量同步：逐张比对 updated_at，保留更新的版本）
         async function pullFromCloud() {
-            if (!currentUser) return;
+            if (!currentUser || isClearingAllData) return;
             try {
-                // 【Delta Sync】从独立的 cards 表拉取该用户的所有卡片
-                const { data, error } = await sbClient.from('cards').select('card_data, updated_at').eq('user_id', currentUser.id);
-                if (error) throw error;
+                await flushPendingDeletions();
+                if (isClearingAllData) return;
 
-                if (!data || data.length === 0) {
+                // 【Delta Sync】从独立的 cards 表拉取该用户的所有卡片
+                const { data, error } = await sbClient.from('cards').select('id, card_data, updated_at').eq('user_id', currentUser.id);
+                if (error) throw error;
+                if (isClearingAllData) return;
+
+                const cloudRows = Array.isArray(data) ? data : [];
+                const latestClearMarkerTime = cloudRows
+                    .filter(row => isCloudClearMarkerCard(row.card_data))
+                    .reduce((latest, row) => Math.max(latest, getCloudRowUpdatedTime(row)), 0);
+                const staleCloudIds = latestClearMarkerTime > 0
+                    ? cloudRows
+                        .filter(row => !isCloudClearMarkerCard(row.card_data))
+                        .filter(row => getCloudRowUpdatedTime(row) <= latestClearMarkerTime)
+                        .map(row => row.id || (row.card_data && row.card_data.id))
+                        .filter(Boolean)
+                    : [];
+                if (staleCloudIds.length > 0) {
+                    await deleteCloudCardsByIds(staleCloudIds);
+                }
+                const cardRows = cloudRows
+                    .filter(row => !isCloudClearMarkerCard(row.card_data))
+                    .filter(row => latestClearMarkerTime === 0 || getCloudRowUpdatedTime(row) > latestClearMarkerTime);
+
+                if (latestClearMarkerTime > 0) {
+                    const localCards = await db.getAll();
+                    const staleLocalIds = localCards
+                        .filter(card => shouldSyncCardToCloud(card))
+                        .filter(card => getCardUpdatedTime(card) <= latestClearMarkerTime)
+                        .map(card => card.id);
+                    await removeLocalCardsByIds(staleLocalIds);
+                }
+
+                if (cardRows.length === 0) {
+                    if (latestClearMarkerTime > 0) {
+                        const remainingLocalCards = (await db.getAll())
+                            .filter(card => shouldSyncCardToCloud(card))
+                            .filter(card => getCardUpdatedTime(card) > latestClearMarkerTime);
+                        deck = remainingLocalCards;
+                        render();
+                        setSyncStatus(true);
+
+                        const hasNewLocalCards = deck.some(c => c.needsSync === true);
+                        if (hasNewLocalCards) await pushToCloud();
+                        return;
+                    }
+
                     // 云端没有数据，把本地数据推上去
                     // 先把所有本地卡片都标记为 needsSync，再推送
                     const localCards = await db.getAll();
@@ -2871,7 +3049,7 @@
                 }
 
                 // 提取云端卡片对象，并严格过滤掉考试卡片（确保云端脏数据不拉回本地）
-                const cloudCards = data
+                const cloudCards = cardRows
                     .map(row => row.card_data)
                     .filter(c => shouldSyncCardToCloud(c));
 
@@ -4202,20 +4380,22 @@
         async function clearData() {
             if (!confirm("Delete ALL words?")) return;
 
+            isClearingAllData = true;
             try {
+                if (syncPromise) {
+                    try {
+                        await syncPromise;
+                    } catch (syncError) {
+                        console.warn('等待旧同步任务结束时出错，继续执行清空:', syncError);
+                    }
+                }
+
                 const localCards = await db.getAll();
                 for (const card of localCards) {
                     await queuePendingDeletion(card.id);
                 }
 
-                const conn = await db.open();
-                await new Promise((resolve, reject) => {
-                    const tx = conn.transaction('cards', 'readwrite');
-                    tx.objectStore('cards').clear();
-                    tx.oncomplete = () => resolve();
-                    tx.onerror = () => reject(tx.error);
-                });
-
+                await clearLocalCards();
                 localStorage.removeItem('fsrs_deck_context_v2');
                 deck = [];
                 currentCard = null;
@@ -4223,11 +4403,21 @@
                 renderListContent();
 
                 if (currentUser) {
-                    await pushToCloud();
+                    await deleteAllCloudCards();
+                    await upsertCloudClearMarker();
+                    try {
+                        await clearLegacyCloudData();
+                    } catch (legacyError) {
+                        console.warn('旧 vocab_data 表清理失败；clear marker 已写入，会阻止新版本再次迁移旧表:', legacyError);
+                    }
+                    await db.saveSetting(PENDING_DELETE_KEY, []);
                 }
+                setSyncStatus(true);
             } catch (e) {
                 console.error('Clear all data failed', e);
                 alert('❌ 清空失败，请稍后再试');
+            } finally {
+                isClearingAllData = false;
             }
         }
 
@@ -6268,6 +6458,7 @@
         // 1. 智能双向同步（供手动按钮调用）：先拉取防覆盖，再推送确保最新
         async function forceSmartSync() {
             if (!currentUser) return alert("请先登录云端！");
+            if (isClearingAllData) return alert("正在清空单词表，请稍后再同步。");
             const syncEl = document.getElementById('syncStatus');
             syncEl.style.transform = "rotate(180deg)";
             syncEl.style.transition = "transform 0.5s";
