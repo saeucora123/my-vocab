@@ -3208,6 +3208,48 @@
             };
         }
 
+        function isMnemonicMixedChinese(word, mnemonic, morphemes = {}) {
+            if (!mnemonic) return true;
+            const chineseChars = mnemonic.match(/[\u4e00-\u9fff]/g) || [];
+            const englishWords = mnemonic.match(/[A-Za-z]{3,}/g) || [];
+            return chineseChars.length >= 10 && englishWords.length >= 1;
+        }
+
+        async function ensureMixedChineseMnemonic(word, mnemonic, morphemes = {}) {
+            if (!mnemonic || isMnemonicMixedChinese(word, mnemonic, morphemes)) return mnemonic || "";
+
+            const rewritePrompt = `请把下面这个 Memory Hook / mnemonic 改写成中英混杂版本。
+要求：
+1. 保留原有词根词缀推导逻辑，不要改意思。
+2. 中文解释占主体，但允许保留 Root/Prefix/Suffix/Core/abstract meaning 等英文结构标签。
+3. 目标词 "${word}"、词根/前后缀和关键英文短语可以保留；不要写成全英文，也不要写成纯中文。
+4. 只输出改写后的 Memory Hook 文本，不要 JSON，不要额外解释。
+
+原文：
+${mnemonic}`;
+
+            try {
+                const response = await fetch(AI_CONFIG.baseUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AI_CONFIG.apiKey}` },
+                    body: JSON.stringify({
+                        model: AI_CONFIG.model,
+                        messages: [
+                            { role: "system", content: "你只负责把助记内容改写成中文解释为主、保留必要英文结构标签的中英混杂版本。" },
+                            { role: "user", content: rewritePrompt }
+                        ],
+                        temperature: 0.2
+                    })
+                });
+                if (!response.ok) throw new Error("Memory Hook 中英混排改写失败");
+                const data = await response.json();
+                return (data.choices?.[0]?.message?.content || mnemonic).trim();
+            } catch (err) {
+                console.warn("Memory Hook 中英混排改写失败，保留原始结果:", err.message);
+                return mnemonic;
+            }
+        }
+
         // --- NEW: AUTO CONTEXT & DEFINITION FETCHING ---
         // ====== 新的 AI 智能查词函数 (开始) ======
         async function autoFetchContext(mode, level, btnElement) {
@@ -3249,7 +3291,7 @@
 6.句子中**必须**包含明确的逻辑线索（如同义词复现、反义词对比、因果解释），让学生即使没见过这个词，读了句子也能猜出这个空应该填什么意思。
 
 【核心指令 2：深度思维编码 (Deep Coding)】
-1.  **mnemonic (逻辑推导)**: 严禁谐音。若是单词，格式必须为数学公式风：'Root(含义) + Prefix(方向) -> 核心动作 -> 抽象引申义'；若是词组，请解析其字面义到实际义的隐喻逻辑。**注意：不要在 mnemonic 字段里包含 Family/词族列表，Family 请单独放在 family 字段返回。**
+1.  **mnemonic (逻辑推导)**: 严禁谐音。必须中英混杂：中文解释占主体，但允许保留 Root/Prefix/Suffix/Core/abstract meaning 等英文结构标签和词根英文。若是单词，格式可为：'Root(中文含义) + Prefix(中文含义) -> Core action: 中文解释 -> abstract meaning: 中文引申义'；若是词组，请解析其字面义到实际义的隐喻逻辑。**注意：不要在 mnemonic 字段里包含 Family/词族列表，Family 请单独放在 family 字段返回。**
 2.  **contrast (必需)**: 必须指出该词在中英思维上的核心差异（中文）。
 
 【JSON 返回结构】
@@ -3257,7 +3299,7 @@
   "sentence": "包含逻辑连接词和 <b>词块</b> 的例句...",
   "morphemes": { "prefix": "un- (not)", "root": "help", "suffix": "-ful (full of)" }, 
   "definition": "Simple English definition (CEFR B1 level).",
-  "mnemonic": "Root(duc: 引导) + Prefix(intro: 向内) -> 核心动作: 向内引导 -> 引申义: 介绍/引入 (Introduce)",
+  "mnemonic": "Root(duc: 引导) + Prefix(intro: 向内) -> Core action: 向内引导 -> abstract meaning: 介绍/引入",
   "socratic": "Why does this word imply a process rather than a result?",
   "emoji": "最精准的表情符号",
   "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
@@ -3275,14 +3317,14 @@
 4. **线索闭环**：⚠️至关重要！虽然句子很长，但必须保证通过句内的逻辑（Contextual Clues）推导出该单词。
 
 【核心指令 2：深度思维编码 (Deep Coding)】
-1.  **mnemonic**: 仅输出'物理图景'到'抽象逻辑'的演化推导链（若是词组则侧重解析来源或比喻义）。**不要包含词族列表。**
+1.  **mnemonic**: 必须中英混杂：中文解释占主体，但允许保留 Physical image / Core action / abstract meaning 等英文结构标签和关键词。仅输出'物理图景'到'抽象逻辑'的演化推导链（若是词组则侧重解析来源或比喻义）。**不要包含词族列表。**
 2.  **contrast (必需)**: 指出中英思维差异(中文)。
 
 【JSON 返回结构】
 {
   "sentence": "包含复杂句法和 <b>核心搭配</b> 的考研级例句...",
   "definition": "Academic English definition.",
-  "mnemonic": "物理图景: 向下按压 (Press down) -> 抽象演化: 镇压反叛或克制情绪 (Suppress)",
+  "mnemonic": "Physical image: 向下按压 (press down) -> Core action: 压住反叛、情绪或信息 -> abstract meaning: 镇压/克制",
   "socratic": "Why is this word used for political contexts but rarely for personal relationships?",
   "emoji": "抽象概念的具体化Emoji",
   "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
@@ -3332,7 +3374,7 @@
 
                 if (mode === 'new') {
                     tempAutoDefinition = result.definition;
-                    tempMnemonic = result.mnemonic;
+                    tempMnemonic = await ensureMixedChineseMnemonic(word, result.mnemonic || "", result.morphemes);
                     tempSocratic = result.socratic || ""; // 【新增】提取苏格拉底提问
                     tempEmoji = result.emoji;
                     tempContrast = result.contrast || ""; // 【新增】提取思维差异
@@ -3341,7 +3383,7 @@
                     tempFamily = result.family;
                 } else if (mode === 'edit' && defInputId) {
                     document.getElementById(defInputId).value = result.definition;
-                    let aiMnemonic = result.mnemonic || "";
+                    let aiMnemonic = await ensureMixedChineseMnemonic(word, result.mnemonic || "", result.morphemes);
                     if (result.family) aiMnemonic += `\n[Family: ${result.family}]`;
                     document.getElementById('editMnemonicInput').value = aiMnemonic;
 
@@ -5042,16 +5084,19 @@
             }).filter(w => w.length > 0);
 
             // 去重（因已统一转小写，Apple/apple 会被正确识别为同一词）
-            let words = [...new Set(rawWords)];
+            const allTargetWords = [...new Set(rawWords)];
 
             // 过滤掉词库中已经存在的单词
-            words = words.filter(w => !deck.some(c => c.word.toLowerCase() === w.toLowerCase()));
+            let words = allTargetWords.filter(w => !deck.some(c => c.word.toLowerCase() === w.toLowerCase()));
+            const BATCH_CONCURRENCY = 2;
+            const MAX_BATCH_ATTEMPTS = 5;
 
             if (words.length === 0) {
                 return alert("没有找到新单词，或者输入的单词都已经存在于词库中！");
             }
 
-            const confirmStart = confirm(`即将调用 AI 自动生成 ${words.length} 个单词的深度解析。\n预计需要 ${words.length * 3} 秒左右。\n在此期间请不要关闭或切换页面，确定开始吗？`);
+            const estimatedSeconds = Math.max(3, Math.ceil(words.length / BATCH_CONCURRENCY) * 3);
+            const confirmStart = confirm(`即将调用 AI 自动生成 ${words.length} 个单词的深度解析。\n预计需要 ${estimatedSeconds} 秒左右。\n在此期间请不要关闭或切换页面，确定开始吗？`);
             if (!confirmStart) return;
 
             // 【核心修复】设置批量处理保护标志，防止切屏时 pullFromCloud 的 store.clear() 清空正在写入的数据
@@ -5100,37 +5145,63 @@
   "family": "同根词(仅列举单词)"
 }`;
 
-            // 采用经典的 for 循环进行串行请求，防止并发过高导致 DeepSeek 接口 429 报错
-            for (let i = 0; i < words.length; i++) {
-                // 【新增：防后台中断机制】检测到页面切到后台时，强制暂停循环
-                // 手机浏览器在后台会掐断网络，强行请求会报错。这里让程序“睡着”，直到你切回来再醒来。
+            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            const isWordInDeck = (word) => deck.some(c => c.word.toLowerCase() === word.toLowerCase());
+            const pendingWords = new Set(words);
+            const failedWords = new Set();
+            let processedCount = 0;
+            let nextIndex = 0;
+
+            const updateProgress = (word = "") => {
+                const activeText = word ? ` (${word})` : "";
+                statusText.innerText = `Processing: ${processedCount} / ${words.length}${activeText}`;
+                progressBar.style.width = `${(processedCount / words.length) * 100}%`;
+            };
+
+            const waitForForeground = async () => {
                 while (document.hidden) {
-                    // 每秒检查一次是否切回了前台
-                    await new Promise(r => setTimeout(r, 1000));
+                    await sleep(1000);
                 }
+            };
 
-                const word = words[i];
-                statusText.innerText = `Processing: ${i + 1} / ${words.length} (${word})`;
-                progressBar.style.width = `${((i + 1) / words.length) * 100}%`;
+            const getRetryDelayMs = (response, attempts) => {
+                const retryAfter = response?.headers?.get('Retry-After');
+                if (retryAfter) {
+                    const seconds = Number(retryAfter);
+                    if (Number.isFinite(seconds)) return Math.min(Math.max(seconds * 1000, 3000), 60000);
+                    const retryAt = Date.parse(retryAfter);
+                    if (Number.isFinite(retryAt)) return Math.min(Math.max(retryAt - Date.now(), 3000), 60000);
+                }
+                return Math.min(3000 * Math.pow(2, attempts - 1), 30000);
+            };
 
-                // 【核心修复】循环内实时去重，防止本批次内前面刚加入的词被重复处理
-                if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
+            const saveCardDirect = async (newCard) => {
+                const dbInst = await db.open();
+                await new Promise((resolve, reject) => {
+                    const tx = dbInst.transaction('cards', 'readwrite');
+                    tx.objectStore('cards').put(newCard);
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                });
+            };
+
+            const processBatchWord = async (word, workerNo) => {
+                if (isWordInDeck(word)) {
+                    pendingWords.delete(word);
+                    processedCount++;
                     appendLog(`⏭️ ${word}: Skipped (already exists)`, '#ff9500');
-                    continue;
+                    updateProgress(word);
+                    return;
                 }
 
-                // 【新增：增强健壮性】请求重试机制与超时控制
-                let attempts = 0;
-                let maxAttempts = 3;
-                let success = false;
+                for (let attempts = 1; attempts <= MAX_BATCH_ATTEMPTS; attempts++) {
+                    await waitForForeground();
+                    updateProgress(`${word}, try ${attempts}/${MAX_BATCH_ATTEMPTS}, worker ${workerNo}`);
 
-                while (attempts < maxAttempts && !success) {
-                    attempts++;
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
                     try {
-                        // 加入 30 秒超时控制器，防止单个请求假死导致后续任务永久中断
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 30000);
-
                         const response = await fetch(AI_CONFIG.baseUrl, {
                             method: "POST",
                             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AI_CONFIG.apiKey}` },
@@ -5147,9 +5218,12 @@
                             signal: controller.signal // 绑定超时信号
                         });
 
-                        clearTimeout(timeoutId); // 成功响应则清除超时计时器
-
-                        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                        if (!response.ok) {
+                            const apiError = new Error(`API Error: ${response.status}`);
+                            apiError.status = response.status;
+                            apiError.retryDelayMs = getRetryDelayMs(response, attempts);
+                            throw apiError;
+                        }
 
                         const data = await response.json();
                         let rawContent = data.choices[0].message.content;
@@ -5158,7 +5232,6 @@
 
                         const result = JSON.parse(rawContent);
 
-                        // 构造并保存卡片
                         const newCard = createCardObject(
                             word, result.sentence || "", result.definition || "", result.mnemonic || "",
                             result.socratic || "", result.emoji || "", "", "",
@@ -5166,64 +5239,99 @@
                             Array.isArray(result.family) ? result.family.join(', ') : (result.family || "")
                         );
 
-                        // 【核心修复】绕过 db.saveCard()，直接写 IndexedDB
-                        const dbInst = await db.open();
-                        await new Promise((resolve, reject) => {
-                            const tx = dbInst.transaction('cards', 'readwrite');
-                            tx.objectStore('cards').put(newCard);
-                            tx.oncomplete = resolve;
-                            tx.onerror = () => reject(tx.error);
-                        });
+                        await saveCardDirect(newCard);
 
-                        // ✅ 必须在 IndexedDB 写入成功后再 push，防止写入失败时 deck 被污染
-                        deck.push(newCard);
+                        if (!isWordInDeck(word)) deck.push(newCard);
+                        pendingWords.delete(word);
+                        failedWords.delete(word);
                         successCount++;
+                        processedCount++;
                         appendLog(`✅ ${word}: Success`, '#34c759');
-
-                        // 【新增】阶段性自动存档：每成功 5 个单词，自动同步一次云端
-                        // 作用：相当于玩游戏的“自动保存点”，防止中途崩溃导致前功尽弃
-                        if (successCount % 10 === 0) {
-                            appendLog(`💾 Auto-saving progress to Cloud...`, '#007aff');
-                            // 这里调用云端同步，确保数据落袋为安
-                            await pushToCloud();
-                        }
-
-                        success = true; // 标记成功，跳出 while 重试循环
-
-                        // 【核心】限流延迟机制 (Rate Limiting)
-                        // 每个单词请求完后强制暂停 1.5 秒，极大地保护 API 稳定性，防止封号或拒接
-                        if (i < words.length - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 1500));
-                        }
+                        updateProgress(word);
+                        return;
 
                     } catch (err) {
                         console.warn(`Error on ${word} (Attempt ${attempts}):`, err.message);
-                        if (attempts >= maxAttempts) {
+                        if (attempts >= MAX_BATCH_ATTEMPTS) {
+                            failedWords.add(word);
                             failCount++;
-                            appendLog(`❌ ${word}: Failed (${err.message})`, '#ff3b30');
-                        } else {
-                            // 失败后不要立刻重试，休眠 3 秒钟给接口缓冲时间
-                            appendLog(`⚠️ ${word}: Network/API issue. Retrying (${attempts}/${maxAttempts}) in 3s...`, '#ff9500');
-                            await new Promise(resolve => setTimeout(resolve, 3000));
+                            processedCount++;
+                            appendLog(`❌ ${word}: Failed after ${MAX_BATCH_ATTEMPTS} tries (${err.message})`, '#ff3b30');
+                            updateProgress(word);
+                            return;
                         }
+
+                        const delayMs = err.retryDelayMs || getRetryDelayMs(null, attempts);
+                        const reason = err.status === 429 ? 'Rate limit 429' : 'Network/API issue';
+                        appendLog(`⚠️ ${word}: ${reason}. Retrying (${attempts}/${MAX_BATCH_ATTEMPTS}) in ${Math.ceil(delayMs / 1000)}s...`, '#ff9500');
+                        await sleep(delayMs);
+                    } finally {
+                        clearTimeout(timeoutId);
                     }
                 }
-            }
+            };
+
+            const workers = Array.from({ length: Math.min(BATCH_CONCURRENCY, words.length) }, async (_, workerIndex) => {
+                while (nextIndex < words.length) {
+                    const word = words[nextIndex++];
+                    await processBatchWord(word, workerIndex + 1);
+                }
+            });
+
+            updateProgress();
+            await Promise.all(workers);
+
+            const missingWords = allTargetWords.filter(word => !isWordInDeck(word));
 
             // 【核心修复】必须先推送完成，再解除保护标志！
             // 否则 pushToCloud 执行期间若用户切屏，visibilitychange 会触发 pullFromCloud 的 store.clear()，覆盖掉刚写入的数据
-            statusText.innerText = `All Done! ✅ ${successCount} added, ❌ ${failCount} failed. Syncing to cloud...`;
-            await pushToCloud(); // 等待推送完成再提示
-            isBatchProcessing = false; // ✅ 必须在推送完成后才解除保护
-            statusText.innerText = `All Done! ✅ ${successCount} added, ❌ ${failCount} failed. Cloud synced!`;
+            statusText.innerText = `Generated ✅ ${successCount}, ❌ ${failCount}. Syncing to cloud...`;
+            let cloudSynced = false;
+            try {
+                await pushToCloud(); // 等待推送完成再提示
+                cloudSynced = true;
+            } catch (syncError) {
+                appendLog(`☁️ Cloud sync failed: ${syncError.message}`, '#ff3b30');
+            } finally {
+                isBatchProcessing = false; // ✅ 必须在推送完成后才解除保护
+            }
 
-            // 解禁按钮，并将其功能切换为"关闭弹窗"
             const startBtn = document.getElementById('startBatchBtn');
-            startBtn.innerText = '✅ Done! Click to Close';
-            startBtn.disabled = false;
-            startBtn.onclick = closeBatchModal;
+            const closeBtn = document.getElementById('batchCloseBtn');
+            closeBtn.disabled = false;
 
-            document.getElementById('batchCloseBtn').disabled = false;
+            if (missingWords.length > 0) {
+                document.getElementById('batchWordInput').value = missingWords.join('\n');
+                statusText.innerText = `Not finished: ${missingWords.length} words still missing. Click retry.`;
+                appendLog(`Missing after batch: ${missingWords.join(', ')}`, '#ff3b30');
+                startBtn.innerText = '🔁 Retry Missing Words';
+                startBtn.disabled = false;
+                startBtn.onclick = startBatchProcess;
+            } else if (!cloudSynced) {
+                statusText.innerText = `Generated locally, but cloud sync failed. Click to retry cloud sync.`;
+                startBtn.innerText = '🔁 Retry Cloud Sync';
+                startBtn.disabled = false;
+                startBtn.onclick = async () => {
+                    startBtn.disabled = true;
+                    statusText.innerText = 'Syncing to cloud...';
+                    try {
+                        await pushToCloud();
+                        statusText.innerText = `All Done! ✅ ${successCount} added. Cloud synced!`;
+                        startBtn.innerText = '✅ Done! Click to Close';
+                        startBtn.onclick = closeBatchModal;
+                    } catch (syncError) {
+                        appendLog(`☁️ Cloud sync failed: ${syncError.message}`, '#ff3b30');
+                        statusText.innerText = 'Cloud sync still failed. Click to retry again.';
+                        startBtn.innerText = '🔁 Retry Cloud Sync';
+                        startBtn.disabled = false;
+                    }
+                };
+            } else {
+                statusText.innerText = `All Done! ✅ ${successCount} added. Cloud synced!`;
+                startBtn.innerText = '✅ Done! Click to Close';
+                startBtn.disabled = false;
+                startBtn.onclick = closeBatchModal;
+            }
 
             // 刷新主界面数据
             render();
