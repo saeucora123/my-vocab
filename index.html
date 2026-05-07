@@ -841,18 +841,6 @@
             border: 1px solid transparent;
         }
 
-        /* 辨析 (灰色系) */
-        #deepLearningTools button[onclick*="trap"] {
-            background: #f1f3f5 !important;
-            color: #495057 !important;
-        }
-
-        /* 作文 (紫色系) */
-        #deepLearningTools button[onclick*="writing"] {
-            background: #f3e8ff !important;
-            color: #7950f2 !important;
-        }
-
         /* 思维 (橙色系) */
         #deepLearningTools button[onclick*="contrast"] {
             background: #fff4e6 !important;
@@ -1172,20 +1160,11 @@
                         title="Cocktail Party Effect">🔊 Noise: OFF</button>
                     <button class="icon-btn" id="btnToggleMne" onclick="toggleSection('mnemonicArea', this)"
                         style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;">🧠 Logic</button>
-                    <button class="icon-btn" id="btnToggleRef" onclick="toggleSection('selfRefArea', this)"
-                        style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;">🪞 Self</button>
                 </div>
 
                 <div id="mnemonicArea" class="mnemonic-box hidden">
                     <div class="def-label">🧠 Memory Hook</div>
                     <div id="currentMnemonic"></div>
-                </div>
-
-                <!-- 【Phase 2 新增】自我参照 (Self-Reference) 区域 -->
-                <div id="selfRefArea" class="hidden"
-                    style="margin:10px 0; padding:10px; border-left:3px solid #ff9500; background:#fffbf0; border-radius:8px;">
-                    <div class="def-label" style="color:#d46b08;">👤 Self-Reflection</div>
-                    <div id="currentSelfRef" style="font-size:14px; color:#595959; font-style:italic;"></div>
                 </div>
 
                 <div class="context-area hidden" id="contextArea">
@@ -1225,19 +1204,9 @@
                         onclick="revealAnswer(3)">😎 完全确定</button>
                 </div>
 
-                <!-- 新增：辨析与作文扩展工具栏 -->
+                <!-- 新增：深度学习扩展工具栏 -->
                 <div id="deepLearningTools" class="hidden"
                     style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
-                    <button class="action-btn"
-                        style="background:#6c757d; flex:1; padding:10px; font-size:12px; min-width:45%;"
-                        onclick="fetchDeepContext('trap', this)">🆚 易混辨析</button>
-                    <button class="action-btn"
-                        style="background:#5856d6; flex:1; padding:10px; font-size:12px; min-width:45%;"
-                        onclick="fetchDeepContext('writing', this)">✍️ 作文神句</button>
-                    <!-- 【新增】专家建议功能按钮 -->
-                    <button class="action-btn"
-                        style="background:#ff9500; flex:1; padding:10px; font-size:12px; min-width:45%;"
-                        onclick="fetchDeepContext('contrast', this)">🇨🇳🇺🇸 思维差异</button>
                     <button class="action-btn"
                         style="background:#007aff; flex:1; padding:10px; font-size:12px; min-width:45%;"
                         onclick="startSentenceChallenge()">⚔️ AI造句纠错</button>
@@ -1915,16 +1884,6 @@
                 target.appendChild(emojiBadge);
             }
             target.append(document.createTextNode(word || ''));
-        }
-
-        function renderSelfRefCard(target, title, text) {
-            target.innerHTML = `<div style="display:flex; align-items:start; gap:10px;">
-                    <span style="font-size:24px;">🫵</span>
-                    <div>
-                        <div style="font-weight:bold; color:#d46b08; margin-bottom:4px;">${escapeHTML(title)}</div>
-                        <div style="font-style:italic; color:#333; font-size:15px;">"${escapeHTML(text || '')}"</div>
-                    </div>
-                </div>`;
         }
 
         function renderTextCard(target, options) {
@@ -3109,10 +3068,7 @@
         let tempAutoDefinition = ""; // Store auto-fetched definition before adding
         let tempMnemonic = ""; // 新增：暂存助记法
         let tempSocratic = ""; // 【新增】暂存苏格拉底提问
-        let tempSelfRef = "";  // 【新增】暂存自我参照问题
         let tempEmoji = "";    // 新增：暂存 Emoji
-        let tempTrap = "";     // 新增：暂存易混辨析
-        let tempWriting = "";  // 新增：暂存作文例句
         let tempContrast = ""; // 【新增】暂存思维差异
         let tempMorphemes = null; // 【修复】添加全局变量
         let tempFamily = "";      // 【修复】添加全局变量
@@ -3227,7 +3183,7 @@
         }
 
         // 修改：增加了 morphemes (形态学) 和 family (词族) 参数
-        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", trap = "", writing = "", selfRef = "", contrast = "", morphemes = null, family = "") {
+        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", _unused1 = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "") {
             return {
                 id: generateID(),
                 word: word.trim(),
@@ -3240,9 +3196,6 @@
                 mnemonic: mnemonic.trim(),
                 socratic: socratic ? socratic.trim() : "", // 【新增】保存苏格拉底提问
                 emoji: emoji.trim(),
-                trap: trap ? trap.trim() : "",
-                writing: writing ? writing.trim() : "",
-                selfRef: selfRef ? selfRef.trim() : "",    // 【新增】自我参照问题
                 due: Date.now(),
                 state: 0,
                 stability: 0,
@@ -3295,19 +3248,9 @@
 5.你的例句必须是一个"自解释的谜题"。
 6.句子中**必须**包含明确的逻辑线索（如同义词复现、反义词对比、因果解释），让学生即使没见过这个词，读了句子也能猜出这个空应该填什么意思。
 
-【核心指令 2：自我参照效应 (Self-Reference)】
-1.  **Target**: Create a "Concrete Memory Anchor" (具象记忆锚点).
-2.  **Core Rule**: The user MUST understand the word's definition to answer.
-3.  **Strategy**: Randomly pick one specific anchor:
-    - [Specific Person]: "Who is the most [word] person you know?" (e.g., for 'stubborn')
-    - [Specific Object]: "Look around your room. Which item represents [word]?" (e.g., for 'obsolete')
-    - [Specific Time]: "Think of next Weekend. How could you use [word] to change your plan?"
-4.  **Constraint**: Keep the vocabulary simple (Grade 4 level). Do not be abstract.
-
-【核心指令 3：深度思维编码 (Deep Coding)】
+【核心指令 2：深度思维编码 (Deep Coding)】
 1.  **mnemonic (逻辑推导)**: 严禁谐音。若是单词，格式必须为数学公式风：'Root(含义) + Prefix(方向) -> 核心动作 -> 抽象引申义'；若是词组，请解析其字面义到实际义的隐喻逻辑。**注意：不要在 mnemonic 字段里包含 Family/词族列表，Family 请单独放在 family 字段返回。**
 2.  **contrast (必需)**: 必须指出该词在中英思维上的核心差异（中文）。
-3.  **trap (必需)**: 必须找出一个最易混淆的近义词/形近短语并进行辨析（中文）。
 
 【JSON 返回结构】
 {
@@ -3317,9 +3260,6 @@
   "mnemonic": "Root(duc: 引导) + Prefix(intro: 向内) -> 核心动作: 向内引导 -> 引申义: 介绍/引入 (Introduce)",
   "socratic": "Why does this word imply a process rather than a result?",
   "emoji": "最精准的表情符号",
-  "self_ref": "Does your current study method rely on passive input, or does it follow the logic of this word to actively construct knowledge?",
-  "trap": "🚫易混: [词] 💡区别: [中文简述]",
-  "writing": "一个通用高分作文句型(含中文)",
   "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
   "family": "contract, distract, retract (仅列出同根词)"
 }`;
@@ -3334,19 +3274,9 @@
 3.  **高亮词块**：必须用 <b>...</b> 标签包裹目标词的地道搭配。
 4. **线索闭环**：⚠️至关重要！虽然句子很长，但必须保证通过句内的逻辑（Contextual Clues）推导出该单词。
 
-【核心指令 2：自我参照效应 (Self-Reference)】
-1.  **Target**: Create a "Cognitive Transfer" (认知迁移).
-2.  **Core Rule**: Force the user to apply the *logic* of the word to a different domain (Career/Study/Society).
-3.  **Strategy**:
-    - [Trade-off]: "If you prioritize [word] in your career, what must you sacrifice?"
-    - [Hypothesis]: "If this concept didn't exist, how would your major/field collapse?"
-    - [Diagnosis]: "Is your current stress caused by a lack of [word] or too much of it?"
-4.  **Style**: Analytical but personal. Like a mentor asking a tough career question.
-
-【核心指令 3：深度思维编码 (Deep Coding)】
+【核心指令 2：深度思维编码 (Deep Coding)】
 1.  **mnemonic**: 仅输出'物理图景'到'抽象逻辑'的演化推导链（若是词组则侧重解析来源或比喻义）。**不要包含词族列表。**
 2.  **contrast (必需)**: 指出中英思维差异(中文)。
-3.  **trap (必需)**: 近义词/短语辨析(中文)。
 
 【JSON 返回结构】
 {
@@ -3355,9 +3285,6 @@
   "mnemonic": "物理图景: 向下按压 (Press down) -> 抽象演化: 镇压反叛或克制情绪 (Suppress)",
   "socratic": "Why is this word used for political contexts but rarely for personal relationships?",
   "emoji": "抽象概念的具体化Emoji",
-  "self_ref": "Does the structural limitation of your environment force you to adapt, or do you actively reshape the structure?",
-  "trap": "🚫易混: [近义词] 💡考点: [中文辨析]",
-  "writing": "可用于考研大作文的论证句(含中文)",
   "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
   "family": "词族"
 }`;
@@ -3407,10 +3334,7 @@
                     tempAutoDefinition = result.definition;
                     tempMnemonic = result.mnemonic;
                     tempSocratic = result.socratic || ""; // 【新增】提取苏格拉底提问
-                    tempSelfRef = result.self_ref || "";  // 【Phase 2 新增】提取自我参照
                     tempEmoji = result.emoji;
-                    tempTrap = result.trap;
-                    tempWriting = result.writing;
                     tempContrast = result.contrast || ""; // 【新增】提取思维差异
                     // 【Expert Data】不再拼接到助记法，而是独立存储
                     tempMorphemes = result.morphemes;
@@ -3425,10 +3349,7 @@
                     tempEditData = {
                         morphemes: result.morphemes,
                         family: result.family,
-                        trap: result.trap,
-                        writing: result.writing,
-                        contrast: result.contrast,
-                        selfRef: result.self_ref
+                        contrast: result.contrast
                     };
                 }
             } catch (err) {
@@ -3456,12 +3377,12 @@
             }
 
             // 修改：传入 morphemes 和 family (注意顺序要和 createCardObject 一致)
-            deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, tempTrap, tempWriting, tempSelfRef, tempContrast, tempMorphemes, tempFamily));
+            deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, "", "", "", tempContrast, tempMorphemes, tempFamily));
 
             wInput.value = '';
             sInput.value = '';
             // 重置所有临时变量
-            tempAutoDefinition = ""; tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; tempTrap = ""; tempWriting = ""; tempSelfRef = ""; tempContrast = "";
+            tempAutoDefinition = ""; tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; tempContrast = "";
             tempMorphemes = null; tempFamily = ""; // 【修改】这里才需要重置它们
 
             // 【修改】只保存当前这一张卡片到数据库
@@ -3474,7 +3395,7 @@
         function resetTempData() {
             tempAutoDefinition = ""; tempMorphemes = null; tempFamily = "";
             tempMnemonic = ""; tempSocratic = ""; tempEmoji = "";
-            tempTrap = ""; tempWriting = ""; tempSelfRef = ""; tempContrast = "";
+            tempContrast = "";
         }
 
         // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
@@ -3693,20 +3614,6 @@
                 document.getElementById('definitionArea').classList.add('hidden');
                 document.getElementById('mnemonicArea').classList.add('hidden'); // 隐藏助记法
                 document.getElementById('contextArea').classList.add('hidden');
-
-                // 【修改】逻辑：复习卡隐藏，新词(New Card)立即显示 Self-Ref 以激活情景记忆
-                const srArea = document.getElementById('selfRefArea');
-                const srText = document.getElementById('currentSelfRef');
-
-                srArea.classList.add('hidden'); // 先默认隐藏
-                srText.innerHTML = "";          // 先清空内容
-
-                // 【修改】逻辑：复习卡隐藏，新词(New Card)立即显示 Self-Ref 以激活情景记忆
-                // (只有绝对的新词，即尚未进入 Learning 状态)
-                if (currentCard.state === 0 && currentCard.selfRef) {
-                    renderSelfRefCard(srText, 'Self-Reflection (Priming):', currentCard.selfRef);
-                    srArea.classList.remove('hidden');
-                }
 
                 document.getElementById('deepLearningTools').classList.add('hidden');
 
@@ -3957,25 +3864,6 @@
                 currentCard.sentence.includes('[其他]')
             );
 
-            // Self-Reference (自我参照)
-            const srArea = document.getElementById('selfRefArea');
-            const srText = document.getElementById('currentSelfRef');
-            // 备考卡片坚决不显示主观题生成按钮！
-            if (isExam) {
-                srArea.classList.add('hidden');
-            } else if (currentCard.selfRef) {
-                // 【Expert Tutor】不再模糊，而是作为"灵魂拷问"直接展示
-                // 这是一个问题(Question)，不是答案(Answer)，所以必须让用户立刻看到并思考
-                srText.className = ""; // 移除模糊类
-                renderSelfRefCard(srText, 'Direct Question:', currentCard.selfRef);
-                srArea.classList.remove('hidden');
-            } else {
-                // 【修改】如果没有数据，不再隐藏，而是显示生成按钮
-                srArea.classList.remove('hidden');
-                srText.className = "";
-                srText.innerHTML = `<button class="action-btn" style="background:#fff7e6; color:#d46b08; border:1px solid #ffd591; width:100%; font-size:12px; padding:8px;" onclick="fetchMissingField('selfRef', this)">⚡ Generate Self-Reflection</button>`;
-            }
-
             // 2. Show Context (Context)
             const ctxArea = document.getElementById('contextArea');
             const ctxContent = document.getElementById('contextContent');
@@ -3997,7 +3885,7 @@
             }
 
             // 重置所有按钮样式
-            ['btnToggleCtx', 'btnToggleMne', 'btnToggleRef'].forEach(bid => {
+            ['btnToggleCtx', 'btnToggleMne'].forEach(bid => {
                 const b = document.getElementById(bid);
                 b.style.background = "#f2f2f7"; b.style.color = "var(--text)"; b.style.opacity = "1";
             });
@@ -4005,7 +3893,6 @@
             // 如果没有数据，把按钮变淡
             if (!currentCard.sentence) document.getElementById('btnToggleCtx').style.opacity = "0.3";
             if (!currentCard.mnemonic && !currentCard.family) document.getElementById('btnToggleMne').style.opacity = "0.3";
-            // SelfRef 总是有按钮(要么显示内容，要么显示生成按钮)，所以不用变淡
 
             // 新卡片直接显示，复习卡片默认模糊
             if (currentCard.state > 0) {
@@ -4030,10 +3917,11 @@
             // 新增：显示深度学习工具栏 / 备考卡片隐藏该工具栏
             if (isExam) {
                 document.getElementById('deepLearningTools').classList.add('hidden');
+                document.getElementById('deepContent').innerHTML = "";
             } else {
                 document.getElementById('deepLearningTools').classList.remove('hidden');
+                renderContrastForCurrentCard();
             }
-            document.getElementById('deepContent').innerHTML = ""; // 清空上次内容
 
             // 4. (Smart Feature) If no definition exists (old cards), try to fetch it now
             if (!currentCard.definition) {
@@ -4783,10 +4671,7 @@
                 if (tempEditData && Object.keys(tempEditData).length > 0) {
                     if (tempEditData.morphemes) deck[cardIndex].morphemes = tempEditData.morphemes;
                     if (tempEditData.family) deck[cardIndex].family = tempEditData.family;
-                    if (tempEditData.trap) deck[cardIndex].trap = tempEditData.trap;
-                    if (tempEditData.writing) deck[cardIndex].writing = tempEditData.writing;
                     if (tempEditData.contrast) deck[cardIndex].contrast = tempEditData.contrast;
-                    if (tempEditData.selfRef) deck[cardIndex].selfRef = tempEditData.selfRef;
                     tempEditData = {}; // 用完即焚，清空数据
                 }
 
@@ -5017,60 +4902,42 @@
             } catch (e) { alert("AI Error"); }
         }
 
-        // 新增：深度学习扩展功能 (辨析 & 作文 & 思维差异)
-        async function fetchDeepContext(type, btn) {
-            if (!currentCard) return;
-
-            // --- 优化：优先读取本地缓存，节省 Token ---
+        function renderContrastForCurrentCard() {
             const contentDiv = document.getElementById('deepContent');
-            if (type === 'trap' && currentCard.trap) {
-                renderTextCard(contentDiv, { label: '📦 Saved:', text: currentCard.trap, background: '#f1f3f5', borderColor: '#6c757d' });
+            if (!contentDiv || !currentCard) return;
+            if (currentCard.contrast) {
+                renderTextCard(contentDiv, {
+                    label: '🇨🇳🇺🇸 思维差异:',
+                    text: currentCard.contrast,
+                    background: '#fff4e6',
+                    borderColor: '#fd7e14'
+                });
                 return;
             }
-            if (type === 'writing' && currentCard.writing) {
-                renderTextCard(contentDiv, { label: '📦 Saved:', text: currentCard.writing, background: '#e8eaf6', borderColor: '#5856d6' });
+            contentDiv.innerHTML = `<button class="action-btn" style="background:#fff4e6; color:#e67700; border:1px solid #ffd8a8; width:100%; font-size:12px; padding:10px;" onclick="fetchDeepContext('contrast', this)">🇨🇳🇺🇸 生成思维差异</button>`;
+        }
+
+        // 新增：思维差异生成
+        async function fetchDeepContext(type, btn) {
+            if (!currentCard || type !== 'contrast') return;
+
+            const contentDiv = document.getElementById('deepContent');
+            if (currentCard.contrast) {
+                renderContrastForCurrentCard();
                 return;
             }
-            // 【新增】优先读取思维差异缓存
-            if (type === 'contrast' && currentCard.contrast) {
-                renderTextCard(contentDiv, { label: '📦 Saved:', text: currentCard.contrast, background: '#fff4e6', borderColor: '#fd7e14' });
-                return;
-            }
-            // ----------------------------------------
 
             const originalText = btn.innerText;
             btn.innerText = "Thinking...";
-            // const contentDiv = document.getElementById('deepContent'); // 这行上面已经定义了，可以注释掉或删除
             contentDiv.innerHTML = '<div class="spinner"></div>';
 
-            const promptTrap = `针对考研英语，找出单词 "${currentCard.word}" 最容易混淆的一个近义词或形近词（Confusing Word）。
-        格式要求：
-        🚫 易混: [那个词]
-        💡 区别: [用一句话中文精准区分两者侧重点，比如情感色彩、搭配差异]`;
-
-            const promptWriting = `请用单词 "${currentCard.word}" 写一个考研英语大作文（社会现象/个人品质类）的通用高分句型模板。
-        要求：
-        1. 句子要逻辑通顺，稍微高级一点（使用非谓语、从句等）。
-        2. 将句子中可替换的主题部分用 [方括号] 标出。
-        3. 附带中文翻译。`;
-
-            // 【新增】中英思维差异 Prompt
             const promptContrast = `针对单词 "${currentCard.word}"，请进行【中英思维对比分析】(Contrastive Analysis)。
         1. 指出该词在中文直译时容易产生的误解（L1 Interference）。
         2. 解释在英语母语语境下(尤其是考研/学术)，它真正的逻辑色彩是什么（褒义/贬义/中性）。
-        3. 举一个简单的例子说明这种差异。`;
-
-            // 确定使用哪个 Prompt
-            let finalPrompt = "";
-            if (type === 'trap') finalPrompt = promptTrap;
-            else if (type === 'writing') finalPrompt = promptWriting;
-            else if (type === 'contrast') finalPrompt = promptContrast;
+        3. 举一个简单的例子说明这种差异。
+        请全程使用中文输出。`;
 
             try {
-                // 【修改】修复了重复代码Bug，并根据功能类型动态调整温度
-                // 写作(writing)需要高创造性(1.1)，辨析(trap/contrast)需要高准确性(0.3)
-                const dynamicTemp = type === 'writing' ? 1.1 : 0.3;
-
                 const response = await fetch(AI_CONFIG.baseUrl, {
                     method: "POST",
                     headers: {
@@ -5080,24 +4947,20 @@
                     body: JSON.stringify({
                         model: AI_CONFIG.model,
                         messages: [
-                            { role: "system", content: "You are a specialized Kaoyan English Tutor." },
-                            { role: "user", content: finalPrompt }
+                            { role: "system", content: "你是考研英语导师。所有解释必须使用中文。" },
+                            { role: "user", content: promptContrast }
                         ],
-                        temperature: dynamicTemp
+                        temperature: 0.3
                     })
                 });
 
                 const data = await response.json();
                 const text = data.choices[0].message.content;
 
-                // 修复：立即保存到数据库，避免下次重复生成消耗 Token
-                if (type === 'trap') currentCard.trap = text;
-                if (type === 'writing') currentCard.writing = text;
-                if (type === 'contrast') currentCard.contrast = text; // 【新增】保存思维差异
+                currentCard.contrast = text;
                 db.saveCard(currentCard);
 
-                // 简单的格式化显示
-                renderTextCard(contentDiv, { text, background: '#f1f3f5', borderColor: type === 'trap' ? '#6c757d' : '#5856d6' });
+                renderContrastForCurrentCard();
 
             } catch (e) {
                 alert("AI Error: " + e.message);
@@ -5149,49 +5012,6 @@
 
         // 初始化时加载用户设置的保留率
         db.getSetting('fsrs_retention').then(r => { if (r) { p.requestRetention = r; render(); } });
-
-        // 【新增】用于补全缺失字段的函数
-        async function fetchMissingField(field, btn) {
-            if (!currentCard) return;
-            const originalText = btn.innerText;
-            btn.innerHTML = '<div class="spinner" style="border-top-color:#d46b08"></div> Thinking...';
-
-            const prompt = `Generate a "Self-Reference" question for the word "${currentCard.word}".
-        Goal: Connect the word's definition to the user's *real life* to aid memory.
-        Rules:
-        1. If the word is a physical object/action, ask "When/Where/Who" (Concrete).
-        2. If the word is an abstract concept, ask "How does this apply to your goals?" (Abstract).
-        3. The question must be answerable in 5 seconds.
-        4. English only. One sentence.`;
-
-            try {
-                const response = await fetch(AI_CONFIG.baseUrl, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AI_CONFIG.apiKey}` },
-                    body: JSON.stringify({
-                        model: AI_CONFIG.model,
-                        messages: [{ role: "user", content: prompt }],
-                        temperature: 0.7
-                    })
-                });
-                const data = await response.json();
-                const text = data.choices[0].message.content.trim();
-
-                // 更新数据并标记同步
-                currentCard[field] = text;
-                currentCard.needsSync = true;
-                currentCard.updated_at = new Date().toISOString();
-                await db.saveCard(currentCard);
-                pushToCloud();
-
-                // 直接显示结果
-                const srText = document.getElementById('currentSelfRef');
-                renderSelfRefCard(srText, 'Direct Question:', text);
-            } catch (e) {
-                alert("生成失败: " + e.message);
-                btn.innerText = originalText;
-            }
-        }
 
         loadDeck();
 
@@ -5259,12 +5079,11 @@
                 logArea.scrollTop = logArea.scrollHeight; // 自动滚动到底部
             };
 
-            // 【认知科学修正】System Prompt：注入灵魂（自解释谜题、严禁谐音、具象锚点）
+            // 【认知科学修正】System Prompt：注入灵魂（自解释谜题、严禁谐音）
             const batchSystemPrompt = `你是一位精通"i+1"理论的认知语言学专家。请严格遵循以下认知原则生成数据：
 1. 例句必须是"自解释谜题"：必须含明确逻辑路标(because, despite等)，让学生仅凭基础词汇就能推理出目标词意。严禁废话语境。除目标词外限制在CET-4难度。
-2. 助记法(mnemonic)：严禁谐音！必须是"词根词缀物理动作 -> 抽象隐喻"的推导。
-3. 自我参照(self_ref)：具象记忆锚点。问一个与用户具象生活(物品/时间/朋友)相关的问题，逼迫其使用该词逻辑思考，绝不能假大空。
-4. 辨析与差异：指出最致命的中式英语误区或易混词。
+2. 助记法(mnemonic)：严禁谐音！必须是"词根词缀物理动作 -> 抽象隐喻"的推导，必须用中文写，禁止英文解释句和英文模板词，除目标英文词、词根/前后缀字母本身外不要出现英文。
+3. 思维差异(contrast)：指出最致命的中式英语误区。
 只输出JSON格式，不要任何多余解释。`;
 
             // User Prompt：只负责结构约束，保持轻量
@@ -5274,12 +5093,9 @@
   "sentence": "包含逻辑连接词和 <b>词块</b> 的例句（严格遵守i+1和自解释推理）",
   "morphemes": { "prefix": "", "root": "${word}", "suffix": "" }, 
   "definition": "Simple English definition (CEFR B1).",
-  "mnemonic": "物理图景(词根释义) -> 抽象演化推导",
+  "mnemonic": "必须用中文写的物理图景(词根释义) -> 抽象演化推导；除目标词和词根字母外不要出现英文",
   "socratic": "引导底层逻辑思考的提问",
   "emoji": "最精准的表情符号",
-  "self_ref": "具体且生活化的反思提问(英文)",
-  "trap": "🚫易混: [词] 💡区别: [中文简述]",
-  "writing": "一个通用高分作文句型(含中文)",
   "contrast": "🇨🇳🇺🇸中英思维差异(中文)",
   "family": "同根词(仅列举单词)"
 }`;
@@ -5345,8 +5161,8 @@
                         // 构造并保存卡片
                         const newCard = createCardObject(
                             word, result.sentence || "", result.definition || "", result.mnemonic || "",
-                            result.socratic || "", result.emoji || "", result.trap || "", result.writing || "",
-                            result.self_ref || "", result.contrast || "", result.morphemes || null,
+                            result.socratic || "", result.emoji || "", "", "",
+                            "", result.contrast || "", result.morphemes || null,
                             Array.isArray(result.family) ? result.family.join(', ') : (result.family || "")
                         );
 
