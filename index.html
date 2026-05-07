@@ -61,6 +61,41 @@
             margin-bottom: 20px;
         }
 
+        body.review-focus-active {
+            background: #ffffff;
+            padding-top: 14px;
+        }
+
+        body.review-focus-active h1,
+        body.review-focus-active #inputSection,
+        body.review-focus-active .mastery-status,
+        body.review-focus-active .portal-btn,
+        body.review-focus-active .watermark,
+        body.review-focus-active .data-tools {
+            display: none !important;
+        }
+
+        body.review-focus-active .container {
+            max-width: 460px;
+            padding-bottom: 24px;
+            margin-bottom: 0;
+        }
+
+        body.review-focus-active .card-display {
+            min-height: 220px;
+            padding: 32px 20px 24px;
+            margin-bottom: 14px;
+        }
+
+        body.review-focus-active .pronounce-hint {
+            margin-bottom: 8px;
+        }
+
+        body.review-focus-active .footer-info {
+            margin-top: 0;
+            color: #9a9aa0;
+        }
+
         h1 {
             font-size: 24px;
             font-weight: 700;
@@ -223,7 +258,7 @@
             /* 增大字号 */
             font-weight: 800;
             margin-bottom: 8px;
-            letter-spacing: -0.5px;
+            letter-spacing: 0;
             /*稍微紧凑一点，防止单词太长换行*/
             line-height: 1.1;
             background: linear-gradient(135deg, #1d1d1f 0%, #434344 100%);
@@ -268,6 +303,22 @@
             color: var(--subtext);
             margin-bottom: 20px;
             min-height: 18px;
+        }
+
+        .compact-hints-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin: 12px 0 0;
+        }
+
+        .compact-hints-bar .icon-btn {
+            width: auto;
+            min-width: 0;
+            padding: 8px 12px;
+            font-size: 13px;
+            background: #f2f2f7;
         }
 
         /* 增加了 min-height 防止抖动 */
@@ -1091,8 +1142,8 @@
         </select>
 
         <!-- 【新增】胜任感仪表盘 (Competence Dashboard) -->
-        <div style="text-align:center; font-size:12px; color:#86868b; margin-bottom:5px;">Language Mastery Level</div>
-        <div class="mastery-bar-container">
+        <div class="mastery-status" style="text-align:center; font-size:12px; color:#86868b; margin-bottom:5px;">Language Mastery Level</div>
+        <div class="mastery-bar-container mastery-status">
             <div id="masteryBar" class="mastery-bar-fill"></div>
         </div>
 
@@ -1160,20 +1211,13 @@
                     <div id="currentDefinition" class="def-text"></div>
                 </div>
 
-                <div id="disclosureBar" class="hidden"
-                    style="display:flex; justify-content:center; gap:8px; margin:15px 0; flex-wrap:wrap;">
+                <div id="disclosureBar" class="compact-hints-bar hidden">
                     <button class="icon-btn" id="btnToggleCtx" onclick="toggleSection('contextArea', this)"
-                        style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;">📖 Context</button>
-                    <button class="icon-btn" onclick="startRSVP()"
-                        style="font-size:14px; padding:8px 12px; background:#e5e5ea; width:auto;"
-                        title="Rapid Serial Visual Presentation">⚡ RSVP</button>
-                    <button class="icon-btn" id="btnNoiseToggle" onclick="toggleNoiseMode(this)"
-                        style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;"
-                        title="Cocktail Party Effect">🔊 Noise: OFF</button>
+                        style="display:none;">Context</button>
                     <button class="icon-btn" id="btnToggleMne" onclick="toggleSection('mnemonicArea', this)"
-                        style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;">🧠 Logic</button>
+                        title="显示助记和词族">提示</button>
                     <button class="icon-btn" id="btnToggleRef" onclick="toggleSection('selfRefArea', this)"
-                        style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;">🪞 Self</button>
+                        style="display:none;">Self</button>
                 </div>
 
                 <div id="mnemonicArea" class="mnemonic-box hidden">
@@ -1199,8 +1243,7 @@
             </div>
 
             <div class="actions-wrapper">
-                <!-- 【新增】语义联想验证：在看答案前强制思考词性，增加加工深度 -->
-                <div id="semanticCheck" style="display:flex; gap:5px; margin-bottom:10px;">
+                <div id="semanticCheck" class="hidden" style="display:flex; gap:5px; margin-bottom:10px;">
                     <button class="action-btn" style="background:#e5e5ea; color:#333; flex:1;"
                         onclick="checkSemantic('concrete')">👀 具象/实体</button>
                     <button class="action-btn" style="background:#e5e5ea; color:#333; flex:1;"
@@ -1212,7 +1255,7 @@
                 <button id="showAnswerBtn" class="add-btn full-width-btn"
                     style="margin-top:0; height:60px; font-size:18px; background-color: var(--text);"
                     onclick="revealAnswer()">
-                    Show Answer 👁️
+                    Show Answer
                 </button>
 
                 <!-- 【新增】自信度评级按钮 (默认隐藏) -->
@@ -3102,7 +3145,7 @@
         let currentCard = null;
         let rsvpTimer = null;      // 【新增】RSVP 全局计时器句柄，防止翻页后文字继续跳动
         let tempEditData = {};     // 【新增】专门用于暂存编辑模式下 AI 生成的数据
-        let currentConfidence = 0; // 【新增】用户自信度 (1:盲猜, 2:不确定, 3:确定)
+        let currentConfidence = 0;
         let audioContext = null;   // 【新增】Web Audio API 上下文
         let isNoiseMode = false;   // 【新增】是否开启白噪音干扰
         let scaffoldLevel = 0;     // 【新增】拼写提示等级 (每错一次显示更多字母)
@@ -3123,7 +3166,7 @@
             requestRetention: 0.9 // 默认值，稍后会根据模式动态切换
         };
 
-        // 【新增】Apollo 预测引擎核心公式
+        // 保留率预测公式
         // 计算卡片在 deltaDays 天后的保留率 (真实记忆留存率: R = 90% at t=s)
         function predictR(s, deltaDays) {
             // FSRS 标准真实遗忘曲线: R = (1 + (t / 9s))^-1 
@@ -3508,49 +3551,7 @@
             }
             const dueCards = rawDueCards;
 
-            // 【新增】Apollo's Prophecy & CMRR Display
-            // 1. 计算"明天"的整体记忆保留率 (基于过滤后的卡片)
-            const activeCards = filteredDeck.filter(c => c.state > 0);
-            let predictedR = 0;
-            if (activeCards.length > 0) {
-                // 预测每张卡片在明天(1天后)的 R 值并取平均
-                const sumR = activeCards.reduce((acc, c) => {
-                    // 计算该卡片距离上次复习过了几天
-                    const elapsed = (now - c.lastReview) / 86400000;
-                    // 预测明天 (elapsed + 1) 的 R
-                    return acc + predictR(c.stability, elapsed + 1);
-                }, 0);
-                predictedR = (sumR / activeCards.length * 100).toFixed(1);
-            } else {
-                predictedR = "0.0";
-            }
-
-            // 2. 生成仪表盘 HTML (含模式切换)
-            const modeLabel = p.requestRetention >= 0.9 ? "🚀 Cram (90%)" : "☕ Daily (80%)";
-            const modeColor = p.requestRetention >= 0.9 ? "#ff3b30" : "#34c759";
-            // 简单的 CSS 进度条可视化
-            const barColor = parseFloat(predictedR) > 80 ? '#34c759' : (parseFloat(predictedR) > 60 ? '#ff9500' : '#ff3b30');
-            const examFocusHint = isExamSubjectActive()
-                ? '<div style="margin:6px 0 0; font-size:11px; color:#b25c00;">Focus queue: new + hard + recent cards first</div>'
-                : '';
-
-            document.getElementById('deckInfo').innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                <span>Cards: ${filteredDeck.length}</span>
-                <button onclick="toggleRetentionMode()" style="padding:2px 8px; border:1px solid ${modeColor}; color:${modeColor}; background:none; border-radius:10px; font-size:10px;">${modeLabel}</button>
-            </div>
-            
-            <!-- Apollo Prophecy Visualization -->
-            <div style="background:#e5e5ea; border-radius:6px; padding:8px; margin-top:5px;">
-                <div style="display:flex; justify-content:space-between; font-size:11px; color:#555; margin-bottom:4px;">
-                    <span>🔮 Apollo Prophecy (T+1)</span>
-                    <strong style="color:${barColor}">${predictedR}%</strong>
-                </div>
-                <div style="width:100%; height:6px; background:#d1d1d6; border-radius:3px; overflow:hidden;">
-                    <div style="width:${predictedR}%; background:${barColor}; height:100%; transition:width 0.5s;"></div>
-                </div>
-            </div>
-        ` + examFocusHint;
+            document.getElementById('deckInfo').innerHTML = `Due: ${dueCards.length} | Cards: ${filteredDeck.length}`;
 
             const revContainer = document.getElementById('reviewContainer');
             const empty = document.getElementById('emptyState');
@@ -3559,20 +3560,22 @@
             // --- 备份提醒逻辑 (新增) ---
             const lastBackup = localStorage.getItem('fsrs_last_backup');
             const daysSinceBackup = lastBackup ? (Date.now() - parseInt(lastBackup)) / (1000 * 60 * 60 * 24) : 999;
-            const exportBtn = document.querySelector('.data-tools span:nth-child(2)'); // 找到 Export 按钮
-            if (daysSinceBackup > 3) {
+            const exportBtn = Array.from(document.querySelectorAll('.data-tools .text-link'))
+                .find(el => el.textContent.includes('Export'));
+            if (exportBtn && daysSinceBackup > 3) {
                 exportBtn.innerHTML = "⬇ Export <span style='color:red;font-weight:bold'>(!Backup Needed!)</span>";
-            } else {
+            } else if (exportBtn) {
                 exportBtn.innerHTML = "⬇ Export";
             }
 
             if (dueCards.length > 0) {
                 currentCard = dueCards[0];
-                currentConfidence = 0; // 【重置】
+                currentConfidence = 0;
                 scaffoldLevel = 0;     // 【重置】
+                document.body.classList.add('review-focus-active');
                 revContainer.classList.remove('hidden');
                 empty.classList.add('hidden');
-                // inputSec.classList.add('hidden'); // <--- 注释掉这一行，输入框就会一直显示！
+                inputSec.classList.add('hidden');
 
                 // 【新增】隐藏自信度按钮，显示看答案按钮
                 document.getElementById('confidenceSelector').classList.add('hidden');
@@ -3641,11 +3644,11 @@
                     // 1. 核心：大字永远只显示原始单词 (Safe & Clean)
                     // 【修改】使用 sanitizeHTML 包裹 currentCard.word，防止恶意代码
                     const safeWord = sanitizeHTML(currentCard.word);
-                    const mainWordHtml = `<div style="font-size:32px; font-weight:800; color:var(--text); letter-spacing:0.5px;">${safeWord}</div>`;
+                    const mainWordHtml = `<div style="font-size:32px; font-weight:800; color:var(--text); letter-spacing:0;">${safeWord}</div>`;
 
-                    // 2. 辅助：如果有词根数据，在下方生成一条彩色的分析链
+                    // 新卡片保留词根线索；复习卡片只看题面，减少提示依赖。
                     let analysisHtml = "";
-                    if (currentCard.morphemes && currentCard.morphemes.root) {
+                    if (!isReview && currentCard.morphemes && currentCard.morphemes.root) {
                         const m = currentCard.morphemes;
 
                         // 简单的清洗函数：去掉括号里的解释，只留词素本身
@@ -3657,12 +3660,7 @@
                         parts.push(`<span style="font-weight:bold; border-bottom:2px solid #007aff; color:var(--text);">${clean(m.root)}</span>`);
                         if (m.suffix) parts.push(`<span style="color:#007aff">${clean(m.suffix)}</span>`);
 
-                        // 【Pedagogy Fix】复习模式默认模糊 (Blur)，点击揭示，防止“看答案”错觉
-                        const isReview = currentCard.state > 0;
-                        const blurClass = isReview ? "cognitive-blur" : "";
-                        const clickAction = isReview ? "this.classList.remove('cognitive-blur')" : "";
-
-                        analysisHtml = `<div class="etymology-line ${blurClass}" onclick="${clickAction}" style="margin-top:8px; font-family:'Courier New', monospace; font-size:13px; opacity:0.8; transition: all 0.3s; cursor: pointer;">
+                        analysisHtml = `<div class="etymology-line" style="margin-top:8px; font-family:'Courier New', monospace; font-size:13px; opacity:0.8; transition: all 0.3s;">
                         ${parts.join(' + ')}
                     </div>`;
                     }
@@ -3676,17 +3674,12 @@
                     wordEl.style.color = "var(--text)";
                 }
 
-                // 【新增】苏格拉底提问展示
-                // 备考卡片不显示发音提示和苏格拉底提问
                 const hintEl = document.querySelector('.pronounce-hint');
                 if (isExam) {
                     hintEl.innerHTML = "";
-                } else if (currentCard.socratic) {
-                    hintEl.innerHTML = `<span style="color:var(--accent); font-style:italic;">🤔 ${escapeHTML(currentCard.socratic)}</span>`;
                 } else {
                     hintEl.innerText = "Tap word to listen";
                 }
-                // ===================================
 
                 // --- STATE: QUESTION MODE ---
                 // 1. Hide Answers
@@ -3694,19 +3687,11 @@
                 document.getElementById('mnemonicArea').classList.add('hidden'); // 隐藏助记法
                 document.getElementById('contextArea').classList.add('hidden');
 
-                // 【修改】逻辑：复习卡隐藏，新词(New Card)立即显示 Self-Ref 以激活情景记忆
                 const srArea = document.getElementById('selfRefArea');
                 const srText = document.getElementById('currentSelfRef');
 
                 srArea.classList.add('hidden'); // 先默认隐藏
                 srText.innerHTML = "";          // 先清空内容
-
-                // 【修改】逻辑：复习卡隐藏，新词(New Card)立即显示 Self-Ref 以激活情景记忆
-                // (只有绝对的新词，即尚未进入 Learning 状态)
-                if (currentCard.state === 0 && currentCard.selfRef) {
-                    renderSelfRefCard(srText, 'Self-Reflection (Priming):', currentCard.selfRef);
-                    srArea.classList.remove('hidden');
-                }
 
                 document.getElementById('deepLearningTools').classList.add('hidden');
 
@@ -3714,16 +3699,7 @@
                 document.getElementById('ratingButtons').classList.add('hidden');
                 document.getElementById('showAnswerBtn').classList.remove('hidden');
 
-                // 【修改】备考卡片彻底隐藏“语义检查”功能
-                if (isExam) {
-                    document.getElementById('semanticCheck').classList.add('hidden');
-                } else {
-                    document.getElementById('semanticCheck').classList.remove('hidden');
-                    document.querySelectorAll('#semanticCheck .action-btn').forEach(b => {
-                        b.style.background = '#e5e5ea';
-                        b.style.color = '#333';
-                    });
-                }
+                document.getElementById('semanticCheck').classList.add('hidden');
 
                 // 3. Pre-fill content (but keep hidden)
                 const defEl = document.getElementById('currentDefinition');
@@ -3745,32 +3721,12 @@
                     noCtxMsg.classList.remove('hidden');
                 }
 
-                // Stats
-                const isNew = currentCard.state === 0;
-                // 【Expert UI】Apollo Prophecy: 实时显示记忆保留率
-                // 计算逻辑：R = 算法预测你此刻大脑中还剩多少记忆
-                let statsHtml = (currentCard.state === 0) ? "New Card" :
-                                (currentCard.state === 1) ? "Learning..." :
-                                (currentCard.state === 3) ? "Relearning..." : "Review";
-                if (!isNew && currentCard.state === 2) {
-                    const elapsed = (now - currentCard.lastReview) / 86400000;
-                    const currentR = (predictR(currentCard.stability, elapsed) * 100).toFixed(1);
-                    // 颜色编码：低于 70% 变红，激发危机感；高于 90% 变绿，建立自信
-                    const color = currentR < 70 ? '#ff3b30' : (currentR > 90 ? '#34c759' : '#86868b');
-                    statsHtml = `<span style="color:${color}; font-weight:bold; font-size:14px;">🧠 Memory Left: ${currentR}%</span><br><span style="font-size:10px; opacity:0.7;">(S:${currentCard.stability.toFixed(1)} D:${currentCard.difficulty.toFixed(1)})</span>`;
-                }
-                document.getElementById('currentStats').innerHTML = statsHtml;
-
-                // 【新增】生存模式 (Survival Mode)：Yerkes-Dodson 定律应用
-                // 备考卡片不应用生存模式 (避免文字变暗看不清)
-                if (!isExam && currentCard.difficulty > 8.0) {
-                    document.body.classList.add('survival-focus'); // 全局变暗
-                    document.getElementById('currentStats').innerHTML += " <b style='color:#ff3b30'>🔥 FOCUS MODE</b>";
-                } else {
-                    document.body.classList.remove('survival-focus');
-                    // 移除旧的局部样式
-                    document.querySelector('.card-display').classList.remove('survival-mode');
-                }
+                const statsHtml = (currentCard.state === 0) ? "New" :
+                                  (currentCard.state === 1) ? "Learning" :
+                                  (currentCard.state === 3) ? "Relearning" : "Review";
+                document.getElementById('currentStats').innerText = statsHtml;
+                document.body.classList.remove('survival-focus');
+                document.querySelector('.card-display').classList.remove('survival-mode');
 
                 // 【新增】更新胜任感进度条 (Competence Bar)
                 const matureCount = filteredDeck.filter(c => c.stability > 21).length; // S > 21 天视作掌握
@@ -3778,29 +3734,9 @@
                 const progressPct = Math.min((matureCount / totalCount) * 100, 100);
                 document.getElementById('masteryBar').style.width = `${progressPct}%`;
 
-                // --- 强制拼写逻辑 (新增) ---
-                const actionWrapper = document.querySelector('.actions-wrapper');
-                // 移除可能存在的旧输入框
                 const oldInput = document.getElementById('spellingInput');
                 if (oldInput) oldInput.remove();
-
-                // 备考卡片不需要拼写，英语卡片如果复习次数大于3次则强制拼写
-                if (!isExam && currentCard.reps > 3) {
-                    const input = document.createElement('input');
-                    input.type = 'text';
-                    input.id = 'spellingInput';
-                    input.placeholder = 'Type the word here...';
-                    input.style = 'width:100%; padding:15px; border:2px solid #007aff; border-radius:12px; margin-bottom:10px; font-size:18px; text-align:center;';
-                    input.onkeypress = (e) => { if (e.key === 'Enter') revealAnswer(); };
-                    // 插入到 Show Answer 按钮之前
-                    const showBtn = document.getElementById('showAnswerBtn');
-                    actionWrapper.insertBefore(input, showBtn);
-                    showBtn.innerText = "Check Answer 👁️";
-                    // 自动聚焦
-                    setTimeout(() => input.focus(), 100);
-                } else {
-                    document.getElementById('showAnswerBtn').innerText = "Show Answer 👁️";
-                }
+                document.getElementById('showAnswerBtn').innerText = "Show Answer";
 
                 updateButtonLabels(currentCard);
             } else {
@@ -3819,6 +3755,8 @@
                 }
 
                 currentCard = null;
+                document.body.classList.remove('review-focus-active');
+                document.body.classList.remove('survival-focus');
                 revContainer.classList.add('hidden');
                 empty.classList.remove('hidden');
                 inputSec.classList.remove('hidden');
@@ -3847,105 +3785,34 @@
         // --- NEW: REVEAL ANSWER LOGIC ---
         // 修改：接收 confidenceVal 参数
         async function revealAnswer(confidenceVal = null) {
-            // --- 1. 强制拼写与脚手架逻辑 (Scaffolding) ---
-            const spellingInput = document.getElementById('spellingInput');
-            // 只有当输入框存在，且尚未通过验证时才检查
-            if (spellingInput && !spellingInput.disabled && !document.getElementById('showAnswerBtn').classList.contains('hidden')) {
-                const userSpelling = spellingInput.value.replace(/\s+/g, ' ').trim().toLowerCase();
-                const correctSpelling = currentCard.word.replace(/\s+/g, ' ').trim().toLowerCase();
-
-                if (userSpelling !== correctSpelling) {
-                    // 拼写错误：增加提示等级 (Scaffolding)
-                    scaffoldLevel++;
-
-                    // 修复：如果试错超过2次，允许放弃
-                    if (scaffoldLevel > 2) {
-                        if (confirm("太难了，要直接看答案吗？")) {
-                            spellingInput.disabled = true; // 禁用检查
-                            revealAnswer(1); // 以“盲猜”状态翻牌
-                            return;
-                        }
-                    }
-
-                    spellingInput.style.borderColor = 'red';
-                    spellingInput.value = ''; // 清空让用户重输
-
-                    // 动态生成提示：显示前 N 个字母，其余用 _ 代替
-                    // 例如 word="apple", level=1 -> "a _ _ _ _"
-                    const revealLen = Math.min(scaffoldLevel, correctSpelling.length - 1);
-                    const hint = correctSpelling.substring(0, revealLen) +
-                        " _".repeat(correctSpelling.length - revealLen);
-
-                    spellingInput.placeholder = `❌ Try again: ${hint}`;
-                    // 震动反馈 (如果设备支持)
-                    if (navigator.vibrate) navigator.vibrate(200);
-                    return; // ⛔️ 阻断，不准看答案
-                } else {
-                    // 拼写正确：给予视觉奖励，并默认视为“高自信”
-                    spellingInput.style.borderColor = '#34c759';
-                    spellingInput.style.backgroundColor = '#e8f5e9';
-                    spellingInput.disabled = true;
-                    currentConfidence = 3; // 拼写正确默认自信度为满
-                }
-            }
-
-            // --- 2. 自信度拦截 (Confidence Rating) ---
-            // 如果是点击了具体的自信度按钮，记录数值
-            if (typeof confidenceVal === 'number') {
-                currentConfidence = confidenceVal;
-            }
-
-            // 如果还没有自信度（且没有被拼写逻辑自动填满），则拦截，显示选项
-            if (!currentConfidence) {
-                document.getElementById('showAnswerBtn').classList.add('hidden');
-                document.getElementById('confidenceSelector').classList.remove('hidden');
-                return; // ⛔️ 阻断，等待用户选择自信度
-            }
-
-            // --- 3. 真正揭示答案 (Actual Reveal) ---
-            // 隐藏自信度选择器
+            currentConfidence = typeof confidenceVal === 'number' ? confidenceVal : 0;
             document.getElementById('confidenceSelector').classList.add('hidden');
 
             // 0. 还原单词显示 (如果是挖空状态，这里要显示回单词)
             const wordEl = document.getElementById('currentWord');
-            // 【修改】看答案时强制显示大号 Emoji，作为多巴胺奖励
             renderWordWithEmoji(wordEl, currentCard.word, currentCard.emoji, true);
             wordEl.style.color = "var(--accent)"; // 高亮显示
 
             // 1. Show Definition (Always visible after reveal)
             document.getElementById('definitionArea').classList.remove('hidden');
 
-            // 通用模糊函数
-            const applyBlur = (el, content) => {
-                el.innerHTML = content + '<div class="blur-hint">TAP</div>';
-                el.className = 'cognitive-blur'; // 应用模糊类
-                el.onclick = function () {
-                    this.classList.add('revealed'); // 移除模糊
-                    // 移除 hint
-                    const hint = this.querySelector('.blur-hint');
-                    if (hint) hint.remove();
-                };
-            };
-
             // Mnemonic (助记法)
             if (document.getElementById('currentMnemonic')) {
                 const mEl = document.getElementById('currentMnemonic');
-                // 【Expert Display】动态词族网络 (Dynamic Word Family)
-                // 将词族数据拼接到助记法下方，形成知识树
                 let content = currentCard.mnemonic || "无助记法";
                 if (currentCard.family) {
                     content += `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed #ccc; font-size:12px; color:#555;">
-                    <strong>🌳 Family Tree:</strong> ${currentCard.family}
+                    <strong>Family:</strong> ${currentCard.family}
                  </div>`;
                 }
 
                 if (content !== "无助记法") {
-                    applyBlur(mEl, content);
+                    mEl.innerHTML = content;
+                    mEl.className = "";
                 } else {
                     mEl.innerText = "无助记法";
                     mEl.className = "";
                 }
-                // document.getElementById('mnemonicArea').classList.remove('hidden'); // 🚫 禁止自动弹出助记法
             }
 
             // 【新增】再次判断是否为备考卡片，防止在 revealAnswer 中显示针对英语的组件
@@ -3957,24 +3824,11 @@
                 currentCard.sentence.includes('[其他]')
             );
 
-            // Self-Reference (自我参照)
             const srArea = document.getElementById('selfRefArea');
             const srText = document.getElementById('currentSelfRef');
-            // 备考卡片坚决不显示主观题生成按钮！
-            if (isExam) {
-                srArea.classList.add('hidden');
-            } else if (currentCard.selfRef) {
-                // 【Expert Tutor】不再模糊，而是作为"灵魂拷问"直接展示
-                // 这是一个问题(Question)，不是答案(Answer)，所以必须让用户立刻看到并思考
-                srText.className = ""; // 移除模糊类
-                renderSelfRefCard(srText, 'Direct Question:', currentCard.selfRef);
-                srArea.classList.remove('hidden');
-            } else {
-                // 【修改】如果没有数据，不再隐藏，而是显示生成按钮
-                srArea.classList.remove('hidden');
-                srText.className = "";
-                srText.innerHTML = `<button class="action-btn" style="background:#fff7e6; color:#d46b08; border:1px solid #ffd591; width:100%; font-size:12px; padding:8px;" onclick="fetchMissingField('selfRef', this)">⚡ Generate Self-Reflection</button>`;
-            }
+            srArea.classList.add('hidden');
+            srText.className = "";
+            srText.innerHTML = "";
 
             // 2. Show Context (Context)
             const ctxArea = document.getElementById('contextArea');
@@ -3984,13 +3838,12 @@
             if (isExam) {
                 ctxArea.classList.add('hidden');
             } else {
-                ctxArea.classList.remove('hidden'); // ✅ 【修改】遵循专家建议：自动弹出例句区域以供验证
+                ctxArea.classList.remove('hidden');
             }
 
-            // 【新增】初始化控制栏状态 (如果有数据，按钮才可用)
-            // 备考卡片隐藏所有的上下文控制按钮 (Context, RSVP, Noise, Logic)
             const dBar = document.getElementById('disclosureBar');
-            if (isExam) {
+            const hasMnemonic = !!(currentCard.mnemonic || currentCard.family);
+            if (isExam || !hasMnemonic) {
                 dBar.classList.add('hidden');
             } else {
                 dBar.classList.remove('hidden');
@@ -3999,27 +3852,13 @@
             // 重置所有按钮样式
             ['btnToggleCtx', 'btnToggleMne', 'btnToggleRef'].forEach(bid => {
                 const b = document.getElementById(bid);
+                if (!b) return;
                 b.style.background = "#f2f2f7"; b.style.color = "var(--text)"; b.style.opacity = "1";
             });
 
-            // 如果没有数据，把按钮变淡
-            if (!currentCard.sentence) document.getElementById('btnToggleCtx').style.opacity = "0.3";
-            if (!currentCard.mnemonic && !currentCard.family) document.getElementById('btnToggleMne').style.opacity = "0.3";
-            // SelfRef 总是有按钮(要么显示内容，要么显示生成按钮)，所以不用变淡
-
-            // 新卡片直接显示，复习卡片默认模糊
-            if (currentCard.state > 0) {
-                const cleanSentence = document.getElementById('currentSentence').innerHTML; // 此时可能已经有文字了
-                // 重新包裹模糊逻辑
-                ctxContent.classList.remove('revealed'); // 重置状态
-                applyBlur(ctxContent, `<div class="context-sentence" id="currentSentence">${cleanSentence}</div>`);
-            } else {
-                // 新词不模糊
-                ctxContent.className = 'revealed';
-                // 确保移除可能残留的 hint
-                const hint = ctxContent.querySelector('.blur-hint');
-                if (hint) hint.remove();
-            }
+            ctxContent.className = 'revealed';
+            const hint = ctxContent.querySelector('.blur-hint');
+            if (hint) hint.remove();
 
             // 3. Swap Buttons
             document.getElementById('showAnswerBtn').classList.add('hidden');
@@ -4027,12 +3866,7 @@
             document.getElementById('semanticCheck').classList.add('hidden');
             document.getElementById('ratingButtons').classList.remove('hidden');
 
-            // 新增：显示深度学习工具栏 / 备考卡片隐藏该工具栏
-            if (isExam) {
-                document.getElementById('deepLearningTools').classList.add('hidden');
-            } else {
-                document.getElementById('deepLearningTools').classList.remove('hidden');
-            }
+            document.getElementById('deepLearningTools').classList.add('hidden');
             document.getElementById('deepContent').innerHTML = ""; // 清空上次内容
 
             // 4. (Smart Feature) If no definition exists (old cards), try to fetch it now
@@ -4130,34 +3964,6 @@
                 }
             }
 
-            // 【Expert Gamification】变比强化系统 (Variable Ratio Reinforcement)
-            // 1. 盲猜奖励 (Blind Bet Bonus): 自信度低(1)但选了Good/Easy -> 视为“意外之喜”
-            // 2. 随机暴击 (Random Critical): 10% 概率触发多巴胺视觉反馈
-            if (g >= 3) { // 只有答对才奖励
-                const isBlindSuccess = (currentConfidence === 1);
-                const isLucky = Math.random() < 0.15; // 15% 掉落率
-
-                if (isBlindSuccess || isLucky) {
-                    const bonusMsg = isBlindSuccess ? "🎰 BLIND BET WIN! (Blind Guess + Correct)" : "🔥 CRITICAL HIT! (Bonus Dopamine)";
-                    // 简单的视觉反馈：背景闪烁金光
-                    const body = document.body;
-                    const originalBg = body.style.background;
-                    body.style.transition = "background 0.2s";
-                    body.style.background = "linear-gradient(135deg, #ffd700, #ffaa00)"; // 金色闪光
-
-                    // 浮动奖励文字 (简单的 alert 替代，避免复杂 DOM 操作，实际项目应为粒子特效)
-                    const rewardEl = document.createElement('div');
-                    rewardEl.innerHTML = `<div style="position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.8); color:#ffd700; padding:20px; border-radius:12px; font-size:24px; font-weight:bold; z-index:9999; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); animation: popUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">${bonusMsg} <br> <span style="font-size:40px;">💎 +${isBlindSuccess ? 30 : 10} XP</span></div>`;
-                    document.body.appendChild(rewardEl);
-
-                    // 1.5秒后消失
-                    setTimeout(() => {
-                        body.style.background = originalBg;
-                        rewardEl.remove();
-                    }, 1500);
-                }
-            }
-
             currentCard.stability = s;
             currentCard.difficulty = d;
             currentCard.reps++;
@@ -4171,12 +3977,6 @@
                 
                 if (g === 1) {
                     minutesInterval = currentCard.difficulty > 6 ? 300000 : 60000;
-                    
-                    // 【Hypercorrection 逻辑钩子】
-                    if (currentConfidence === 3) {
-                        minutesInterval = 10000; // 10秒后立即重来
-                        alert("💡 Surprise! \nYou were sure, but got it wrong.\nThis is the BEST time to learn. Reviewing in 10s.");
-                    }
                 } else if (g === 2 && (originalState === 1 || originalState === 3)) {
                     // Hard button pressed while learning -> 15m step
                     minutesInterval = 900000;
