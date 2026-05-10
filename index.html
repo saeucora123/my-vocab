@@ -1787,6 +1787,29 @@
             return !!card && !isCloudClearMarkerCard(card) && !isExamCardData(card);
         }
 
+        function formatReviewEstimate(cardCount) {
+            const minutes = Math.ceil(cardCount * 45 / 60);
+            if (minutes <= 0) return '0 min';
+            if (minutes < 60) return `${minutes} min`;
+            const hours = Math.floor(minutes / 60);
+            const rest = minutes % 60;
+            return rest ? `${hours}h ${rest}m` : `${hours}h`;
+        }
+
+        function getTodayReviewSummary(cards, now = Date.now()) {
+            const todayEnd = new Date(now);
+            todayEnd.setHours(23, 59, 59, 999);
+            const realCards = cards.filter(card => card && !isCloudClearMarkerCard(card));
+            const dueNow = realCards.filter(card => typeof card.due === 'number' && card.due <= now).length;
+            const dueToday = realCards.filter(card => typeof card.due === 'number' && card.due <= todayEnd.getTime()).length;
+            return {
+                dueNow,
+                dueToday,
+                laterToday: Math.max(0, dueToday - dueNow),
+                estimateText: formatReviewEstimate(dueToday)
+            };
+        }
+	
         function isExamSubjectActive(subject = window.currentSubject) {
             return subject !== 'all' && subject !== '\u82f1\u8bed';
         }
@@ -3496,11 +3519,18 @@ ${mnemonic}`;
             const examFocusHint = isExamSubjectActive()
                 ? '<div style="margin:6px 0 0; font-size:11px; color:#b25c00;">Focus queue: new + hard + recent cards first</div>'
                 : '';
-
+            const todayReview = getTodayReviewSummary(filteredDeck, now);
+	
             document.getElementById('deckInfo').innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                 <span>Cards: ${filteredDeck.length}</span>
                 <button onclick="toggleRetentionMode()" style="padding:2px 8px; border:1px solid ${modeColor}; color:${modeColor}; background:none; border-radius:10px; font-size:10px;">${modeLabel}</button>
+            </div>
+
+            <div id="todayRemainingStats" style="display:flex; justify-content:space-between; align-items:center; gap:8px; background:#fff7e6; border:1px solid #ffd8a8; border-radius:8px; padding:8px 10px; margin-top:6px; color:#7a4a00; font-size:12px;">
+                <span><strong>今日剩余</strong>: ${todayReview.dueToday}</span>
+                <span>现在可背: ${todayReview.dueNow}</span>
+                <span>预计: ${todayReview.estimateText}</span>
             </div>
             
             <!-- Apollo Prophecy Visualization -->
