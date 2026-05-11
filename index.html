@@ -1148,6 +1148,9 @@
                     <div id="currentDefinition" class="def-text"></div>
                 </div>
 
+                <div id="postAnswerSocratic" class="hidden"
+                    style="margin:10px 0; padding:8px 10px; border-left:3px solid #007aff; background:#f0f7ff; border-radius:8px; color:#24415f; font-size:13px; line-height:1.5; text-align:left;"></div>
+
                 <div id="disclosureBar" class="hidden"
                     style="display:flex; justify-content:center; gap:8px; margin:15px 0; flex-wrap:wrap;">
                     <button class="icon-btn" id="btnToggleCtx" onclick="toggleSection('contextArea', this)"
@@ -3669,13 +3672,10 @@ ${mnemonic}`;
                     wordEl.style.color = "var(--text)";
                 }
 
-                // 【新增】苏格拉底提问展示
-                // 备考卡片不显示发音提示和苏格拉底提问
+                // 翻答案前不展示 Why 思考题，避免给回忆测试提供线索。
                 const hintEl = document.querySelector('.pronounce-hint');
                 if (isExam) {
                     hintEl.innerHTML = "";
-                } else if (currentCard.socratic) {
-                    hintEl.innerHTML = `<span style="color:var(--accent); font-style:italic;">🤔 ${escapeHTML(currentCard.socratic)}</span>`;
                 } else {
                     hintEl.innerText = "Tap word to listen";
                 }
@@ -3686,6 +3686,11 @@ ${mnemonic}`;
                 document.getElementById('definitionArea').classList.add('hidden');
                 document.getElementById('mnemonicArea').classList.add('hidden'); // 隐藏助记法
                 document.getElementById('contextArea').classList.add('hidden');
+                const postAnswerSocratic = document.getElementById('postAnswerSocratic');
+                if (postAnswerSocratic) {
+                    postAnswerSocratic.classList.add('hidden');
+                    postAnswerSocratic.innerHTML = "";
+                }
 
                 document.getElementById('deepLearningTools').classList.add('hidden');
 
@@ -3823,6 +3828,50 @@ ${mnemonic}`;
             }
         }
 
+        function renderMemoryHookForCurrentCard(isExam = false) {
+            const area = document.getElementById('mnemonicArea');
+            const target = document.getElementById('currentMnemonic');
+            const btn = document.getElementById('btnToggleMne');
+            if (!area || !target) return;
+
+            if (isExam || (!currentCard.mnemonic && !currentCard.family)) {
+                area.classList.add('hidden');
+                target.innerHTML = "";
+                return;
+            }
+
+            let content = currentCard.mnemonic ? textToHtmlLines(currentCard.mnemonic) : "无助记法";
+            if (currentCard.family) {
+                content += `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed #ccc; font-size:12px; color:#555;">
+                    <strong>🌳 Family Tree:</strong> ${escapeHTML(currentCard.family)}
+                 </div>`;
+            }
+
+            target.className = "";
+            target.onclick = null;
+            target.innerHTML = content;
+            document.getElementById('mnemonicArea').classList.remove('hidden');
+
+            if (btn) {
+                btn.style.background = "#007aff";
+                btn.style.color = "white";
+                btn.style.boxShadow = "0 2px 8px rgba(0,122,255,0.3)";
+                btn.style.opacity = "1";
+            }
+        }
+
+        function renderPostAnswerSocratic(isExam = false) {
+            const target = document.getElementById('postAnswerSocratic');
+            if (!target) return;
+            if (isExam || !currentCard.socratic) {
+                target.classList.add('hidden');
+                target.innerHTML = "";
+                return;
+            }
+            target.innerHTML = `<strong>深加工提示:</strong> ${escapeHTML(currentCard.socratic)}`;
+            target.classList.remove('hidden');
+        }
+
         // --- NEW: REVEAL ANSWER LOGIC ---
         // 修改：接收 confidenceVal 参数
         async function revealAnswer(confidenceVal = null) {
@@ -3906,27 +3955,6 @@ ${mnemonic}`;
                 };
             };
 
-            // Mnemonic (助记法)
-            if (document.getElementById('currentMnemonic')) {
-                const mEl = document.getElementById('currentMnemonic');
-                // 【Expert Display】动态词族网络 (Dynamic Word Family)
-                // 将词族数据拼接到助记法下方，形成知识树
-                let content = currentCard.mnemonic || "无助记法";
-                if (currentCard.family) {
-                    content += `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed #ccc; font-size:12px; color:#555;">
-                    <strong>🌳 Family Tree:</strong> ${currentCard.family}
-                 </div>`;
-                }
-
-                if (content !== "无助记法") {
-                    applyBlur(mEl, content);
-                } else {
-                    mEl.innerText = "无助记法";
-                    mEl.className = "";
-                }
-                // document.getElementById('mnemonicArea').classList.remove('hidden'); // 🚫 禁止自动弹出助记法
-            }
-
             // 【新增】再次判断是否为备考卡片，防止在 revealAnswer 中显示针对英语的组件
             const isExam = currentCard.sentence && (
                 currentCard.sentence.includes('[考公]') ||
@@ -3935,6 +3963,9 @@ ${mnemonic}`;
                 currentCard.sentence.includes('[税务师]') ||
                 currentCard.sentence.includes('[其他]')
             );
+
+            renderMemoryHookForCurrentCard(isExam);
+            renderPostAnswerSocratic(isExam);
 
             // 2. Show Context (Context)
             const ctxArea = document.getElementById('contextArea');
