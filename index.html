@@ -3113,6 +3113,24 @@
             return 1 / (1 + deltaDays / (9 * s));
         }
 
+        function getRetrievabilityPercent(card, now = Date.now()) {
+            if (!card || card.state === 0 || !card.stability || !card.lastReview) return null;
+            const elapsed = (now - card.lastReview) / 86400000;
+            return predictR(card.stability, elapsed) * 100;
+        }
+
+        function isLowRetrievabilityCard(card, now = Date.now()) {
+            const r = getRetrievabilityPercent(card, now);
+            return r !== null && r < 75;
+        }
+
+        function shouldAutoOpenStudyAid(card, isExam = false, now = Date.now()) {
+            if (isExam || !card) return false;
+            if (card.state === 0 || card.reps < 2) return true;
+            if (currentConfidence === 1) return true;
+            return isLowRetrievabilityCard(card, now);
+        }
+
         // --- 2. Persistence Layer ---
         async function loadDeck() {
             try {
@@ -3515,7 +3533,7 @@ ${mnemonic}`;
             }
 
             // 2. 生成仪表盘 HTML (含模式切换)
-            const modeLabel = p.requestRetention >= 0.9 ? "🚀 Cram (90%)" : "☕ Daily (80%)";
+            const modeLabel = p.requestRetention >= 0.9 ? "🚀 Cram (90%)" : "☕ Daily (85%)";
             const modeColor = p.requestRetention >= 0.9 ? "#ff3b30" : "#34c759";
             // 简单的 CSS 进度条可视化
             const barColor = parseFloat(predictedR) > 80 ? '#34c759' : (parseFloat(predictedR) > 60 ? '#ff9500' : '#ff3b30');
@@ -3737,11 +3755,14 @@ ${mnemonic}`;
                                 (currentCard.state === 1) ? "Learning..." :
                                 (currentCard.state === 3) ? "Relearning..." : "Review";
                 if (!isNew && currentCard.state === 2) {
-                    const elapsed = (now - currentCard.lastReview) / 86400000;
-                    const currentR = (predictR(currentCard.stability, elapsed) * 100).toFixed(1);
+                    const currentRNumber = getRetrievabilityPercent(currentCard, now) ?? 0;
+                    const currentR = currentRNumber.toFixed(1);
                     // 颜色编码：低于 70% 变红，激发危机感；高于 90% 变绿，建立自信
-                    const color = currentR < 70 ? '#ff3b30' : (currentR > 90 ? '#34c759' : '#86868b');
-                    statsHtml = `<span style="color:${color}; font-weight:bold; font-size:14px;">🧠 Memory Left: ${currentR}%</span><br><span style="font-size:10px; opacity:0.7;">(S:${currentCard.stability.toFixed(1)} D:${currentCard.difficulty.toFixed(1)})</span>`;
+                    const color = currentRNumber < 70 ? '#ff3b30' : (currentRNumber > 90 ? '#34c759' : '#86868b');
+                    const strictHint = currentRNumber < 75
+                        ? `<br><span style="font-size:10px; color:#ff3b30;">High risk: 裸回忆失败就点 Again/Hard</span>`
+                        : "";
+                    statsHtml = `<span style="color:${color}; font-weight:bold; font-size:14px;">🧠 Memory Left: ${currentR}%</span><br><span style="font-size:10px; opacity:0.7;">(S:${currentCard.stability.toFixed(1)} D:${currentCard.difficulty.toFixed(1)})</span>${strictHint}`;
                 }
                 document.getElementById('currentStats').innerHTML = statsHtml;
 
@@ -3828,7 +3849,7 @@ ${mnemonic}`;
             }
         }
 
-        function renderMemoryHookForCurrentCard(isExam = false) {
+        function renderMemoryHookForCurrentCard(isExam = false, autoOpen = false) {
             const area = document.getElementById('mnemonicArea');
             const target = document.getElementById('currentMnemonic');
             const btn = document.getElementById('btnToggleMne');
@@ -3850,12 +3871,12 @@ ${mnemonic}`;
             target.className = "";
             target.onclick = null;
             target.innerHTML = content;
-            document.getElementById('mnemonicArea').classList.remove('hidden');
+            area.classList.toggle('hidden', !autoOpen);
 
             if (btn) {
-                btn.style.background = "#007aff";
-                btn.style.color = "white";
-                btn.style.boxShadow = "0 2px 8px rgba(0,122,255,0.3)";
+                btn.style.background = autoOpen ? "#007aff" : "#f2f2f7";
+                btn.style.color = autoOpen ? "white" : "var(--text)";
+                btn.style.boxShadow = autoOpen ? "0 2px 8px rgba(0,122,255,0.3)" : "none";
                 btn.style.opacity = "1";
             }
         }
@@ -3964,7 +3985,8 @@ ${mnemonic}`;
                 currentCard.sentence.includes('[其他]')
             );
 
-            renderMemoryHookForCurrentCard(isExam);
+            const autoOpenStudyAid = shouldAutoOpenStudyAid(currentCard, isExam);
+            renderMemoryHookForCurrentCard(isExam, autoOpenStudyAid);
             renderPostAnswerSocratic(isExam);
 
             // 2. Show Context (Context)
@@ -3974,8 +3996,10 @@ ${mnemonic}`;
             // 备考卡片的 Context 区域其实就是原来的 `sentence`，用来存标签了，不应该作为例句弹出来
             if (isExam) {
                 ctxArea.classList.add('hidden');
+            } else if (autoOpenStudyAid || currentCard.state === 0) {
+                ctxArea.classList.remove('hidden');
             } else {
-                ctxArea.classList.remove('hidden'); // ✅ 【修改】遵循专家建议：自动弹出例句区域以供验证
+                ctxArea.classList.add('hidden');
             }
 
             // 【新增】初始化控制栏状态 (如果有数据，按钮才可用)
@@ -3996,6 +4020,16 @@ ${mnemonic}`;
             // 如果没有数据，把按钮变淡
             if (!currentCard.sentence) document.getElementById('btnToggleCtx').style.opacity = "0.3";
             if (!currentCard.mnemonic && !currentCard.family) document.getElementById('btnToggleMne').style.opacity = "0.3";
+
+            const markOpenButton = (id) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                btn.style.background = "#007aff";
+                btn.style.color = "white";
+                btn.style.boxShadow = "0 2px 8px rgba(0,122,255,0.3)";
+            };
+            if (!ctxArea.classList.contains('hidden') && currentCard.sentence) markOpenButton('btnToggleCtx');
+            if (!document.getElementById('mnemonicArea').classList.contains('hidden') && (currentCard.mnemonic || currentCard.family)) markOpenButton('btnToggleMne');
 
             // 新卡片直接显示，复习卡片默认模糊
             if (currentCard.state > 0) {
@@ -4023,7 +4057,7 @@ ${mnemonic}`;
                 document.getElementById('deepContent').innerHTML = "";
             } else {
                 document.getElementById('deepLearningTools').classList.remove('hidden');
-                renderContrastForCurrentCard();
+                renderContrastPromptForCurrentCard(autoOpenStudyAid);
             }
 
             // 4. (Smart Feature) If no definition exists (old cards), try to fetch it now
@@ -5020,6 +5054,17 @@ ${mnemonic}`;
             contentDiv.innerHTML = `<button class="action-btn" style="background:#fff4e6; color:#e67700; border:1px solid #ffd8a8; width:100%; font-size:12px; padding:10px;" onclick="fetchDeepContext('contrast', this)">🇨🇳🇺🇸 生成思维差异</button>`;
         }
 
+        function renderContrastPromptForCurrentCard(autoOpen = false) {
+            const contentDiv = document.getElementById('deepContent');
+            if (!contentDiv || !currentCard) return;
+            if (autoOpen) {
+                renderContrastForCurrentCard();
+                return;
+            }
+            const label = currentCard.contrast ? "查看思维差异" : "生成思维差异";
+            contentDiv.innerHTML = `<button class="action-btn" style="background:#fff4e6; color:#e67700; border:1px solid #ffd8a8; width:100%; font-size:12px; padding:10px;" onclick="renderContrastForCurrentCard()">🇨🇳🇺🇸 ${label}</button>`;
+        }
+
         // 新增：思维差异生成
         async function fetchDeepContext(type, btn) {
             if (!currentCard || type !== 'contrast') return;
@@ -5102,8 +5147,8 @@ ${mnemonic}`;
         // 【新增】切换保留率模式 (备考冲刺 vs 日常积累)
         function toggleRetentionMode() {
             if (p.requestRetention >= 0.9) {
-                p.requestRetention = 0.8; // 切换到日常模式
-                alert("已切换到【日常积累模式】(80%)\n复习压力将大幅降低。");
+                p.requestRetention = 0.85; // 切换到日常模式
+                alert("已切换到【日常积累模式】(85%)\n比旧版 80% 更早复习，减少 60% 多还想不起来的问题。");
             } else {
                 p.requestRetention = 0.9; // 切换到冲刺模式
                 alert("已切换到【备考冲刺模式】(90%)\n复习频率将翻倍，请做好准备！");
@@ -5114,7 +5159,12 @@ ${mnemonic}`;
         }
 
         // 初始化时加载用户设置的保留率
-        db.getSetting('fsrs_retention').then(r => { if (r) { p.requestRetention = r; render(); } });
+        db.getSetting('fsrs_retention').then(r => {
+            if (r) {
+                p.requestRetention = r < 0.85 ? 0.85 : r;
+                render();
+            }
+        });
 
         loadDeck();
 
