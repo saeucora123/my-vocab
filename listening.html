@@ -22,20 +22,28 @@
             --shadow-md: 0 12px 24px rgba(0,0,0,0.06);
             --glass: blur(20px) saturate(180%);
             --radius: 24px; /* 更圆润的角 */
+            --ipad-toolbar-offset: 0px;
         }
         
-        body { background-color: var(--bg); background-image: radial-gradient(circle at 50% 0%, #fff 0%, transparent 70%); color: var(--fg); font-family: var(--font); margin: 0; padding: 40px 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+        body { background-color: var(--bg); background-image: radial-gradient(circle at 50% 0%, #fff 0%, transparent 70%); color: var(--fg); font-family: var(--font); margin: 0; padding: 40px 20px; display: flex; flex-direction: column; min-height: 100vh; height: 100dvh; box-sizing: border-box; overflow: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
         
         /* [V5.1 升级] iPad & 移动端全触控适配 (扩大响应范围至 1180px) */
         @media (max-width: 1180px) {
-            body { padding: 20px; font-size: 15px; } /* iPad 给予适度呼吸感 */
+            body { --ipad-toolbar-offset: calc(104px + env(safe-area-inset-bottom)); padding: max(16px, env(safe-area-inset-top)) 18px calc(12px + env(safe-area-inset-bottom)); font-size: 15px; } /* iPad 给予适度呼吸感 */
             h3 { font-size: 1.3rem; margin: 5px 0; }
-            #target-text { font-size: 1.5rem; line-height: 2.0; }
-            .cloze-input { font-size: 1.3rem; border-width: 1px; } /* 保留圆角设计 */
+            #terminal { padding-bottom: var(--ipad-toolbar-offset); }
+            #audio-import-panel { padding: 16px 18px; margin-bottom: 12px; }
+            #input-area { padding: 24px; margin-bottom: 1rem; }
+            #training-area { justify-content: flex-start; padding-top: 12px; padding-bottom: var(--ipad-toolbar-offset); min-height: calc(100dvh - 70px); box-sizing: border-box; }
+            #target-text { width: 100%; max-width: 100%; font-size: 1.5rem; line-height: 2.0; margin-bottom: 18px; }
+            #feedback { width: 100%; margin-bottom: 10px; }
+            .cloze-input { min-height: 44px; padding: 6px 8px; font-size: 1.3rem; border-width: 1px; touch-action: manipulation; } /* 保留圆角设计 */
+            .start-actions { flex-wrap: wrap; align-items: stretch !important; }
+            .start-actions > button { flex: 1 1 160px; min-height: 44px; margin-top: 0; }
             #help { display: none; } /* 触控设备隐藏键盘提示 */
             /* 手机按钮栏 - 悬浮底座风格 */
-            #mobile-toolbar { display: flex !important; gap: 12px; position: fixed; bottom: calc(20px + env(safe-area-inset-bottom)); left: 20px; right: 20px; width: auto; z-index: 100; background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); padding: 10px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.5); }
-            #mobile-toolbar button { flex: 1; padding: 12px 0; font-size: 0.9rem; border-radius: 12px; margin: 0; box-shadow: none; }
+            body.is-training-active #mobile-toolbar { display: flex !important; gap: 12px; position: fixed; bottom: calc(18px + env(safe-area-inset-bottom)); left: 18px; right: 18px; width: auto; z-index: 100; background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 10px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.5); }
+            #mobile-toolbar button { flex: 1; min-height: 52px; padding: 0 4px !important; font-size: 0.86rem !important; border-radius: 12px; margin: 0; box-shadow: none; touch-action: manipulation; }
         }
 
         /* 布局 */
@@ -177,7 +185,7 @@
                 <input type="number" id="delay-seconds" value="5" step="1" min="0" max="12">
             </div>
         </div>
-        <div style="display:flex; gap:12px; align-items: center; margin-top: 20px;">
+        <div class="start-actions" style="display:flex; gap:12px; align-items: center; margin-top: 20px;">
             <button onclick="initSystem()">开始训练</button>
             <button onclick="applyFirstPassPreset()" style="background:#EAF7E8; color:#1F6B2A; box-shadow:none;">第一遍预设</button>
             <button onclick="applySecondPassPreset()" style="background:#FFF2D9; color:#8A4B00; box-shadow:none;">第二遍强化预设</button>
@@ -1097,6 +1105,7 @@
         const rawText = document.getElementById('source-text').value;
         if (!rawText.trim()) return alert("ERROR: NO_DATA_STREAM");
         syncSessionConfig();
+        document.body.classList.add('is-training-active');
 
         sentences = parseText(rawText).map(s => s.trim()).filter(s => s.length > 0);
         sentenceAudioTimeline = alignSentencesToAudioChunks(sentences, importedAudioChunks);
@@ -1138,6 +1147,7 @@
 
         // [V7.0] 替换 Alert 为结算卡片显示逻辑
         if (index >= sentences.length) {
+            document.body.classList.remove('is-training-active');
             document.getElementById('target-text').style.display = 'none';
             document.getElementById('status-bar').style.display = 'none';
             document.getElementById('mobile-toolbar').style.display = 'none';
@@ -1220,7 +1230,7 @@
                 
                 // [V12.0 体验优化] 移动端防遮挡：聚焦时自动滚动到屏幕垂直居中位置
                 input.addEventListener('focus', function() {
-                    if (window.innerWidth <= 900) {
+                    if (window.innerWidth <= 1180) {
                         setTimeout(() => {
                             this.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }, 300); // 延时300ms等待键盘完全弹起
