@@ -3896,6 +3896,7 @@ ${mnemonic}`;
         // --- NEW: REVEAL ANSWER LOGIC ---
         // 修改：接收 confidenceVal 参数
         async function revealAnswer(confidenceVal = null) {
+            const wasAnswerHidden = document.getElementById('ratingButtons').classList.contains('hidden');
             // --- 1. 强制拼写与脚手架逻辑 (Scaffolding) ---
             const spellingInput = document.getElementById('spellingInput');
             // 只有当输入框存在，且尚未通过验证时才检查
@@ -3960,6 +3961,10 @@ ${mnemonic}`;
             // 【修改】看答案时强制显示大号 Emoji，作为多巴胺奖励
             renderWordWithEmoji(wordEl, currentCard.word, currentCard.emoji, true);
             wordEl.style.color = "var(--accent)"; // 高亮显示
+            const shouldAutoSpeakOnReveal = wasAnswerHidden;
+            if (shouldAutoSpeakOnReveal) {
+                speakCurrentCard();
+            }
 
             // 1. Show Definition (Always visible after reveal)
             document.getElementById('definitionArea').classList.remove('hidden');
