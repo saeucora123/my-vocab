@@ -462,6 +462,45 @@
             /* 微弱的字间距 */
         }
 
+        .collocation-panel {
+            text-align: left;
+        }
+
+        .collocation-label {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--subtext);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .collocation-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .collocation-chip {
+            background: #eef6ff;
+            border: 1px solid #cfe6ff;
+            color: #075aa8;
+            border-radius: 999px;
+            padding: 7px 11px;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .collocation-example {
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1.5;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 8px;
+        }
+
         .stats-text {
             font-size: 12px;
             color: var(--subtext);
@@ -3098,6 +3137,7 @@
         let tempContrast = ""; // 【新增】暂存思维差异
         let tempMorphemes = null; // 【修复】添加全局变量
         let tempFamily = "";      // 【修复】添加全局变量
+        let tempCollocations = []; // 核心搭配，复习时优先替代长例句
         let isBatchProcessing = false; // 【修复】批量处理保护标志，防止云端拉取覆盖本地数据
 
         const p = {
@@ -3226,14 +3266,101 @@
             return Date.now().toString(36) + Math.random().toString(36).substr(2);
         }
 
-        // 修改：增加了 morphemes (形态学) 和 family (词族) 参数
-        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", _unused1 = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "") {
+        function normalizeWordKey(value) {
+            return String(value || '')
+                .replace(/[\u2018\u2019]/g, "'")
+                .replace(/[\u2010-\u2015]/g, '-')
+                .replace(/\s*-\s*/g, '-')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+        }
+
+        function dedupeWordList(words) {
+            const seen = new Set();
+            return words.filter(word => {
+                const key = normalizeWordKey(word);
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+        }
+
+        function findCardIndexByWord(word) {
+            const key = normalizeWordKey(word);
+            if (!key) return -1;
+            return deck.findIndex(card => normalizeWordKey(card && card.word) === key);
+        }
+
+        function hasCardWord(word) {
+            return findCardIndexByWord(word) !== -1;
+        }
+
+        function normalizeCollocations(collocations) {
+            if (!collocations) return [];
+            const items = Array.isArray(collocations)
+                ? collocations
+                : String(collocations).split(/[,;；，\n]+/);
+            const seen = new Set();
+            return items.map(item => String(item || '').replace(/\s+/g, ' ').trim())
+                .filter(item => {
+                    const key = normalizeWordKey(item);
+                    if (!key || seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                })
+                .slice(0, 4);
+        }
+
+        function getCardCollocations(card) {
+            if (!card) return [];
+            const stored = normalizeCollocations(card.collocations);
+            if (stored.length) return stored;
+            const sentence = String(card.sentence || '');
+            const matches = [...sentence.matchAll(/<b>(.*?)<\/b>/gi)]
+                .map(match => match[1].replace(/<[^>]+>/g, '').trim());
+            return normalizeCollocations(matches);
+        }
+
+        function renderContextForCurrentCard(card) {
+            const sentenceEl = document.getElementById('currentSentence');
+            const noCtxMsg = document.getElementById('noContextMsg');
+            const collocations = getCardCollocations(card);
+            const hasSentence = !!(card && card.sentence);
+
+            if (collocations.length) {
+                const chips = collocations
+                    .map(item => `<span class="collocation-chip">${escapeHTML(item)}</span>`)
+                    .join('');
+                const example = hasSentence
+                    ? `<div class="collocation-example">${sanitizeHTML(card.sentence)}</div>`
+                    : '';
+                sentenceEl.innerHTML = `<div class="collocation-panel"><div class="collocation-label">Core Phrases</div><div class="collocation-list">${chips}</div>${example}</div>`;
+                document.getElementById('contextContent').classList.remove('hidden');
+                noCtxMsg.classList.add('hidden');
+                return;
+            }
+
+            if (hasSentence) {
+                sentenceEl.innerHTML = sanitizeHTML(card.sentence);
+                document.getElementById('contextContent').classList.remove('hidden');
+                noCtxMsg.classList.add('hidden');
+            } else {
+                document.getElementById('contextContent').classList.add('hidden');
+                noCtxMsg.classList.remove('hidden');
+            }
+        }
+
+        // 修改：增加了 morphemes (形态学), family (词族), originalContext 和 collocations (核心搭配) 参数
+        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", _unused1 = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "", originalContext = "", collocations = []) {
             return {
                 id: generateID(),
                 word: word.trim(),
                 // 【Expert Structure】核心形态学对象
                 morphemes: morphemes || { prefix: "", root: word.trim(), suffix: "" },
                 family: family ? (Array.isArray(family) ? family.join(', ') : String(family)).trim() : "", // 词族网络
+                originalContext: originalContext ? String(originalContext).trim() : "",
+                collocations: normalizeCollocations(collocations),
                 sentence: sentence.trim(),
                 contrast: contrast ? contrast.trim() : "", // 【新增】存储思维差异
                 definition: definition.trim(),
@@ -3341,7 +3468,8 @@ ${mnemonic}`;
 【JSON 返回结构】
 {
   "sentence": "包含逻辑连接词和 <b>词块</b> 的例句...",
-  "morphemes": { "prefix": "un- (not)", "root": "help", "suffix": "-ful (full of)" }, 
+  "collocations": ["mitigate risk", "mitigate damage", "mitigate the impact"],
+  "morphemes": { "prefix": "un- (not)", "root": "help", "suffix": "-ful (full of)" },
   "definition": "Simple English definition (CEFR B1 level).",
   "mnemonic": "Root(duc: 引导) + Prefix(intro: 向内) -> Core action: 向内引导 -> abstract meaning: 介绍/引入",
   "socratic": "Why does this word imply a process rather than a result?",
@@ -3367,6 +3495,7 @@ ${mnemonic}`;
 【JSON 返回结构】
 {
   "sentence": "包含复杂句法和 <b>核心搭配</b> 的考研级例句...",
+  "collocations": ["mitigate risk", "mitigate damage", "mitigate the impact"],
   "definition": "Academic English definition.",
   "mnemonic": "Physical image: 向下按压 (press down) -> Core action: 压住反叛、情绪或信息 -> abstract meaning: 镇压/克制",
   "socratic": "Why is this word used for political contexts but rarely for personal relationships?",
@@ -3415,6 +3544,7 @@ ${mnemonic}`;
                 if (!result.morphemes.root) result.morphemes.root = word;
 
                 sentenceEl.value = result.sentence;
+                const normalizedCollocations = normalizeCollocations(result.collocations);
 
                 if (mode === 'new') {
                     tempAutoDefinition = result.definition;
@@ -3425,6 +3555,7 @@ ${mnemonic}`;
                     // 【Expert Data】不再拼接到助记法，而是独立存储
                     tempMorphemes = result.morphemes;
                     tempFamily = result.family;
+                    tempCollocations = normalizedCollocations;
                 } else if (mode === 'edit' && defInputId) {
                     document.getElementById(defInputId).value = result.definition;
                     let aiMnemonic = await ensureMixedChineseMnemonic(word, result.mnemonic || "", result.morphemes);
@@ -3435,7 +3566,8 @@ ${mnemonic}`;
                     tempEditData = {
                         morphemes: result.morphemes,
                         family: result.family,
-                        contrast: result.contrast
+                        contrast: result.contrast,
+                        collocations: normalizedCollocations
                     };
                 }
             } catch (err) {
@@ -3457,19 +3589,20 @@ ${mnemonic}`;
 
             // 逻辑修复：确保直接使用全局变量 tempMorphemes，不要在函数内重新声明(let/const)同名变量
 
-            if (deck.some(c => c.word.toLowerCase() === word.toLowerCase())) {
+            if (hasCardWord(word)) {
                 alert("Word already exists!");
                 return;
             }
 
             // 修改：传入 morphemes 和 family (注意顺序要和 createCardObject 一致)
-            deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, "", "", "", tempContrast, tempMorphemes, tempFamily));
+            deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, "", "", "", tempContrast, tempMorphemes, tempFamily, "", tempCollocations));
 
             wInput.value = '';
             sInput.value = '';
             // 重置所有临时变量
             tempAutoDefinition = ""; tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; tempContrast = "";
             tempMorphemes = null; tempFamily = ""; // 【修改】这里才需要重置它们
+            tempCollocations = [];
 
             // 【修改】只保存当前这一张卡片到数据库
             const newCard = deck[deck.length - 1];
@@ -3482,6 +3615,7 @@ ${mnemonic}`;
             tempAutoDefinition = ""; tempMorphemes = null; tempFamily = "";
             tempMnemonic = ""; tempSocratic = ""; tempEmoji = "";
             tempContrast = "";
+            tempCollocations = [];
         }
 
         // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
@@ -3735,17 +3869,7 @@ ${mnemonic}`;
                     defEl.innerText = "No definition saved.";
                 }
 
-                const sentenceEl = document.getElementById('currentSentence');
-                const noCtxMsg = document.getElementById('noContextMsg');
-                if (currentCard.sentence) {
-                    // 【修改】使用 sanitizeHTML 函数，既能显示粗体，又能防病毒
-                    sentenceEl.innerHTML = sanitizeHTML(currentCard.sentence);
-                    document.getElementById('contextContent').classList.remove('hidden');
-                    noCtxMsg.classList.add('hidden');
-                } else {
-                    document.getElementById('contextContent').classList.add('hidden');
-                    noCtxMsg.classList.remove('hidden');
-                }
+                renderContextForCurrentCard(currentCard);
 
                 // Stats
                 const isNew = currentCard.state === 0;
@@ -4023,7 +4147,7 @@ ${mnemonic}`;
             });
 
             // 如果没有数据，把按钮变淡
-            if (!currentCard.sentence) document.getElementById('btnToggleCtx').style.opacity = "0.3";
+            if (!currentCard.sentence && getCardCollocations(currentCard).length === 0) document.getElementById('btnToggleCtx').style.opacity = "0.3";
             if (!currentCard.mnemonic && !currentCard.family) document.getElementById('btnToggleMne').style.opacity = "0.3";
 
             const markOpenButton = (id) => {
@@ -4033,7 +4157,7 @@ ${mnemonic}`;
                 btn.style.color = "white";
                 btn.style.boxShadow = "0 2px 8px rgba(0,122,255,0.3)";
             };
-            if (!ctxArea.classList.contains('hidden') && currentCard.sentence) markOpenButton('btnToggleCtx');
+            if (!ctxArea.classList.contains('hidden') && (currentCard.sentence || getCardCollocations(currentCard).length)) markOpenButton('btnToggleCtx');
             if (!document.getElementById('mnemonicArea').classList.contains('hidden') && (currentCard.mnemonic || currentCard.family)) markOpenButton('btnToggleMne');
 
             // 新卡片直接显示，复习卡片默认模糊
@@ -4367,7 +4491,7 @@ ${mnemonic}`;
             let count = 0;
             selected.forEach(chip => {
                 const word = chip.innerText;
-                if (!deck.some(c => c.word.toLowerCase() === word)) {
+                if (!hasCardWord(word)) {
                     deck.push(createCardObject(word));
                     count++;
                 }
@@ -4493,7 +4617,7 @@ ${mnemonic}`;
 
                     // 4. 处理卡片
                     newCards.forEach(importCard => {
-                        const existingIndex = deck.findIndex(c => c.word.toLowerCase() === importCard.word.toLowerCase());
+                        const existingIndex = findCardIndexByWord(importCard.word);
 
                         if (existingIndex === -1) {
                             // 新词 -> 直接添加
@@ -4814,6 +4938,7 @@ ${mnemonic}`;
                     if (tempEditData.morphemes) deck[cardIndex].morphemes = tempEditData.morphemes;
                     if (tempEditData.family) deck[cardIndex].family = tempEditData.family;
                     if (tempEditData.contrast) deck[cardIndex].contrast = tempEditData.contrast;
+                    if (tempEditData.collocations) deck[cardIndex].collocations = tempEditData.collocations;
                     tempEditData = {}; // 用完即焚，清空数据
                 }
 
@@ -5196,14 +5321,14 @@ ${mnemonic}`;
             let rawWords = text.split(/[\n,]+/).map(w => {
                 let clean = w.replace(/[*_~`]/g, ''); // 去除 Markdown 的加粗**、下划线__等符号
                 clean = clean.replace(/\s+/g, ' ');   // 将所有连续的奇怪空格压缩为1个普通英文空格
-                return clean.trim().toLowerCase();    // 【修复】统一转小写，修复大小写去重失效问题
+                return clean.trim();    // 保留显示形式，去重交给 normalizeWordKey
             }).filter(w => w.length > 0);
 
-            // 去重（因已统一转小写，Apple/apple 会被正确识别为同一词）
-            const allTargetWords = [...new Set(rawWords)];
+            // 去重：统一大小写、连续空格、连字符，避免 Apple/apple 或词组空格差异重复
+            const allTargetWords = dedupeWordList(rawWords);
 
             // 过滤掉词库中已经存在的单词
-            let words = allTargetWords.filter(w => !deck.some(c => c.word.toLowerCase() === w.toLowerCase()));
+            let words = allTargetWords.filter(w => !hasCardWord(w));
             const BATCH_CONCURRENCY = 2;
             const MAX_BATCH_ATTEMPTS = 5;
 
@@ -5242,9 +5367,10 @@ ${mnemonic}`;
 
             // 【认知科学修正】System Prompt：注入灵魂（自解释谜题、严禁谐音）
             const batchSystemPrompt = `你是一位精通"i+1"理论的认知语言学专家。请严格遵循以下认知原则生成数据：
-1. 例句必须是"自解释谜题"：必须含明确逻辑路标(because, despite等)，让学生仅凭基础词汇就能推理出目标词意。严禁废话语境。除目标词外限制在CET-4难度。
-2. 助记法(mnemonic)：严禁谐音！必须是"词根词缀物理动作 -> 抽象隐喻"的推导，必须用中文写，禁止英文解释句和英文模板词，除目标英文词、词根/前后缀字母本身外不要出现英文。
-3. 思维差异(contrast)：指出最致命的中式英语误区。
+1. 先生成 2-4 个高频核心搭配(collocations)，再生成例句。搭配必须短、地道、适合快速复习。
+2. 例句必须是"自解释谜题"：必须含明确逻辑路标(because, despite等)，让学生仅凭基础词汇就能推理出目标词意。严禁废话语境。除目标词外限制在CET-4难度。
+3. 助记法(mnemonic)：严禁谐音！必须是"词根词缀物理动作 -> 抽象隐喻"的推导，必须用中文写，禁止英文解释句和英文模板词，除目标英文词、词根/前后缀字母本身外不要出现英文。
+4. 思维差异(contrast)：指出最致命的中式英语误区。
 只输出JSON格式，不要任何多余解释。`;
 
             // User Prompt：只负责结构约束，保持轻量
@@ -5252,7 +5378,8 @@ ${mnemonic}`;
 【JSON 返回结构强制要求】
 {
   "sentence": "包含逻辑连接词和 <b>词块</b> 的例句（严格遵守i+1和自解释推理）",
-  "morphemes": { "prefix": "", "root": "${word}", "suffix": "" }, 
+  "collocations": ["mitigate risk", "mitigate damage", "mitigate the impact"],
+  "morphemes": { "prefix": "", "root": "${word}", "suffix": "" },
   "definition": "Simple English definition (CEFR B1).",
   "mnemonic": "必须用中文写的物理图景(词根释义) -> 抽象演化推导；除目标词和词根字母外不要出现英文",
   "socratic": "引导底层逻辑思考的提问",
@@ -5262,7 +5389,7 @@ ${mnemonic}`;
 }`;
 
             const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-            const isWordInDeck = (word) => deck.some(c => c.word.toLowerCase() === word.toLowerCase());
+            const isWordInDeck = (word) => hasCardWord(word);
             const pendingWords = new Set(words);
             const failedWords = new Set();
             let processedCount = 0;
@@ -5352,7 +5479,9 @@ ${mnemonic}`;
                             word, result.sentence || "", result.definition || "", result.mnemonic || "",
                             result.socratic || "", result.emoji || "", "", "",
                             "", result.contrast || "", result.morphemes || null,
-                            Array.isArray(result.family) ? result.family.join(', ') : (result.family || "")
+                            Array.isArray(result.family) ? result.family.join(', ') : (result.family || ""),
+                            "",
+                            result.collocations || []
                         );
 
                         await saveCardDirect(newCard);
