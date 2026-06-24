@@ -1145,6 +1145,9 @@
                     </button>
                 </div>
 
+                <!-- 【新增】词性显示区域：AI 生成后会在这里显示该词的词性 -->
+                <div id="newPosDisplay" style="font-size:12px; color:#86868b; margin:2px 0 6px 4px; min-height:14px;"></div>
+
                 <textarea id="newSentenceInput" placeholder="Context sentence will appear here..."></textarea>
                 <div style="display:flex; gap:10px;">
                     <button class="add-btn" onclick="addWord()" style="flex:1;">Add to Deck</button>
@@ -3131,6 +3134,7 @@
         let isNoiseMode = false;   // 【新增】是否开启白噪音干扰
         let scaffoldLevel = 0;     // 【新增】拼写提示等级 (每错一次显示更多字母)
         let tempAutoDefinition = ""; // Store auto-fetched definition before adding
+        let tempPOS = ""; // 【新增】暂存词性 (part of speech)
         let tempMnemonic = ""; // 新增：暂存助记法
         let tempSocratic = ""; // 【新增】暂存苏格拉底提问
         let tempEmoji = "";    // 新增：暂存 Emoji
@@ -3352,7 +3356,7 @@
         }
 
         // 修改：增加了 morphemes (形态学), family (词族), originalContext 和 collocations (核心搭配) 参数
-        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", _unused1 = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "", originalContext = "", collocations = []) {
+        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", pos = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "", originalContext = "", collocations = []) {
             return {
                 id: generateID(),
                 word: word.trim(),
@@ -3364,6 +3368,7 @@
                 sentence: sentence.trim(),
                 contrast: contrast ? contrast.trim() : "", // 【新增】存储思维差异
                 definition: definition.trim(),
+                pos: pos ? String(pos).trim() : "", // 【新增】存储词性，复习时显示
                 mnemonic: mnemonic.trim(),
                 socratic: socratic ? socratic.trim() : "", // 【新增】保存苏格拉底提问
                 emoji: emoji.trim(),
@@ -3471,6 +3476,7 @@ ${mnemonic}`;
   "collocations": ["mitigate risk", "mitigate damage", "mitigate the impact"],
   "morphemes": { "prefix": "un- (not)", "root": "help", "suffix": "-ful (full of)" },
   "definition": "Simple English definition (CEFR B1 level).",
+  "pos": "词性（中文标注），如 n. 名词 / v. 动词 / adj. 形容词 / adv. 副词 / prep. 介词 / phrase 短语",
   "mnemonic": "Root(duc: 引导) + Prefix(intro: 向内) -> Core action: 向内引导 -> abstract meaning: 介绍/引入",
   "socratic": "Why does this word imply a process rather than a result?",
   "emoji": "最精准的表情符号",
@@ -3497,6 +3503,7 @@ ${mnemonic}`;
   "sentence": "包含复杂句法和 <b>核心搭配</b> 的考研级例句...",
   "collocations": ["mitigate risk", "mitigate damage", "mitigate the impact"],
   "definition": "Academic English definition.",
+  "pos": "词性（中文标注），如 n. 名词 / v. 动词 / adj. 形容词 / adv. 副词 / prep. 介词 / phrase 短语",
   "mnemonic": "Physical image: 向下按压 (press down) -> Core action: 压住反叛、情绪或信息 -> abstract meaning: 镇压/克制",
   "socratic": "Why is this word used for political contexts but rarely for personal relationships?",
   "emoji": "抽象概念的具体化Emoji",
@@ -3548,6 +3555,9 @@ ${mnemonic}`;
 
                 if (mode === 'new') {
                     tempAutoDefinition = result.definition;
+                    tempPOS = result.pos || ""; // 【新增】暂存AI返回的词性
+                    const posDisplayEl = document.getElementById('newPosDisplay');
+                    if (posDisplayEl) posDisplayEl.innerText = tempPOS ? `词性：${tempPOS}` : '';
                     tempMnemonic = await ensureMixedChineseMnemonic(word, result.mnemonic || "", result.morphemes);
                     tempSocratic = result.socratic || ""; // 【新增】提取苏格拉底提问
                     tempEmoji = result.emoji;
@@ -3595,7 +3605,7 @@ ${mnemonic}`;
             }
 
             // 修改：传入 morphemes 和 family (注意顺序要和 createCardObject 一致)
-            deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, "", "", "", tempContrast, tempMorphemes, tempFamily, "", tempCollocations));
+            deck.push(createCardObject(word, sentence, tempAutoDefinition, tempMnemonic, tempSocratic, tempEmoji, tempPOS, "", "", tempContrast, tempMorphemes, tempFamily, "", tempCollocations));
 
             wInput.value = '';
             sInput.value = '';
@@ -3603,6 +3613,9 @@ ${mnemonic}`;
             tempAutoDefinition = ""; tempMnemonic = ""; tempSocratic = ""; tempEmoji = ""; tempContrast = "";
             tempMorphemes = null; tempFamily = ""; // 【修改】这里才需要重置它们
             tempCollocations = [];
+            tempPOS = ""; // 【新增】重置词性
+            const posDisplayEl = document.getElementById('newPosDisplay');
+            if (posDisplayEl) posDisplayEl.innerText = ""; // 【新增】清空词性显示
 
             // 【修改】只保存当前这一张卡片到数据库
             const newCard = deck[deck.length - 1];
@@ -3616,6 +3629,9 @@ ${mnemonic}`;
             tempMnemonic = ""; tempSocratic = ""; tempEmoji = "";
             tempContrast = "";
             tempCollocations = [];
+            tempPOS = ""; // 【新增】重置词性
+            const posDisplayEl = document.getElementById('newPosDisplay');
+            if (posDisplayEl) posDisplayEl.innerText = "";
         }
 
         // --- REFACTORED RENDER LOGIC (RECALL MODE) ---
@@ -3863,8 +3879,9 @@ ${mnemonic}`;
 
                 // 3. Pre-fill content (but keep hidden)
                 const defEl = document.getElementById('currentDefinition');
+                const posPrefix = currentCard.pos ? `(${currentCard.pos}) ` : ""; // 【新增】复习时显示词性
                 if (currentCard.definition) {
-                    defEl.innerText = currentCard.definition;
+                    defEl.innerText = posPrefix + currentCard.definition;
                 } else {
                     defEl.innerText = "No definition saved.";
                 }
