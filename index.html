@@ -3078,7 +3078,8 @@
                 // 提取云端卡片对象，并严格过滤掉考试卡片（确保云端脏数据不拉回本地）
                 const cloudCards = cardRows
                     .map(row => row.card_data)
-                    .filter(c => shouldSyncCardToCloud(c));
+                    .filter(c => shouldSyncCardToCloud(c))
+                    .map(c => normalizeCardFields(c)); // 规整字段, 防 reps/state 缺失导致判定错乱
 
                 // 【时间戳冲突解决】逐张比对，只保留更新的版本
                 const localCards = await db.getAll();
@@ -3353,6 +3354,164 @@
                 document.getElementById('contextContent').classList.add('hidden');
                 noCtxMsg.classList.remove('hidden');
             }
+        }
+
+        // ============================================================
+        // 【辨析挑战 / Distractor Engine】科学依据: Kornell & Bjork 辨析对比
+        // (interleaving + discriminative contrast), 仅在词已掌握后(reps>=4)触发。
+        // 三层数据源: 卡内缓存 → 本地形近词(Levenshtein) → Datamuse 近义(免费API)
+        // ============================================================
+
+        // 【健壮性兜底】统一规整外部卡片字段(JSON导入 / 云端拉取 / 旧版数据迁移)。
+        // FSRS 状态机、挖空模式、拼写框、辨析挑战全部依赖 reps/state/stability/difficulty,
+        // 任何一项为 undefined 都会导致判定错乱。此处保证最小字段集恒存在。
+        function normalizeCardFields(card) {
+            if (!card || typeof card !== 'object') return card;
+            if (card.reps === undefined || card.reps === null || isNaN(Number(card.reps))) card.reps = 0;
+            if (card.state === undefined || card.state === null || isNaN(Number(card.state))) card.state = (card.reps === 0) ? 0 : 2;
+            if (card.stability === undefined || card.stability === null || isNaN(Number(card.stability))) card.stability = 0;
+            if (card.difficulty === undefined || card.difficulty === null || isNaN(Number(card.difficulty))) card.difficulty = 5;
+            if (card.lastReview === undefined || card.lastReview === null) card.lastReview = 0;
+            if (card.due === undefined || card.due === null || isNaN(Number(card.due))) card.due = Date.now();
+            if (!card.history || !Array.isArray(card.history)) card.history = [];
+            if (!card.id) card.id = generateID();
+            return card;
+        }
+
+        // Levenshtein 距离: 衡量两词的拼写差异(插入/删除/替换的最小步数)
+        function levenshtein(a, b) {
+            if (!a || !b) return 999;
+            const m = a.length, n = b.length;
+            if (Math.abs(m - n) > 2) return 999; // 长度差>2 直接不算形近，剪枝
+            let prev = Array.from({ length: n + 1 }, (_, j) => j);
+            for (let i = 1; i <= m; i++) {
+                let cur = [i];
+                for (let j = 1; j <= n; j++) {
+                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                    cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+                }
+                prev = cur;
+            }
+            return prev[n];
+        }
+
+        // 本地形近词: 从全词库找拼写接近(距离<=2)、且不同词、长度相仿的候选
+        function findLocalLookAlikes(word) {
+            if (!word || deck.length === 0) return [];
+            const w = word.toLowerCase().trim();
+            const sameLen = deck
+                .filter(c => c.word && c.word.toLowerCase().trim() !== w)
+                .map(c => ({ word: c.word, dist: levenshtein(w, c.word.toLowerCase().trim()) }))
+                .filter(x => x.dist >= 1 && x.dist <= 2) // 距离1-2=形近(adapt/adept/adopt)
+                .sort((a, b) => a.dist - b.dist)
+                .slice(0, 3)
+                .map(x => x.word);
+            return sameLen;
+        }
+
+        // Datamuse 近义词: 免费无key API, 结果缓存到卡片避免重复请求
+        // 返回 string[]; 失败/无网时静默返回空数组(降级到本地形近)
+        async function fetchSynonymDistractors(word) {
+            if (!word) return [];
+            try {
+                const url = `https://api.datamuse.com/words?rel_syn=${encodeURIComponent(word)}&max=8`;
+                const res = await fetch(url);
+                if (!res.ok) return [];
+                const data = await res.json();
+                const syns = (Array.isArray(data) ? data : [])
+                    .map(d => d.word)
+                    .filter(w => w && w.toLowerCase() !== word.toLowerCase());
+                return syns.slice(0, 4);
+            } catch (e) {
+                return []; // 无网络或超时: 静默降级
+            }
+        }
+
+        // 主入口: 组装一张卡的干扰项。带缓存 (card._distractors), 仅算一次。
+        // 返回 { options: [...], correct: word } options 含正确答案 + 2-3 个干扰项, 已打乱
+        async function buildDistractorSet(card) {
+            const correct = card.word.trim();
+            let distractors = [];
+
+            // 1. 读缓存
+            if (Array.isArray(card._distractors) && card._distractors.length >= 2) {
+                distractors = card._distractors;
+            } else {
+                // 2. 并行: 本地形近 + Datamuse 近义
+                const [lookAlikes, syns] = await Promise.all([
+                    Promise.resolve(findLocalLookAlikes(correct)),
+                    fetchSynonymDistractors(correct)
+                ]);
+                // 合并去重 (形近优先, 近义补充), 去掉正确词本身
+                const seen = new Set([correct.toLowerCase()]);
+                for (const w of [...lookAlikes, ...syns]) {
+                    const key = (w || '').toLowerCase().trim();
+                    if (key && !seen.has(key) && key !== correct.toLowerCase()) {
+                        seen.add(key);
+                        distractors.push(w);
+                    }
+                    if (distractors.length >= 3) break;
+                }
+                // 缓存到卡 (内存级, 不落 needsSync, 避免触发全量云同步)
+                if (distractors.length >= 2) card._distractors = distractors;
+            }
+
+            if (distractors.length < 2) return null; // 干扰项不足, 跳过辨析
+
+            const options = [correct, ...distractors.slice(0, 3)]
+                .sort(() => Math.random() - 0.5); // Fisher-Yates 简化版打乱
+            return { options, correct };
+        }
+
+        // 辨析挑战 UI: 渲染一个"哪个词符合这个释义"的小测。不影响 FSRS 评级链路,
+        // 用户答完只给即时反馈, 评级仍走原 Show Answer -> revealAnswer -> rate。
+        // 设计为可选附加题, 答错也不惩罚评级, 避免"再认难度"污染记忆信号。
+        async function renderDistractorChallenge(show, card) {
+            let box = document.getElementById('distractorBox');
+            if (box) box.remove(); // 先清理(防跨卡残留)
+
+            if (!show || !card || !card.definition) return; // 没释义无法出题
+
+            const challenge = await buildDistractorSet(card);
+            if (!challenge) return; // 干扰项不足, 静默跳过
+
+            box = document.createElement('div');
+            box.id = 'distractorBox';
+            box.style.cssText = 'margin-top:12px; padding:12px; background:#f0f4ff; border:1px solid #c7d2fe; border-radius:12px; text-align:left;';
+            box.innerHTML = `
+                <div style="font-size:11px; font-weight:700; color:#4338ca; letter-spacing:0.05em; margin-bottom:6px;">⚔️ 辨析挑战 · 哪个词符合下面释义?</div>
+                <div style="font-size:13px; color:#374151; line-height:1.4; margin-bottom:10px; font-style:italic;">${sanitizeHTML(card.definition)}</div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;" id="distractorOptions"></div>
+                <div id="distractorFeedback" style="font-size:12px; margin-top:8px; min-height:14px;"></div>
+            `;
+
+            const optWrap = box.querySelector('#distractorOptions');
+            challenge.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.textContent = opt;
+                btn.style.cssText = 'flex:1 1 40%; padding:10px; border:1px solid #c7d2fe; background:#fff; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.15s;';
+                btn.onclick = () => {
+                    // 答过一次后锁定全部按钮, 防止反复点
+                    optWrap.querySelectorAll('button').forEach(b => b.disabled = true);
+                    const fb = box.querySelector('#distractorFeedback');
+                    if (opt === challenge.correct) {
+                        btn.style.background = '#34c759'; btn.style.color = '#fff'; btn.style.borderColor = '#34c759';
+                        fb.innerHTML = '<span style="color:#15803d;">✓ 答对。能从近义/形近词里精准挑出它, 才算真掌握。</span>';
+                    } else {
+                        btn.style.background = '#ff3b30'; btn.style.color = '#fff'; btn.style.borderColor = '#ff3b30';
+                        // 高亮正确项
+                        optWrap.querySelectorAll('button').forEach(b => {
+                            if (b.textContent === challenge.correct) { b.style.background = '#34c759'; b.style.color = '#fff'; b.style.borderColor = '#34c759'; }
+                        });
+                        fb.innerHTML = `<span style="color:#b91c1c;">✗ 正确答案是 <b>${sanitizeHTML(challenge.correct)}</b>。这俩长得像/意思近, 建议用 Logic 联想它们的差异。</span>`;
+                    }
+                };
+                optWrap.appendChild(btn);
+            });
+
+            // 挂在 Show Answer 按钮上方, 评级按钮区域之外
+            const showBtn = document.getElementById('showAnswerBtn');
+            showBtn.parentNode.insertBefore(box, showBtn);
         }
 
         // 修改：增加了 morphemes (形态学), family (词族), originalContext 和 collocations (核心搭配) 参数
@@ -3924,18 +4083,43 @@ ${mnemonic}`;
                 const progressPct = Math.min((matureCount / totalCount) * 100, 100);
                 document.getElementById('masteryBar').style.width = `${progressPct}%`;
 
-                // --- 强制拼写逻辑 (新增) ---
+                // --- 拼写时机重分配 (Orthographic Re-allocation) ---
+                // 【科学依据】产出效应 + 正字法促进：拼写在【编码期收益最大】。
+                // 旧逻辑 reps>3 每次都弹框 = 烂熟词反复无效打字(耗时大头)。
+                // 新逻辑：
+                //   reps === 0  (首接触编码期): 必须打，建立正字法映象
+                //   1 <= reps <= 3 (巩固期): 不打，让大脑走直接提取
+                //   reps >= 4    (成熟期): 仅 1/7 概率抽查，防遗忘，砍掉无效重复
                 const actionWrapper = document.querySelector('.actions-wrapper');
                 // 移除可能存在的旧输入框
                 const oldInput = document.getElementById('spellingInput');
                 if (oldInput) oldInput.remove();
+                // 【清理】移除上一张卡可能残留的辨析挑战框, 防跨卡串味
+                const oldDistractor = document.getElementById('distractorBox');
+                if (oldDistractor) oldDistractor.remove();
 
-                // 备考卡片不需要拼写，英语卡片如果复习次数大于3次则强制拼写
-                if (!isExam && currentCard.reps > 3) {
+                // 决定本张卡是否需要拼写：编码期必打，成熟期低频抽查
+                // 注意: 挖空模式本身就是高负荷产出任务, 再叠加拼写=双任务过载,
+                //       故成熟期抽查仅在非挖空态进行(去语境化纯单词 / 无例句)。
+                const inClozeMode = currentCard.reps >= 3 && currentCard.sentence && !forceDecontextualized;
+                let needSpelling = false;
+                if (!isExam) {
+                    if (currentCard.reps === 0) {
+                        needSpelling = true; // 【编码期】正字法建立黄金窗口
+                    } else if (currentCard.reps >= 4 && !inClozeMode && Math.random() < (1 / 7)) {
+                        // 【成熟期】非挖空态低频抽查, 砍掉 6/7 的无效重复
+                        needSpelling = true;
+                    }
+                }
+
+                if (needSpelling) {
                     const input = document.createElement('input');
                     input.type = 'text';
                     input.id = 'spellingInput';
-                    input.placeholder = 'Type the word here...';
+                    // 编码期给"看→默写"提示，成熟期纯回忆不给提示
+                    input.placeholder = currentCard.reps === 0
+                        ? '👁️ 刚看完，默写一次 (build spelling memory)'
+                        : 'Type the word here...';
                     input.style = 'width:100%; padding:15px; border:2px solid #007aff; border-radius:12px; margin-bottom:10px; font-size:18px; text-align:center;';
                     input.onkeypress = (e) => { if (e.key === 'Enter') revealAnswer(); };
                     // 插入到 Show Answer 按钮之前
@@ -3949,6 +4133,12 @@ ${mnemonic}`;
                 }
 
                 updateButtonLabels(currentCard);
+
+                // === 【辨析挑战触发】仅成熟词(reps>=4) + 非挖空模式 + 非备考 ===
+                // 科学依据: Kornell & Bjork 辨析对比, 已掌握的词需同框检验, 防止再认错觉
+                // 设计: 不抢占挖空模式(二者都需深度加工, 并行=双任务过载), 用 30% 概率避免疲劳
+                const showDistractor = !isExam && !inClozeMode && currentCard.reps >= 4 && Math.random() < 0.3;
+                renderDistractorChallenge(showDistractor, currentCard);
             } else {
                 // 【新增】智能等待逻辑：如果暂时没卡片，但 10 分钟内有即将到期的（比如刚才点了Again的），就开启倒计时自动刷新
                 const nextCard = deck.sort((a, b) => a.due - b.due).find(c => c.due > now);
@@ -4637,15 +4827,14 @@ ${mnemonic}`;
                         const existingIndex = findCardIndexByWord(importCard.word);
 
                         if (existingIndex === -1) {
-                            // 新词 -> 直接添加
-                            if (!importCard.id) importCard.id = generateID();
-                            deck.push(importCard);
+                            // 新词 -> 直接添加 (规整字段, 防 FSRS/reps 判定错乱)
+                            deck.push(normalizeCardFields(importCard));
                             addedCount++;
                         } else {
                             // 单词已存在
                             if (mode === '2') {
                                 // 强制覆盖
-                                deck[existingIndex] = importCard;
+                                deck[existingIndex] = normalizeCardFields(importCard);
                                 updatedCount++;
                             }
                         }
@@ -5398,6 +5587,7 @@ ${mnemonic}`;
   "collocations": ["mitigate risk", "mitigate damage", "mitigate the impact"],
   "morphemes": { "prefix": "", "root": "${word}", "suffix": "" },
   "definition": "Simple English definition (CEFR B1).",
+  "pos": "词性（中文标注），如 n. 名词 / v. 动词 / adj. 形容词 / adv. 副词 / prep. 介词 / phrase 短语",
   "mnemonic": "必须用中文写的物理图景(词根释义) -> 抽象演化推导；除目标词和词根字母外不要出现英文",
   "socratic": "引导底层逻辑思考的提问",
   "emoji": "最精准的表情符号",
@@ -5494,7 +5684,7 @@ ${mnemonic}`;
 
                         const newCard = createCardObject(
                             word, result.sentence || "", result.definition || "", result.mnemonic || "",
-                            result.socratic || "", result.emoji || "", "", "",
+                            result.socratic || "", result.emoji || "", result.pos || "", "",
                             "", result.contrast || "", result.morphemes || null,
                             Array.isArray(result.family) ? result.family.join(', ') : (result.family || ""),
                             "",
