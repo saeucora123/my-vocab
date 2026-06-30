@@ -1685,6 +1685,10 @@
         window.currentSubject = 'all';
         window.listFilters = { module: 'all', errorType: 'all', reviewStatus: 'all', sourceName: 'all' };
 
+        // 考试学科常量 (全局，供多个函数共用)
+        const EXAM_SUBJECTS = ['考公', '考研', 'CPA', '税务师', '其他'];
+        const ENGLISH_SUBJECT = '英语';
+
         // 【新增】学科切换逻辑
         function switchSubject(subject) {
             window.currentSubject = subject;
@@ -1718,7 +1722,6 @@
                     quickAction.id = 'examPrepQuickAction';
                     quickAction.style.marginBottom = '20px';
                     inputSec.insertBefore(quickAction, inputSec.firstChild);
-                    quickSec.insertBefore(quickAction, inputSec.firstChild);
                 }
                 quickAction.style.display = 'block';
 
@@ -1849,8 +1852,6 @@
         }
 
         function getSubjectFilteredDeck(sourceDeck = deck) {
-            const EXAM_SUBJECTS = ['\u8003\u516c', '\u8003\u7814', 'CPA', '\u7a0e\u52a1\u5e08', '\u5176\u4ed6'];
-            const ENGLISH_SUBJECT = '\u82f1\u8bed';
             function isExamCard(card) {
                 const sentence = card && card.sentence ? card.sentence : '';
                 if (card && card.examMeta && EXAM_SUBJECTS.includes(card.examMeta.examType)) return true;
@@ -1869,7 +1870,6 @@
         }
 
         function isExamCardData(card) {
-            const EXAM_SUBJECTS = ['\u8003\u516c', '\u8003\u7814', 'CPA', '\u7a0e\u52a1\u5e08', '\u5176\u4ed6'];
             const sentence = card && card.sentence ? card.sentence : '';
             if (card && card.examMeta && EXAM_SUBJECTS.includes(card.examMeta.examType)) return true;
             return EXAM_SUBJECTS.some(subject => sentence.includes('[' + subject + ']'));
@@ -7004,6 +7004,7 @@ ${mnemonic}`;
             const now = Date.now();
             // 冷却期内的词 = 近期生成过文章、还未到 N 天的
             const inCooldown = allWordCards.filter(c => isArticleWordInCooldown(c, now)).length;
+            const used = allWordCards.filter(c => c.usedInArticle).length;  // 已用于文章的词数
             const available = getWorstWords(999).length;   // 排除冷却期后还剩多少可挑
             const subjectLabel = (window.currentSubject === 'all' || window.currentSubject === '英语') ? '英语词汇' : (window.currentSubject + ' 词库');
 
