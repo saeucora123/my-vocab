@@ -1315,6 +1315,12 @@
         <span class="portal-icon">🎯</span>
     </button>
 
+    <!-- 【新增】传送门按钮：差词成文阅读 (Weak Words → Article) -->
+    <button onclick="openArticleReaderModal()" class="portal-btn article-reader-portal-btn" title="差词成文：挑记得最差的词生成文章阅读"
+        style="left: 300px; background: #00b894; border-color: #00cec9; border-radius: 50%; cursor: pointer;">
+        <span class="portal-icon">📰</span>
+    </button>
+
     <style>
         /* 这里直接写样式，方便你复制 */
         .portal-btn {
@@ -1600,6 +1606,68 @@
                     </div>
                     <button id="dailyQuizSaveFailuresBtn" class="add-btn full-width-btn" style="background: var(--accent); color: white; padding: 14px; font-size: 16px; border-radius: 12px; border: none; margin-bottom: 10px;">📝 将弱项加入复习</button>
                     <button class="full-width-btn" onclick="closeDailyQuizModal()" style="background: transparent; color: #666; border: 1px solid #ddd; padding: 14px; border-radius: 12px; font-weight: bold;">关闭测验窗口</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 【新增】差词成文阅读弹窗 (Article Reader) -->
+    <div id="articleReaderModal" class="modal-overlay hidden" style="z-index: 1400;">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <div class="modal-title">📰 差词成文 · 语境阅读</div>
+                <button class="close-btn" onclick="closeArticleReaderModal()">Close</button>
+            </div>
+
+            <div style="flex: 1; overflow-y: auto; padding: 5px 0;">
+                <!-- 准备/选择视图 -->
+                <div id="articleSetupView">
+                    <p style="font-size:13px; color:gray; margin-top:0;">
+                        从当前学科词库里，挑出你<span style="color:#ff3b30; font-weight:bold;">记得最差的 20 个词</span>，
+                        让 DeepSeek 写一篇短文把它们串起来。在阅读中自然回忆，用过的词会被标记，避免重复。
+                    </p>
+                    <div style="background:#f8f9fa; border-radius:12px; padding:14px; margin:12px 0;">
+                        <div style="font-size:13px; font-weight:bold; margin-bottom:8px;">📊 候选词分析</div>
+                        <div id="articleCandidateSummary" style="font-size:13px; color:#555; line-height:1.6;">正在统计...</div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <button id="articleGenerateBtn" class="add-btn" style="flex:2; margin-top:0; background:linear-gradient(135deg, #00b894, #00cec9);" onclick="startArticleGeneration()">
+                            🚀 生成差词文章
+                        </button>
+                        <button class="action-btn" style="flex:1; margin-top:0; background:#86868b; color:white; font-weight:bold;" onclick="resetArticleUsedMarks()">
+                            🔄 重置已用标记
+                        </button>
+                    </div>
+                    <div id="articleHistoryPreview" style="margin-top:14px;"></div>
+                </div>
+
+                <!-- 加载视图 -->
+                <div id="articleLoadingView" class="hidden" style="text-align:center; padding:50px 20px;">
+                    <div class="spinner" style="width:40px; height:40px; border-width:4px; border-top-color:#00b894; margin:0 auto 20px;"></div>
+                    <h3 style="margin-bottom:10px;">DeepSeek 正在为你写文章...</h3>
+                    <p style="color:#666; font-size:14px;">把记得最差的词串成一篇自然的短文，请稍候</p>
+                </div>
+
+                <!-- 阅读视图 -->
+                <div id="articleReadingView" class="hidden">
+                    <div style="display:flex; gap:8px; font-size:12px; color:#888; margin-bottom:10px; flex-wrap:wrap;">
+                        <span id="articleMetaInfo"></span>
+                    </div>
+                    <div id="articleBody" style="background:#fff; border-radius:12px; padding:18px; font-size:17px; line-height:1.8; color:#1f2937; font-family:'Charter','Sitka Text','Cambria',serif; white-space:pre-wrap;"></div>
+
+                    <div style="margin-top:16px;">
+                        <div style="font-size:12px; font-weight:800; color:#86868b; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px;">📖 词义对照表</div>
+                        <div id="articleWordList" style="display:flex; flex-direction:column; gap:6px;"></div>
+                    </div>
+
+                    <div style="margin-top:18px; padding-top:14px; border-top:1px solid #eee;">
+                        <div style="font-size:13px; font-weight:bold; margin-bottom:10px;">这次读下来，这些词你记住了吗？</div>
+                        <div style="display:flex; gap:10px;">
+                            <button class="action-btn" style="flex:1; background:#34c759; color:white;" onclick="finishArticleReading(true)">✅ 大部分记起来了</button>
+                            <button class="action-btn" style="flex:1; background:#ff9500; color:white;" onclick="finishArticleReading(false)">🤔 没想起来，加入复习</button>
+                        </div>
+                        <p id="articleFeedbackMsg" style="font-size:12px; color:#34c759; text-align:center; margin-top:8px; min-height:14px;"></p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -3133,7 +3201,6 @@
         let currentConfidence = 0; // 【新增】用户自信度 (1:盲猜, 2:不确定, 3:确定)
         let audioContext = null;   // 【新增】Web Audio API 上下文
         let isNoiseMode = false;   // 【新增】是否开启白噪音干扰
-        let scaffoldLevel = 0;     // 【新增】拼写提示等级 (每错一次显示更多字母)
         let tempAutoDefinition = ""; // Store auto-fetched definition before adding
         let tempPOS = ""; // 【新增】暂存词性 (part of speech)
         let tempMnemonic = ""; // 新增：暂存助记法
@@ -3892,7 +3959,6 @@ ${mnemonic}`;
             if (dueCards.length > 0) {
                 currentCard = dueCards[0];
                 currentConfidence = 0; // 【重置】
-                scaffoldLevel = 0;     // 【重置】
                 revContainer.classList.remove('hidden');
                 empty.classList.add('hidden');
                 // inputSec.classList.add('hidden'); // <--- 注释掉这一行，输入框就会一直显示！
@@ -3911,11 +3977,8 @@ ${mnemonic}`;
                     currentCard.sentence.includes('[其他]')
                 );
 
-                // === 核心逻辑修改：实现挖空/复习显示模式 ===
+                // === 传统回忆模式：正面直接显示单词，不再挖空 ===
                 const wordEl = document.getElementById('currentWord');
-
-                // 【专家修改】引入“去语境化”机制：熟练度>5时，30%概率强制只看单词，防止过度依赖例句
-                const forceDecontextualized = currentCard.reps > 5 && Math.random() < 0.3;
 
                 // 针对备考卡片的极简 Q&A 布局
                 if (isExam) {
@@ -3926,33 +3989,8 @@ ${mnemonic}`;
                     wordEl.style.background = "none";
                     wordEl.style.color = "var(--text)";
                 }
-                // 英语单词的处理逻辑 (原来的)
-                else if (currentCard.reps >= 3 && currentCard.sentence && !forceDecontextualized) {
-                    // 【Expert Logic】脚手架式挖空 (Scaffolded Cloze)
-                    // 不再显示纯下划线，而是根据难度给出“词根线索”，强迫逻辑推导
-                    // 例如: "adapt" -> "ad___" (给出前缀线索)
-
-                    const clozeHtml = `<span class="cloze-blank" style="color:#007aff; font-weight:bold; border-bottom:2px dashed #007aff;">[ ... ]</span>`;
-                    let clozeSent = currentCard.sentence;
-
-                    // 【智能挖空升级】优先寻找 AI 标记的 <b> 标签进行挖空，完美解决词组和单词的时态/复数变化 (如 turn up -> turned up)
-                    if (clozeSent.includes('<b>') && clozeSent.includes('</b>')) {
-                        clozeSent = clozeSent.replace(/<b>.*?<\/b>/gi, clozeHtml);
-                    } else {
-                        // 兜底方案：如果 AI 没有生成 <b> 标签，退回到死板的字符串匹配
-                        const escapedWord = currentCard.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                        const regex = new RegExp(`(${escapedWord})`, 'gi');
-                        clozeSent = clozeSent.replace(regex, clozeHtml);
-                    }
-
-                    // 修改：移除 font-family 和 强制的 #333 颜色，改用 color:inherit
-                    wordEl.innerHTML = `<div style="font-size:22px; line-height:1.4; color:inherit;">${clozeSent}</div>`;
-
-                    // 修改：重置背景和文字填充，防止在生存模式下看不清
-                    wordEl.style.background = "none";
-                    wordEl.style.webkitTextFillColor = "initial";
-                    wordEl.style.color = "var(--text)";
-                } else {
+                // 英语单词的处理逻辑 (传统回忆模式：直接显示单词大字，不再挖空)
+                else {
                     // 【Expert Visual】形态学合成器 - 极简稳定版
                     // 逻辑：不再尝试用碎片拼凑单词，而是"大字显示单词，小字显示分析"
 
@@ -4083,13 +4121,10 @@ ${mnemonic}`;
                 const progressPct = Math.min((matureCount / totalCount) * 100, 100);
                 document.getElementById('masteryBar').style.width = `${progressPct}%`;
 
-                // --- 拼写时机重分配 (Orthographic Re-allocation) ---
+                // --- 拼写 (仅新词编码期，且不强制、不拦截) ---
                 // 【科学依据】产出效应 + 正字法促进：拼写在【编码期收益最大】。
-                // 旧逻辑 reps>3 每次都弹框 = 烂熟词反复无效打字(耗时大头)。
-                // 新逻辑：
-                //   reps === 0  (首接触编码期): 必须打，建立正字法映象
-                //   1 <= reps <= 3 (巩固期): 不打，让大脑走直接提取
-                //   reps >= 4    (成熟期): 仅 1/7 概率抽查，防遗忘，砍掉无效重复
+                // 当前逻辑：仅 reps === 0 (首接触编码期) 弹出【可选】默写框，建立正字法映象；
+                //           写错只给提示标红，不再拦截看答案，保持传统回忆的顺畅。
                 const actionWrapper = document.querySelector('.actions-wrapper');
                 // 移除可能存在的旧输入框
                 const oldInput = document.getElementById('spellingInput');
@@ -4098,34 +4133,21 @@ ${mnemonic}`;
                 const oldDistractor = document.getElementById('distractorBox');
                 if (oldDistractor) oldDistractor.remove();
 
-                // 决定本张卡是否需要拼写：编码期必打，成熟期低频抽查
-                // 注意: 挖空模式本身就是高负荷产出任务, 再叠加拼写=双任务过载,
-                //       故成熟期抽查仅在非挖空态进行(去语境化纯单词 / 无例句)。
-                const inClozeMode = currentCard.reps >= 3 && currentCard.sentence && !forceDecontextualized;
-                let needSpelling = false;
-                if (!isExam) {
-                    if (currentCard.reps === 0) {
-                        needSpelling = true; // 【编码期】正字法建立黄金窗口
-                    } else if (currentCard.reps >= 4 && !inClozeMode && Math.random() < (1 / 7)) {
-                        // 【成熟期】非挖空态低频抽查, 砍掉 6/7 的无效重复
-                        needSpelling = true;
-                    }
-                }
+                // 决定本张卡是否需要拼写：仅编码期 (新词首次接触)
+                let needSpelling = (!isExam && currentCard.reps === 0);
 
                 if (needSpelling) {
                     const input = document.createElement('input');
                     input.type = 'text';
                     input.id = 'spellingInput';
-                    // 编码期给"看→默写"提示，成熟期纯回忆不给提示
-                    input.placeholder = currentCard.reps === 0
-                        ? '👁️ 刚看完，默写一次 (build spelling memory)'
-                        : 'Type the word here...';
+                    // 编码期给"看→默写"提示
+                    input.placeholder = '✍️ (可选) 刚看完，默写一次试试，写错也能直接看答案';
                     input.style = 'width:100%; padding:15px; border:2px solid #007aff; border-radius:12px; margin-bottom:10px; font-size:18px; text-align:center;';
                     input.onkeypress = (e) => { if (e.key === 'Enter') revealAnswer(); };
                     // 插入到 Show Answer 按钮之前
                     const showBtn = document.getElementById('showAnswerBtn');
                     actionWrapper.insertBefore(input, showBtn);
-                    showBtn.innerText = "Check Answer 👁️";
+                    showBtn.innerText = "Show Answer 👁️";
                     // 自动聚焦
                     setTimeout(() => input.focus(), 100);
                 } else {
@@ -4134,10 +4156,10 @@ ${mnemonic}`;
 
                 updateButtonLabels(currentCard);
 
-                // === 【辨析挑战触发】仅成熟词(reps>=4) + 非挖空模式 + 非备考 ===
+                // === 【辨析挑战触发】仅成熟词(reps>=4) + 非备考 ===
                 // 科学依据: Kornell & Bjork 辨析对比, 已掌握的词需同框检验, 防止再认错觉
-                // 设计: 不抢占挖空模式(二者都需深度加工, 并行=双任务过载), 用 30% 概率避免疲劳
-                const showDistractor = !isExam && !inClozeMode && currentCard.reps >= 4 && Math.random() < 0.3;
+                // 设计: 用 30% 概率避免疲劳
+                const showDistractor = !isExam && currentCard.reps >= 4 && Math.random() < 0.3;
                 renderDistractorChallenge(showDistractor, currentCard);
             } else {
                 // 【新增】智能等待逻辑：如果暂时没卡片，但 10 分钟内有即将到期的（比如刚才点了Again的），就开启倒计时自动刷新
@@ -4228,46 +4250,27 @@ ${mnemonic}`;
         // 修改：接收 confidenceVal 参数
         async function revealAnswer(confidenceVal = null) {
             const wasAnswerHidden = document.getElementById('ratingButtons').classList.contains('hidden');
-            // --- 1. 强制拼写与脚手架逻辑 (Scaffolding) ---
+            // --- 1. 拼写 (可选、不拦截) ---
+            // 新逻辑：拼写框仅供新词编码期自愿练习。无论写对写错、写没写，
+            //         都直接继续翻牌看答案，绝不打断回忆流程。
             const spellingInput = document.getElementById('spellingInput');
-            // 只有当输入框存在，且尚未通过验证时才检查
             if (spellingInput && !spellingInput.disabled && !document.getElementById('showAnswerBtn').classList.contains('hidden')) {
                 const userSpelling = spellingInput.value.replace(/\s+/g, ' ').trim().toLowerCase();
                 const correctSpelling = currentCard.word.replace(/\s+/g, ' ').trim().toLowerCase();
 
-                if (userSpelling !== correctSpelling) {
-                    // 拼写错误：增加提示等级 (Scaffolding)
-                    scaffoldLevel++;
-
-                    // 修复：如果试错超过2次，允许放弃
-                    if (scaffoldLevel > 2) {
-                        if (confirm("太难了，要直接看答案吗？")) {
-                            spellingInput.disabled = true; // 禁用检查
-                            revealAnswer(1); // 以“盲猜”状态翻牌
-                            return;
-                        }
-                    }
-
-                    spellingInput.style.borderColor = 'red';
-                    spellingInput.value = ''; // 清空让用户重输
-
-                    // 动态生成提示：显示前 N 个字母，其余用 _ 代替
-                    // 例如 word="apple", level=1 -> "a _ _ _ _"
-                    const revealLen = Math.min(scaffoldLevel, correctSpelling.length - 1);
-                    const hint = correctSpelling.substring(0, revealLen) +
-                        " _".repeat(correctSpelling.length - revealLen);
-
-                    spellingInput.placeholder = `❌ Try again: ${hint}`;
-                    // 震动反馈 (如果设备支持)
-                    if (navigator.vibrate) navigator.vibrate(200);
-                    return; // ⛔️ 阻断，不准看答案
-                } else {
-                    // 拼写正确：给予视觉奖励，并默认视为“高自信”
+                if (userSpelling && userSpelling === correctSpelling) {
+                    // 拼写正确：给视觉奖励，并视为高自信
                     spellingInput.style.borderColor = '#34c759';
                     spellingInput.style.backgroundColor = '#e8f5e9';
-                    spellingInput.disabled = true;
-                    currentConfidence = 3; // 拼写正确默认自信度为满
+                    currentConfidence = 3;
+                } else if (userSpelling) {
+                    // 拼写错误：仅标红提示正确拼写，不再拦截，继续翻牌
+                    spellingInput.style.borderColor = 'red';
+                    spellingInput.style.backgroundColor = '#ffebee';
+                    spellingInput.value = currentCard.word; // 直接把正确拼写填进去
+                    currentConfidence = 1; // 默认低自信，进入正常评级
                 }
+                spellingInput.disabled = true; // 锁定，本次不再校验
             }
 
             // --- 2. 自信度拦截 (Confidence Rating) ---
@@ -6877,6 +6880,347 @@ ${mnemonic}`;
                 });
             }
         });
+
+        // ====================================================================
+        // 【新增】差词成文阅读 (Weak Words → Article) 功能
+        // ====================================================================
+        const ARTICLE_CACHE_KEY = 'fsrs_article_reader_cache';   // 缓存已生成文章
+        const ARTICLE_COUNT = 20;                                 // 每次挑词数量
+        const ARTICLE_RECYCLE_DAYS = 7;                           // 已用词几天后自动重新入选(可改)
+        let articleReaderState = { words: [], article: null };
+
+        // 暂存本次会话挑选的目标词 (用于反馈环节重置复习)
+        function setArticleSessionWords(words) {
+            articleReaderState.words = words || [];
+        }
+
+        // --- 1. 挑词：基于"测试效应"的三维科学打分 ---
+        // 【科学依据】阅读回忆的最大价值 = 测试效应(Retrieval Practice)：
+        //   "费力地成功想起一次"对记忆强化远超再次阅读(Bjork: desirable difficulty)。
+        //   太容易(刚复习,一看就想起)=不费力=收益小；全忘光(读到也想不起)=沦为被动阅读。
+        //   最佳提取成功率约 R≈0.5~0.6 (费力但能想起)。
+        // 故三维加权:
+        //   1) 根基弱 stability 低 (45%): 长期最需补语境地基
+        //   2) 处于回忆甜区 R≈0.55 (40%): 高斯钟形打分, 自动避开"太易/全忘"两端
+        //   3) 失败次数 Again/Hard 多 (15%): 兜底标记总啃不下的词
+
+        // 失败次数 = history 里 rating<=2(Again/Hard) 的次数
+        function countFailures(card) {
+            if (!Array.isArray(card.history)) return 0;
+            return card.history.filter(h => Number(h.rating) <= 2).length;
+        }
+
+        // FSRS 可提取度 R: 此刻能想起的概率。复用 rate() 同款公式。
+        function getRetrievability(card, now = Date.now()) {
+            const s = Number(card.stability) || 0;
+            const state = (card.state === undefined) ? ((card.reps === 0) ? 0 : 2) : card.state;
+            if (state === 0 || !card.lastReview) return 0;
+            const elapsed = (now - card.lastReview) / 86400000;
+            return 1 / (1 + elapsed / (9 * (s || 1)));
+        }
+
+        // 回忆甜区打分: 高斯钟形, 中心 R=0.55, 标准差 0.2
+        // R 越接近 0.55 分越高; R→0(全忘)或R→1(太易) 分越低。
+        function retrievalSweetSpotScore(r) {
+            const mu = 0.55, sigma = 0.2;
+            return Math.exp(-Math.pow(r - mu, 2) / (2 * sigma * sigma));
+        }
+
+        // 归一化辅助：把一组数映射到 0~1
+        function normalizeArr(vals) {
+            const min = Math.min(...vals), max = Math.max(...vals);
+            if (max === min) return vals.map(() => 0.5);
+            return vals.map(v => (v - min) / (max - min));
+        }
+
+        // 已用词是否还在"冷却期"(距上次使用 < N 天)。冷却期内跳过，到期自动重新入选。
+        function isArticleWordInCooldown(card, now = Date.now()) {
+            if (!card || !card.usedInArticle) return false;
+            if (!card.usedInArticleAt) return false;          // 无时间戳视为已过期, 不冷却
+            const usedMs = new Date(card.usedInArticleAt).getTime();
+            if (isNaN(usedMs)) return false;
+            return (now - usedMs) < ARTICLE_RECYCLE_DAYS * 86400000;
+        }
+
+        // 从当前学科词库挑"记得最差"的 N 个词 (冷却期内的词跳过)
+        function getWorstWords(count = ARTICLE_COUNT) {
+            const now = Date.now();
+            const candidates = getSubjectFilteredDeck(deck).filter(c => {
+                if (!c || !c.word) return false;
+                // 排除备考卡片
+                if (isExamCardData(c)) return false;
+                // 冷却期内的词(近期生成过文章)跳过，到期自动重新入选
+                if (isArticleWordInCooldown(c, now)) return false;
+                return true;
+            });
+
+            if (candidates.length === 0) return [];
+            // 至少复习过 1 次 (reps>0) 的才算"记得差"，没有数据的新词不挑；若都不满足则退回全部候选
+            const pool = candidates.filter(c => (c.reps || 0) > 0 || (c.history && c.history.length > 0));
+            const arr = pool.length > 0 ? pool : candidates;
+
+            const stabNorm = normalizeArr(arr.map(c => Number(c.stability) || 0));
+            const failNorm = normalizeArr(arr.map(c => countFailures(c)));
+            // 甜区分不用归一化(它本身已是 0~1 的钟形分布)
+            const sweet = arr.map(c => retrievalSweetSpotScore(getRetrievability(c, now)));
+
+            // 打分: 根基弱 0.45 + 甜区 0.40 + 失败 0.15
+            const scored = arr.map((c, i) => ({
+                card: c,
+                score: (1 - stabNorm[i]) * 0.45 + sweet[i] * 0.40 + failNorm[i] * 0.15
+            }));
+            scored.sort((a, b) => b.score - a.score);
+            return scored.slice(0, count).map(s => s.card);
+        }
+
+        // --- 2. localStorage 文章缓存 ---
+        function getArticleCache() {
+            try {
+                const raw = localStorage.getItem(ARTICLE_CACHE_KEY);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) { return []; }
+        }
+        function saveArticleCache(list) {
+            try { localStorage.setItem(ARTICLE_CACHE_KEY, JSON.stringify(list)); } catch (e) {}
+        }
+
+        // --- 3. 弹窗开关与初始化 ---
+        function openArticleReaderModal() {
+            document.getElementById('articleReaderModal').classList.remove('hidden');
+            showArticleSetupView();
+        }
+        function closeArticleReaderModal() {
+            document.getElementById('articleReaderModal').classList.add('hidden');
+        }
+
+        function showArticleSetupView() {
+            document.getElementById('articleSetupView').classList.remove('hidden');
+            document.getElementById('articleLoadingView').classList.add('hidden');
+            document.getElementById('articleReadingView').classList.add('hidden');
+
+            // 候选词统计
+            const allWordCards = getSubjectFilteredDeck(deck).filter(c => c && c.word && !isExamCardData(c));
+            const total = allWordCards.length;
+            const now = Date.now();
+            // 冷却期内的词 = 近期生成过文章、还未到 N 天的
+            const inCooldown = allWordCards.filter(c => isArticleWordInCooldown(c, now)).length;
+            const available = getWorstWords(999).length;   // 排除冷却期后还剩多少可挑
+            const subjectLabel = (window.currentSubject === 'all' || window.currentSubject === '英语') ? '英语词汇' : (window.currentSubject + ' 词库');
+
+            document.getElementById('articleCandidateSummary').innerHTML =
+                `当前学科：<strong>${escapeHTML(subjectLabel)}</strong><br>` +
+                `词库总数：<strong>${total}</strong> 个　|　已被生成过文章：<strong>${used}</strong> 个　|　本次可挑选：<strong>${Math.min(ARTICLE_COUNT, available)}</strong> 个<br>` +
+                `<span style="color:#888; font-size:12px;">挑选标准（三维科学打分）：①记忆根基最弱(stability低 45%) + ②此刻正处在"费力但能想起"的回忆甜区(R≈0.55, 40%) + ③历史失败(Again/Hard)多(15%)。自动避开"太容易"和"已全忘"两端，让阅读回忆的收益最大化。</span>`;
+
+            // 渲染历史文章预览
+            const cache = getArticleCache();
+            const previewEl = document.getElementById('articleHistoryPreview');
+            if (cache.length === 0) {
+                previewEl.innerHTML = '';
+            } else {
+                const recent = cache.slice(-3).reverse();
+                previewEl.innerHTML =
+                    '<div style="font-size:12px; color:#86868b; margin-bottom:6px;">🗂️ 最近生成的文章 (共 ' + cache.length + ' 篇)：</div>' +
+                    recent.map((a, i) => {
+                        const idx = cache.length - i;
+                        return '<div style="background:#fff; border:1px solid #eee; border-radius:8px; padding:8px 10px; margin-bottom:6px; cursor:pointer;" onclick="loadArticleFromCache(' + (cache.length - 1 - i) + ')">' +
+                            '<span style="font-size:12px; color:#00b894; font-weight:bold;">#' + idx + '</span> ' +
+                            '<span style="font-size:12px; color:#666;">' + escapeHTML((a.body || '').slice(0, 40)) + '...</span>' +
+                            '<span style="font-size:11px; color:#999; float:right;">' + (a.words ? a.words.length : 0) + ' 词</span>' +
+                        '</div>';
+                    }).join('');
+            }
+        }
+
+        // --- 4. 生成文章 (DeepSeek) ---
+        async function startArticleGeneration() {
+            const candidates = getWorstWords(ARTICLE_COUNT);
+            if (candidates.length < 3) {
+                alert('当前学科可挑选的差词不足 3 个（可能都已被用过）。可点击"重置已用标记"后再试，或切换到包含更多词汇的学科。');
+                return;
+            }
+            if (!AI_CONFIG.apiKey || AI_CONFIG.apiKey.includes('这里填入')) {
+                alert('请先在代码的 AI_CONFIG 中填入正确的 DeepSeek API Key！');
+                return;
+            }
+
+            // 切到加载视图
+            document.getElementById('articleSetupView').classList.add('hidden');
+            document.getElementById('articleLoadingView').classList.remove('hidden');
+
+            // 准备词表 (word + definition)
+            const wordList = candidates.map(c => ({
+                word: c.word.trim(),
+                definition: (c.definition || '').trim()
+            }));
+
+            const prompt = `你是一位优秀的英语写作老师。请用下面给出的 ${wordList.length} 个英语单词/词组，写一篇自然、连贯、有情节的英文短文（约 120-160 词），帮读者在语境中回忆这些词。
+
+【硬性要求】
+1. 必须把给出的每一个目标词都用到，保持原形或合理时态/单复数变化均可，但要让读者一眼能认出。
+2. 文章要像一个真实的小故事或短评，不要罗列、不要生硬堆砌，逻辑要通顺。
+3. 除目标词外，其它词汇尽量用常见词（CET-4 以内），降低阅读门槛。
+4. 输出必须是严格的 JSON，格式如下，不要输出 JSON 以外的任何文字或 Markdown 代码块：
+{
+  "title": "文章标题(英文)",
+  "body": "文章正文(英文)，目标词请用 [[目标词]] 这种双方括号包裹，例如 The scientist could [[mitigate]] the risk."
+}
+
+【需要用到的目标词及其释义（供你理解词义，body 里只放英文单词本身，不要放释义）】
+${wordList.map(w => `- ${w.word}：${w.definition || '(无释义)'}`).join('\n')}`;
+
+            try {
+                const response = await fetch(AI_CONFIG.baseUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI_CONFIG.apiKey },
+                    body: JSON.stringify({
+                        model: AI_CONFIG.model,
+                        messages: [
+                            { role: 'system', content: '你是英语写作助手，擅长把生词串联成自然易读的短文，严格按 JSON 输出。' },
+                            { role: 'user', content: prompt }
+                        ],
+                        temperature: 0.7
+                    })
+                });
+                if (!response.ok) throw new Error('DeepSeek 请求失败: ' + response.status);
+                const data = await response.json();
+                let content = data.choices?.[0]?.message?.content || '';
+
+                // 清理可能的 Markdown 代码块包裹
+                content = content.replace(/```json/gi, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(content);
+
+                const article = {
+                    title: String(parsed.title || '差词成文').trim(),
+                    body: String(parsed.body || '').trim(),
+                    words: wordList,
+                    created_at: new Date().toISOString()
+                };
+
+                // 标记这批词为已用，并持久化
+                await markWordsUsedInArticle(wordList.map(w => w.word));
+
+                // 缓存到 localStorage
+                const cache = getArticleCache();
+                cache.push(article);
+                saveArticleCache(cache);
+
+                setArticleSessionWords(wordList);
+                renderArticleReadingView(article);
+            } catch (err) {
+                console.error(err);
+                alert('生成文章失败：' + err.message + '\n（如果频繁失败，可能是网络或 DeepSeek 返回格式问题）');
+                showArticleSetupView();
+            }
+        }
+
+        // 从缓存加载历史文章
+        function loadArticleFromCache(index) {
+            const cache = getArticleCache();
+            const article = cache[index];
+            if (!article) return;
+            // 历史/缓存回看：不再重复标记、不影响挑词
+            setArticleSessionWords(article.words || []);
+            renderArticleReadingView(article, true);
+        }
+
+        // --- 5. 渲染阅读视图 (高亮 + 对照表) ---
+        function renderArticleReadingView(article, isHistory = false) {
+            document.getElementById('articleSetupView').classList.add('hidden');
+            document.getElementById('articleLoadingView').classList.add('hidden');
+            document.getElementById('articleReadingView').classList.remove('hidden');
+
+            document.getElementById('articleMetaInfo').innerHTML =
+                (isHistory ? '🗂️ <span style="color:#86868b;">历史文章回看</span> · ' : '') +
+                '📝 ' + (article.words ? article.words.length : 0) + ' 个目标词 · 🕒 ' + (article.created_at ? new Date(article.created_at).toLocaleString('zh-CN') : '');
+
+            // 渲染正文：把 [[word]] 转成高亮 span
+            const bodyEl = document.getElementById('articleBody');
+            const safeBody = escapeHTML(article.body);
+            // 匹配 [[...]]，内部已转义，分隔符 [[ ]] 是普通字符
+            const html = safeBody.replace(/\[\[([^\]]+)\]\]/g, (m, w) => {
+                return '<span style="background:rgba(0,184,148,0.18); color:#007a5a; font-weight:700; padding:0 4px; border-radius:4px;">' + w + '</span>';
+            });
+            bodyEl.innerHTML = '<div style="font-size:18px; font-weight:700; color:#222; margin-bottom:10px;">' + escapeHTML(article.title || '') + '</div>' + html;
+
+            // 词义对照表
+            const listEl = document.getElementById('articleWordList');
+            listEl.innerHTML = (article.words || []).map(w => {
+                return '<div style="background:#f8f9fa; border-radius:8px; padding:8px 10px; font-size:14px;">' +
+                    '<span style="font-weight:700; color:#007a5a;">' + escapeHTML(w.word) + '</span>' +
+                    (w.definition ? '<span style="color:#555;"> — ' + escapeHTML(w.definition) + '</span>' : '') +
+                '</div>';
+            }).join('');
+
+            // 重置反馈提示
+            const fbEl = document.getElementById('articleFeedbackMsg');
+            if (fbEl) { fbEl.innerText = ''; fbEl.style.color = '#34c759'; }
+        }
+
+        // --- 6. 标记 & 重置已用 ---
+        async function markWordsUsedInArticle(words) {
+            const lowerSet = new Set(words.map(w => String(w).trim().toLowerCase()));
+            for (const card of deck) {
+                if (card && card.word && lowerSet.has(card.word.trim().toLowerCase())) {
+                    card.usedInArticle = true;
+                    card.usedInArticleAt = new Date().toISOString();
+                    card.needsSync = true;
+                    card.updated_at = new Date().toISOString();
+                    await db.saveCard(card);
+                }
+            }
+            pushToCloud();
+        }
+
+        function resetArticleUsedMarks() {
+            if (!confirm('确定要重置所有"已用于文章"的标记吗？\n重置后，这些词会重新参与下一次的差词挑选。')) return;
+            let n = 0;
+            deck.forEach(card => {
+                if (card && card.usedInArticle) {
+                    card.usedInArticle = false;
+                    card.usedInArticleAt = null;
+                    card.needsSync = true;
+                    card.updated_at = new Date().toISOString();
+                    n++;
+                }
+            });
+            db.saveAll(deck).then(() => {
+                pushToCloud();
+                alert('已重置 ' + n + ' 个词的标记，它们将重新参与挑选。');
+                showArticleSetupView();
+            });
+        }
+
+        // --- 7. 阅读完反馈：没想起来的词触发提前复习 ---
+        function finishArticleReading(remembered) {
+            const fbEl = document.getElementById('articleFeedbackMsg');
+            if (remembered) {
+                if (fbEl) fbEl.innerText = '👍 很棒！在语境里巩固过的记忆会更牢固。';
+                return;
+            }
+            // 没想起来：把这批词的 due 提前到现在，触发提前复习
+            const now = Date.now();
+            const lowerSet = new Set((articleReaderState.words || []).map(w => String(w.word || w).trim().toLowerCase()));
+            let n = 0;
+            const promises = [];
+            deck.forEach(card => {
+                if (card && card.word && lowerSet.has(card.word.trim().toLowerCase())) {
+                    card.due = now;                       // 立即可复习
+                    card.needsSync = true;
+                    card.updated_at = new Date().toISOString();
+                    n++;
+                    promises.push(db.saveCard(card));
+                }
+            });
+            Promise.all(promises).then(() => {
+                pushToCloud();
+                render();
+                if (fbEl) {
+                    fbEl.style.color = '#ff9500';
+                    fbEl.innerText = '已把 ' + n + ' 个词设为待复习，回主页继续巩固吧！';
+                }
+            });
+        }
 
     </script>
 </body>
