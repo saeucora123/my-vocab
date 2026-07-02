@@ -4104,16 +4104,13 @@ ${mnemonic}`;
                 }
                 document.getElementById('currentStats').innerHTML = statsHtml;
 
-                // 【新增】生存模式 (Survival Mode)：Yerkes-Dodson 定律应用
-                // 备考卡片不应用生存模式 (避免文字变暗看不清)
-                if (!isExam && currentCard.difficulty > 8.0) {
-                    document.body.classList.add('survival-focus'); // 全局变暗
-                    document.getElementById('currentStats').innerHTML += " <b style='color:#ff3b30'>🔥 FOCUS MODE</b>";
-                } else {
-                    document.body.classList.remove('survival-focus');
-                    // 移除旧的局部样式
-                    document.querySelector('.card-display').classList.remove('survival-mode');
-                }
+                // 【生存模式 (Survival / Focus Mode) —— 已关闭】
+                // 原逻辑：当 currentCard.difficulty > 8.0 时整页变黑(survival-focus)逼专注。
+                // 用户反馈黑底看不清单词，故关闭触发，默认永远正常浅色模式。
+                // 代码与 CSS(.survival-focus) 均保留，以后想恢复把下面 if 打开即可。
+                document.body.classList.remove('survival-focus');
+                const cdEl = document.querySelector('.card-display');
+                if (cdEl) cdEl.classList.remove('survival-mode');
 
                 // 【新增】更新胜任感进度条 (Competence Bar)
                 const matureCount = filteredDeck.filter(c => c.stability > 21).length; // S > 21 天视作掌握
@@ -6967,10 +6964,63 @@ ${mnemonic}`;
             // 打分: 根基弱 0.45 + 甜区 0.40 + 失败 0.15
             const scored = arr.map((c, i) => ({
                 card: c,
-                score: (1 - stabNorm[i]) * 0.45 + sweet[i] * 0.40 + failNorm[i] * 0.15
+                score: (1 - stabNorm[i]) * 0.45 + sweet[i] * 0.40 + failNorm[i] * 0.15,
+                batch: getCardBatchKey(c)        // 录入批次(按天), 用于打散
             }));
             scored.sort((a, b) => b.score - a.score);
-            return scored.slice(0, count).map(s => s.card);
+
+            // === 打散(Diversify): 避免连片 ===
+            // 问题: 同批录入的词 stability 接近, 纯按分会成片挑出, 复习时"顺藤摸瓜"破坏抽查意义。
+            // 方案: 按录入批次分桶(每桶内部已按分降序), 然后轮转抽取(round-robin)——
+            //       每轮从各桶各取最高分的一个, 直到凑满 count 个。
+            //       这样 20 个词尽量来自不同录入日, 主题不相关, 逼真回忆。
+            return diversifyByBatch(scored, count);
+        }
+
+        // 录入批次键: 从 id 里提取录入时间(Date.now()的36进制), 按天分桶。
+        // id = Date.now().toString(36) + 随机串, 前缀就是毫秒时间戳。
+        function getCardBatchKey(card) {
+            if (!card || !card.id) return 'unknown';
+            const idStr = String(card.id);
+            // Date.now().toString(36) 一般 8 位左右; 取前 8 位转回毫秒, 按天(86400000ms)分桶
+            const tsPart = idStr.substring(0, 8);
+            let ms = 0;
+            try { ms = parseInt(tsPart, 36); } catch (e) { return idStr; }
+            if (!ms || isNaN(ms)) return idStr;
+            return Math.floor(ms / 86400000);   // 录入日(自纪元起第几天)
+        }
+
+        // 轮转打散: 各批次桶轮流取分最高的, 避免单一批次霸占名额
+        function diversifyByBatch(scored, count) {
+            if (scored.length <= count) return scored.map(s => s.card);
+
+            // 分桶: 同一 batch 的放一起(桶内已全局按分降序)
+            const buckets = {};
+            scored.forEach(s => {
+                const k = s.batch;
+                if (!buckets[k]) buckets[k] = [];
+                buckets[k].push(s.card);
+            });
+            const bucketArr = Object.values(buckets);
+            // 桶少的优先(批次越分散越好), 桶内已按分降序
+            bucketArr.sort((a, b) => b.length - a.length);   // 大桶在前, 但轮转会平衡
+
+            const result = [];
+            let guard = 0;
+            while (result.length < count && guard < scored.length * 4) {
+                guard++;
+                let tookAny = false;
+                // 每轮遍历所有桶, 各取一个(若桶还有词且本轮名额未满)
+                for (const bkt of bucketArr) {
+                    if (result.length >= count) break;
+                    if (bkt.length > 0) {
+                        result.push(bkt.shift());
+                        tookAny = true;
+                    }
+                }
+                if (!tookAny) break;   // 所有桶都空了
+            }
+            return result.slice(0, count);
         }
 
         // --- 2. localStorage 文章缓存 ---
