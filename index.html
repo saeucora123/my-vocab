@@ -1623,8 +1623,8 @@
                 <!-- 准备/选择视图 -->
                 <div id="articleSetupView">
                     <p style="font-size:13px; color:gray; margin-top:0;">
-                        从当前学科词库里，挑出你<span style="color:#ff3b30; font-weight:bold;">记得最差的 20 个词</span>，
-                        让 DeepSeek 写一篇短文把它们串起来。在阅读中自然回忆，用过的词会被标记，避免重复。
+                        从当前学科词库里，挑出一批<span style="color:#ff3b30; font-weight:bold;">记得较差的候选词</span>，
+                        让 DeepSeek 只选其中最适合同一场景的 6-8 个写成短文。在阅读中自然回忆，用过的词会被标记，避免重复。
                     </p>
                     <div style="background:#f8f9fa; border-radius:12px; padding:14px; margin:12px 0;">
                         <div style="font-size:13px; font-weight:bold; margin-bottom:8px;">📊 候选词分析</div>
@@ -1645,7 +1645,7 @@
                 <div id="articleLoadingView" class="hidden" style="text-align:center; padding:50px 20px;">
                     <div class="spinner" style="width:40px; height:40px; border-width:4px; border-top-color:#00b894; margin:0 auto 20px;"></div>
                     <h3 style="margin-bottom:10px;">DeepSeek 正在为你写文章...</h3>
-                    <p style="color:#666; font-size:14px;">把记得最差的词串成一篇自然的短文，请稍候</p>
+                    <p style="color:#666; font-size:14px;">先挑一组能自然共处的词，再写成顺滑短文，请稍候</p>
                 </div>
 
                 <!-- 阅读视图 -->
@@ -3494,43 +3494,76 @@
             }
         }
 
-        // 主入口: 组装一张卡的干扰项。带缓存 (card._distractors), 仅算一次。
-        // 返回 { options: [...], correct: word } options 含正确答案 + 2-3 个干扰项, 已打乱
-        async function buildDistractorSet(card) {
-            const correct = card.word.trim();
-            let distractors = [];
-
-            // 1. 读缓存
-            if (Array.isArray(card._distractors) && card._distractors.length >= 2) {
-                distractors = card._distractors;
-            } else {
-                // 2. 并行: 本地形近 + Datamuse 近义
-                const [lookAlikes, syns] = await Promise.all([
-                    Promise.resolve(findLocalLookAlikes(correct)),
-                    fetchSynonymDistractors(correct)
-                ]);
-                // 合并去重 (形近优先, 近义补充), 去掉正确词本身
-                const seen = new Set([correct.toLowerCase()]);
-                for (const w of [...lookAlikes, ...syns]) {
-                    const key = (w || '').toLowerCase().trim();
-                    if (key && !seen.has(key) && key !== correct.toLowerCase()) {
-                        seen.add(key);
-                        distractors.push(w);
-                    }
-                    if (distractors.length >= 3) break;
-                }
-                // 缓存到卡 (内存级, 不落 needsSync, 避免触发全量云同步)
-                if (distractors.length >= 2) card._distractors = distractors;
-            }
-
-            if (distractors.length < 2) return null; // 干扰项不足, 跳过辨析
-
-            const options = [correct, ...distractors.slice(0, 3)]
-                .sort(() => Math.random() - 0.5); // Fisher-Yates 简化版打乱
-            return { options, correct };
+        function compactDefinitionForOption(definition) {
+            return String(definition || '')
+                .replace(/<[^>]*>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 180);
         }
 
-        // 辨析挑战 UI: 渲染一个"哪个词符合这个释义"的小测。不影响 FSRS 评级链路,
+        function getComparablePOS(pos) {
+            return String(pos || '')
+                .toLowerCase()
+                .replace(/[()（）.]/g, ' ')
+                .trim()
+                .split(/\s+/)[0] || '';
+        }
+
+        // 主入口: 组装一张卡的"释义辨析"干扰项。
+        // 注意: 卡片正面已经显示目标词，所以不能再出"哪个词符合释义"。
+        // 这里改成"哪个释义符合上面的词"，避免答案泄漏。
+        async function buildDistractorSet(card) {
+            const correctWord = String(card.word || '').trim();
+            const correctDefinition = compactDefinitionForOption(card.definition);
+            if (!correctWord || !correctDefinition) return null;
+
+            const [lookAlikes, syns] = await Promise.all([
+                Promise.resolve(findLocalLookAlikes(correctWord)),
+                fetchSynonymDistractors(correctWord)
+            ]);
+            const lookAlikeSet = new Set(lookAlikes.map(w => String(w || '').toLowerCase().trim()));
+            const synonymSet = new Set(syns.map(w => String(w || '').toLowerCase().trim()));
+            const correctKey = correctWord.toLowerCase();
+            const targetPOS = getComparablePOS(card.pos);
+
+            const candidates = getSubjectFilteredDeck(deck)
+                .filter(c => c && c.word && c.definition && !isExamCardData(c))
+                .filter(c => String(c.word).toLowerCase().trim() !== correctKey)
+                .map(c => {
+                    const wordKey = String(c.word || '').toLowerCase().trim();
+                    const def = compactDefinitionForOption(c.definition);
+                    let score = Math.random();
+                    if (lookAlikeSet.has(wordKey)) score += 20;
+                    if (synonymSet.has(wordKey)) score += 15;
+                    if (targetPOS && getComparablePOS(c.pos) === targetPOS) score += 4;
+                    if (wordKey[0] && wordKey[0] === correctKey[0]) score += 1;
+                    return { word: c.word, definition: def, score };
+                })
+                .filter(item => item.definition && item.definition.toLowerCase() !== correctDefinition.toLowerCase())
+                .sort((a, b) => b.score - a.score);
+
+            const distractors = [];
+            const seenDefinitions = new Set([correctDefinition.toLowerCase()]);
+            for (const item of candidates) {
+                const key = item.definition.toLowerCase();
+                if (seenDefinitions.has(key)) continue;
+                seenDefinitions.add(key);
+                distractors.push(item);
+                if (distractors.length >= 3) break;
+            }
+
+            if (distractors.length < 2) return null; // 干扰释义不足, 跳过辨析
+
+            const options = [
+                { definition: correctDefinition, word: correctWord, isCorrect: true },
+                ...distractors.map(item => ({ definition: item.definition, word: item.word, isCorrect: false }))
+            ].sort(() => Math.random() - 0.5);
+
+            return { options, correct: correctDefinition, correctWord };
+        }
+
+        // 辨析挑战 UI: 渲染一个"哪个释义符合当前词"的小测。不影响 FSRS 评级链路,
         // 用户答完只给即时反馈, 评级仍走原 Show Answer -> revealAnswer -> rate。
         // 设计为可选附加题, 答错也不惩罚评级, 避免"再认难度"污染记忆信号。
         async function renderDistractorChallenge(show, card) {
@@ -3546,8 +3579,7 @@
             box.id = 'distractorBox';
             box.style.cssText = 'margin-top:12px; padding:12px; background:#f0f4ff; border:1px solid #c7d2fe; border-radius:12px; text-align:left;';
             box.innerHTML = `
-                <div style="font-size:11px; font-weight:700; color:#4338ca; letter-spacing:0.05em; margin-bottom:6px;">⚔️ 辨析挑战 · 哪个词符合下面释义?</div>
-                <div style="font-size:13px; color:#374151; line-height:1.4; margin-bottom:10px; font-style:italic;">${sanitizeHTML(card.definition)}</div>
+                <div style="font-size:11px; font-weight:700; color:#4338ca; letter-spacing:0.05em; margin-bottom:6px;">⚔️ 辨析挑战 · 哪个释义最符合上面的词?</div>
                 <div style="display:flex; flex-wrap:wrap; gap:6px;" id="distractorOptions"></div>
                 <div id="distractorFeedback" style="font-size:12px; margin-top:8px; min-height:14px;"></div>
             `;
@@ -3555,22 +3587,23 @@
             const optWrap = box.querySelector('#distractorOptions');
             challenge.options.forEach(opt => {
                 const btn = document.createElement('button');
-                btn.textContent = opt;
-                btn.style.cssText = 'flex:1 1 40%; padding:10px; border:1px solid #c7d2fe; background:#fff; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.15s;';
+                btn.textContent = opt.definition;
+                btn.dataset.correct = opt.isCorrect ? '1' : '0';
+                btn.style.cssText = 'flex:1 1 100%; padding:10px; border:1px solid #c7d2fe; background:#fff; border-radius:8px; font-size:13px; line-height:1.45; font-weight:500; text-align:left; cursor:pointer; transition:all 0.15s;';
                 btn.onclick = () => {
                     // 答过一次后锁定全部按钮, 防止反复点
                     optWrap.querySelectorAll('button').forEach(b => b.disabled = true);
                     const fb = box.querySelector('#distractorFeedback');
-                    if (opt === challenge.correct) {
+                    if (opt.isCorrect) {
                         btn.style.background = '#34c759'; btn.style.color = '#fff'; btn.style.borderColor = '#34c759';
-                        fb.innerHTML = '<span style="color:#15803d;">✓ 答对。能从近义/形近词里精准挑出它, 才算真掌握。</span>';
+                        fb.innerHTML = '<span style="color:#15803d;">✓ 答对。能把词和核心释义稳定绑定, 才算真掌握。</span>';
                     } else {
                         btn.style.background = '#ff3b30'; btn.style.color = '#fff'; btn.style.borderColor = '#ff3b30';
                         // 高亮正确项
                         optWrap.querySelectorAll('button').forEach(b => {
-                            if (b.textContent === challenge.correct) { b.style.background = '#34c759'; b.style.color = '#fff'; b.style.borderColor = '#34c759'; }
+                            if (b.dataset.correct === '1') { b.style.background = '#34c759'; b.style.color = '#fff'; b.style.borderColor = '#34c759'; }
                         });
-                        fb.innerHTML = `<span style="color:#b91c1c;">✗ 正确答案是 <b>${sanitizeHTML(challenge.correct)}</b>。这俩长得像/意思近, 建议用 Logic 联想它们的差异。</span>`;
+                        fb.innerHTML = `<span style="color:#b91c1c;">✗ 正确释义是：${sanitizeHTML(challenge.correct)}。建议看一下 Logic 或例句，把词义重新扣紧。</span>`;
                     }
                 };
                 optWrap.appendChild(btn);
@@ -6882,7 +6915,9 @@ ${mnemonic}`;
         // 【新增】差词成文阅读 (Weak Words → Article) 功能
         // ====================================================================
         const ARTICLE_CACHE_KEY = 'fsrs_article_reader_cache';   // 缓存已生成文章
-        const ARTICLE_COUNT = 20;                                 // 每次挑词数量
+        const ARTICLE_CANDIDATE_COUNT = 16;                       // 每次给 AI 的候选差词数量
+        const ARTICLE_TARGET_MIN = 6;                             // 每篇实际使用的最少目标词
+        const ARTICLE_TARGET_MAX = 8;                             // 每篇实际使用的最多目标词
         const ARTICLE_RECYCLE_DAYS = 7;                           // 已用词几天后自动重新入选(可改)
         let articleReaderState = { words: [], article: null };
 
@@ -6940,7 +6975,7 @@ ${mnemonic}`;
         }
 
         // 从当前学科词库挑"记得最差"的 N 个词 (冷却期内的词跳过)
-        function getWorstWords(count = ARTICLE_COUNT) {
+        function getWorstWords(count = ARTICLE_CANDIDATE_COUNT) {
             const now = Date.now();
             const candidates = getSubjectFilteredDeck(deck).filter(c => {
                 if (!c || !c.word) return false;
@@ -6973,7 +7008,7 @@ ${mnemonic}`;
             // 问题: 同批录入的词 stability 接近, 纯按分会成片挑出, 复习时"顺藤摸瓜"破坏抽查意义。
             // 方案: 按录入批次分桶(每桶内部已按分降序), 然后轮转抽取(round-robin)——
             //       每轮从各桶各取最高分的一个, 直到凑满 count 个。
-            //       这样 20 个词尽量来自不同录入日, 主题不相关, 逼真回忆。
+            //       这样候选词尽量来自不同录入日, 主题不相关, 逼真回忆。
             return diversifyByBatch(scored, count);
         }
 
@@ -7060,7 +7095,7 @@ ${mnemonic}`;
 
             document.getElementById('articleCandidateSummary').innerHTML =
                 `当前学科：<strong>${escapeHTML(subjectLabel)}</strong><br>` +
-                `词库总数：<strong>${total}</strong> 个　|　已被生成过文章：<strong>${used}</strong> 个　|　本次可挑选：<strong>${Math.min(ARTICLE_COUNT, available)}</strong> 个<br>` +
+                `词库总数：<strong>${total}</strong> 个　|　已被生成过文章：<strong>${used}</strong> 个　|　本次候选：<strong>${Math.min(ARTICLE_CANDIDATE_COUNT, available)}</strong> 个　|　成文使用：<strong>${ARTICLE_TARGET_MIN}-${ARTICLE_TARGET_MAX}</strong> 个<br>` +
                 `<span style="color:#888; font-size:12px;">挑选标准（三维科学打分）：①记忆根基最弱(stability低 45%) + ②此刻正处在"费力但能想起"的回忆甜区(R≈0.55, 40%) + ③历史失败(Again/Hard)多(15%)。自动避开"太容易"和"已全忘"两端，让阅读回忆的收益最大化。</span>`;
 
             // 渲染历史文章预览
@@ -7083,11 +7118,71 @@ ${mnemonic}`;
             }
         }
 
+        function normalizeArticleWordText(text) {
+            return String(text || '').trim().toLowerCase();
+        }
+
+        function escapeArticleRegExp(text) {
+            return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function getArticleUsedWordsFromResponse(parsed, wordList) {
+            const body = String(parsed.body || '');
+            const byLower = new Map(wordList.map(w => [normalizeArticleWordText(w.word), w]));
+            const used = [];
+            const seen = new Set();
+
+            function addWord(wordText) {
+                const key = normalizeArticleWordText(wordText);
+                const matched = byLower.get(key);
+                if (matched && !seen.has(key)) {
+                    used.push(matched);
+                    seen.add(key);
+                    return true;
+                }
+                return false;
+            }
+
+            if (Array.isArray(parsed.used_words)) {
+                parsed.used_words.forEach(addWord);
+            }
+
+            const highlightedTerms = [...body.matchAll(/\[\[([^\]]+)\]\]/g)].map(m => normalizeArticleWordText(m[1]));
+            highlightedTerms.forEach(term => {
+                if (addWord(term)) return;
+                wordList.forEach(w => {
+                    const key = normalizeArticleWordText(w.word);
+                    if (!seen.has(key) && key.length >= 4 && (term.startsWith(key) || key.startsWith(term))) {
+                        used.push(w);
+                        seen.add(key);
+                    }
+                });
+            });
+
+            if (used.length > 0) return used;
+
+            // Fallback: if the model forgets [[...]], infer from plain body text.
+            wordList.forEach(w => {
+                const word = String(w.word || '').trim();
+                const key = normalizeArticleWordText(word);
+                if (!word || seen.has(key)) return;
+                const pattern = word.includes(' ')
+                    ? word.split(/\s+/).map(escapeArticleRegExp).join('\\s+')
+                    : '\\b' + escapeArticleRegExp(word) + '(?:s|ed|ing)?\\b';
+                if (new RegExp(pattern, 'i').test(body)) {
+                    used.push(w);
+                    seen.add(key);
+                }
+            });
+
+            return used;
+        }
+
         // --- 4. 生成文章 (DeepSeek) ---
         async function startArticleGeneration() {
-            const candidates = getWorstWords(ARTICLE_COUNT);
-            if (candidates.length < 3) {
-                alert('当前学科可挑选的差词不足 3 个（可能都已被用过）。可点击"重置已用标记"后再试，或切换到包含更多词汇的学科。');
+            const candidates = getWorstWords(ARTICLE_CANDIDATE_COUNT);
+            if (candidates.length < ARTICLE_TARGET_MIN) {
+                alert('当前学科可挑选的差词不足 ' + ARTICLE_TARGET_MIN + ' 个（可能都已被用过）。可点击"重置已用标记"后再试，或切换到包含更多词汇的学科。');
                 return;
             }
             if (!AI_CONFIG.apiKey || AI_CONFIG.apiKey.includes('这里填入')) {
@@ -7105,19 +7200,26 @@ ${mnemonic}`;
                 definition: (c.definition || '').trim()
             }));
 
-            const prompt = `你是一位优秀的英语写作老师。请用下面给出的 ${wordList.length} 个英语单词/词组，写一篇自然、连贯、有情节的英文短文（约 120-160 词），帮读者在语境中回忆这些词。
+            const prompt = `你是一位克制、自然的英语写作老师。你的目标不是炫技，也不是把单词硬塞进文章，而是写出像真实英文材料一样顺滑的短文。
+
+请从下面 ${wordList.length} 个候选单词/词组中，挑选最适合放进同一个自然场景的 ${ARTICLE_TARGET_MIN}-${ARTICLE_TARGET_MAX} 个，写一篇 140-190 词的英文短文，帮读者在语境中回忆这些词。
 
 【硬性要求】
-1. 必须把给出的每一个目标词都用到，保持原形或合理时态/单复数变化均可，但要让读者一眼能认出。
-2. 文章要像一个真实的小故事或短评，不要罗列、不要生硬堆砌，逻辑要通顺。
-3. 除目标词外，其它词汇尽量用常见词（CET-4 以内），降低阅读门槛。
-4. 输出必须是严格的 JSON，格式如下，不要输出 JSON 以外的任何文字或 Markdown 代码块：
+1. 只使用你挑中的目标词，不必用完全部候选词。used_words 必须只填写实际用到的词，并使用候选词中的原始拼写。
+2. 文章必须像真实材料：可以是校园片段、工作讨论、新闻短评、日记、考试阅读段落或短辩论。
+3. 不要写童话、夸张剧情、鸡汤、强行反转，也不要为了塞词制造奇怪句子。
+4. 目标词在正文中请用 [[目标词]] 包裹；可以合理变形，但读者要一眼能认出。
+5. 除目标词外，其它词汇尽量用常见词（CET-4 以内），降低阅读门槛。
+6. 写完后自检：如果某个目标词显得突兀，请换一个候选词或重写句子。
+7. 输出必须是严格的 JSON，格式如下，不要输出 JSON 以外的任何文字或 Markdown 代码块：
 {
   "title": "文章标题(英文)",
+  "style": "chosen style",
+  "used_words": ["word1", "word2"],
   "body": "文章正文(英文)，目标词请用 [[目标词]] 这种双方括号包裹，例如 The scientist could [[mitigate]] the risk."
 }
 
-【需要用到的目标词及其释义（供你理解词义，body 里只放英文单词本身，不要放释义）】
+【候选目标词及其释义（供你理解词义，body 里只放英文单词本身，不要放释义）】
 ${wordList.map(w => `- ${w.word}：${w.definition || '(无释义)'}`).join('\n')}`;
 
             try {
@@ -7127,10 +7229,10 @@ ${wordList.map(w => `- ${w.word}：${w.definition || '(无释义)'}`).join('\n')
                     body: JSON.stringify({
                         model: AI_CONFIG.model,
                         messages: [
-                            { role: 'system', content: '你是英语写作助手，擅长把生词串联成自然易读的短文，严格按 JSON 输出。' },
+                            { role: 'system', content: '你是英语写作助手，擅长从候选生词中挑选能自然共处的一组，写成真实、克制、易读的英文短文，并严格按 JSON 输出。' },
                             { role: 'user', content: prompt }
                         ],
-                        temperature: 0.7
+                        temperature: 0.6
                     })
                 });
                 if (!response.ok) throw new Error('DeepSeek 请求失败: ' + response.status);
@@ -7140,23 +7242,27 @@ ${wordList.map(w => `- ${w.word}：${w.definition || '(无释义)'}`).join('\n')
                 // 清理可能的 Markdown 代码块包裹
                 content = content.replace(/```json/gi, '').replace(/```/g, '').trim();
                 const parsed = JSON.parse(content);
+                const usedWordList = getArticleUsedWordsFromResponse(parsed, wordList);
+                if (usedWordList.length === 0) throw new Error('DeepSeek 没有返回可识别的目标词，请重试。');
 
                 const article = {
                     title: String(parsed.title || '差词成文').trim(),
+                    style: String(parsed.style || '').trim(),
                     body: String(parsed.body || '').trim(),
-                    words: wordList,
+                    words: usedWordList,
+                    candidate_words: wordList,
                     created_at: new Date().toISOString()
                 };
 
-                // 标记这批词为已用，并持久化
-                await markWordsUsedInArticle(wordList.map(w => w.word));
+                // 只标记文章里实际使用的词，没选上的候选词继续参与下次生成。
+                await markWordsUsedInArticle(usedWordList.map(w => w.word));
 
                 // 缓存到 localStorage
                 const cache = getArticleCache();
                 cache.push(article);
                 saveArticleCache(cache);
 
-                setArticleSessionWords(wordList);
+                setArticleSessionWords(usedWordList);
                 renderArticleReadingView(article);
             } catch (err) {
                 console.error(err);
