@@ -1185,6 +1185,12 @@
                         style="margin-top:8px;"></textarea>
                     <textarea id="newCollocationsInput" rows="2" placeholder="核心搭配，用逗号分隔"
                         style="margin-top:8px;"></textarea>
+                    <textarea id="newClozeSentenceInput" rows="2" placeholder="专用挖空句（必须包含目标词；普通例句不会自动拿来挖空）"
+                        style="margin-top:8px;"></textarea>
+                    <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#475467; margin-top:7px;">
+                        <input id="newClozeEnabled" type="checkbox" style="width:auto; margin:0;">
+                        该词和这句话适合语境挖空（至少复习4次后才会出题）
+                    </label>
                     <div style="font-size:12px; font-weight:800; color:#555; margin:10px 0 6px;">目标计数与来源</div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                         <input id="newFamilyKeyInput" type="text" placeholder="词族主词，如：act（留空=本词）">
@@ -1616,6 +1622,16 @@
                 <div>
                     <label style="font-size:12px; color:gray;">Core Collocations</label>
                     <textarea id="editCollocationsInput" rows="2" placeholder="用逗号分隔"></textarea>
+                </div>
+
+                <div>
+                    <label style="font-size:12px; color:gray;">专用语境挖空句</label>
+                    <textarea id="editClozeSentenceInput" rows="2" placeholder="必须包含目标词；留空则不出挖空题"></textarea>
+                    <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#475467; margin-top:7px;">
+                        <input id="editClozeEnabled" type="checkbox" style="width:auto; margin:0;">
+                        允许这张卡出语境挖空题
+                    </label>
+                    <div id="editClozeStatus" style="font-size:11px; color:#86868b; margin-top:5px;"></div>
                 </div>
 
                 <div>
@@ -3348,6 +3364,9 @@
         let tempMorphemes = null; // 【修复】添加全局变量
         let tempFamily = "";      // 【修复】添加全局变量
         let tempCollocations = []; // 核心搭配，复习时优先替代长例句
+        let tempClozeSentence = "";
+        let tempClozeEnabled = false;
+        let tempClozeReason = "";
         let isBatchProcessing = false; // 【修复】批量处理保护标志，防止云端拉取覆盖本地数据
         let currentPromptType = 'meaning';
         let currentPromptCardId = null;
@@ -3355,6 +3374,8 @@
         let currentUsedHint = false;
         let currentAnswerRevealed = false;
         let currentReviewStartedAt = 0;
+        let currentClozeHintUsed = false;
+        let currentClozeAlternative = false;
         let lastReviewedWordKey = '';
         let newCardsPerDay = 15;
         const DEFAULT_VOCAB_GOAL = {
@@ -3595,6 +3616,9 @@
             if (!Array.isArray(card.contextHistory)) card.contextHistory = [];
             if (card.glossZh === undefined || card.glossZh === null) card.glossZh = '';
             if (card.senseLabel === undefined || card.senseLabel === null) card.senseLabel = '';
+            if (card.clozeSentence === undefined || card.clozeSentence === null) card.clozeSentence = '';
+            if (card.clozeEnabled !== true) card.clozeEnabled = false;
+            if (card.clozeDisabledReason === undefined || card.clozeDisabledReason === null) card.clozeDisabledReason = '';
             if (!card.familyKey) card.familyKey = String(card.word || '').trim();
             if (!card.frequencyBand) card.frequencyBand = 'unknown';
             if (!card.sourceType) card.sourceType = 'legacy';
@@ -3787,7 +3811,7 @@
         }
 
         // 修改：增加了 morphemes (形态学), family (词族), originalContext 和 collocations (核心搭配) 参数
-        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", pos = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "", originalContext = "", collocations = [], glossZh = "", senseLabel = "", familyKey = "", frequencyBand = "unknown", sourceType = "manual", sourceLabel = "", countTowardGoal = null) {
+        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", pos = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "", originalContext = "", collocations = [], glossZh = "", senseLabel = "", familyKey = "", frequencyBand = "unknown", sourceType = "manual", sourceLabel = "", countTowardGoal = null, clozeSentence = "", clozeEnabled = false, clozeDisabledReason = "") {
             const createdAt = new Date().toISOString();
             const cleanWord = word.trim();
             return {
@@ -3809,6 +3833,9 @@
                 sourceType: sourceType || 'manual',
                 sourceLabel: sourceLabel ? String(sourceLabel).trim() : '',
                 countTowardGoal: countTowardGoal === null ? !/\s/.test(cleanWord) : !!countTowardGoal,
+                clozeSentence: clozeSentence ? String(clozeSentence).trim() : '',
+                clozeEnabled: clozeEnabled === true,
+                clozeDisabledReason: clozeDisabledReason ? String(clozeDisabledReason).trim() : '',
                 mnemonic: mnemonic.trim(),
                 socratic: socratic ? socratic.trim() : "", // 【新增】保存苏格拉底提问
                 emoji: emoji.trim(),
@@ -3912,6 +3939,9 @@ ${mnemonic}`;
 1.  **mnemonic (逻辑推导)**: 严禁谐音。必须中英混杂：中文解释占主体，但允许保留 Root/Prefix/Suffix/Core/abstract meaning 等英文结构标签和词根英文。若是单词，格式可为：'Root(中文含义) + Prefix(中文含义) -> Core action: 中文解释 -> abstract meaning: 中文引申义'；若是词组，请解析其字面义到实际义的隐喻逻辑。**注意：不要在 mnemonic 字段里包含 Family/词族列表，Family 请单独放在 family 字段返回。**
 2.  **contrast (必需)**: 必须指出该词在中英思维上的核心差异（中文）。
 
+【挖空资格判断】
+只有当目标词词义具体、句中含典型搭配、常见替代答案很少时，cloze_suitable 才能为 true。宽泛词、多义词、短语或明显可由多个近义词替换时必须返回 false；不要为了生成而硬判 true。
+
 【JSON 返回结构】
 {
   "sentence": "包含逻辑连接词和 <b>词块</b> 的例句...",
@@ -3925,7 +3955,10 @@ ${mnemonic}`;
   "socratic": "Why does this word imply a process rather than a result?",
   "emoji": "最精准的表情符号",
   "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
-  "family": "contract, distract, retract (仅列出同根词)"
+  "family": "contract, distract, retract (仅列出同根词)",
+  "cloze_suitable": true,
+  "cloze_sentence": "只在答案接近唯一时生成；必须原样包含 ${word} 和一个典型搭配，否则返回空字符串",
+  "cloze_reason": "若不适合，简短说明词义过宽、多义或替代词过多"
 }`;
 
                 // 【Phase 2 深度优化：进阶模式 Prompt】
@@ -3942,6 +3975,9 @@ ${mnemonic}`;
 1.  **mnemonic**: 必须中英混杂：中文解释占主体，但允许保留 Physical image / Core action / abstract meaning 等英文结构标签和关键词。仅输出'物理图景'到'抽象逻辑'的演化推导链（若是词组则侧重解析来源或比喻义）。**不要包含词族列表。**
 2.  **contrast (必需)**: 指出中英思维差异(中文)。
 
+【挖空资格判断】
+只有当目标词词义具体、句中含典型搭配、常见替代答案很少时，cloze_suitable 才能为 true。宽泛词、多义词、短语或明显可由多个近义词替换时必须返回 false；不要为了生成而硬判 true。
+
 【JSON 返回结构】
 {
   "sentence": "包含复杂句法和 <b>核心搭配</b> 的考研级例句...",
@@ -3954,7 +3990,10 @@ ${mnemonic}`;
   "socratic": "Why is this word used for political contexts but rarely for personal relationships?",
   "emoji": "抽象概念的具体化Emoji",
   "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
-  "family": "词族"
+  "family": "词族",
+  "cloze_suitable": true,
+  "cloze_sentence": "只在答案接近唯一时生成；必须原样包含 ${word} 和一个典型搭配，否则返回空字符串",
+  "cloze_reason": "若不适合，简短说明词义过宽、多义或替代词过多"
 }`;
 
                 const response = await fetch(AI_CONFIG.baseUrl, {
@@ -3998,6 +4037,13 @@ ${mnemonic}`;
 
                 sentenceEl.value = result.sentence;
                 const normalizedCollocations = normalizeCollocations(result.collocations);
+                const clozeCandidate = validateClozeCandidate(
+                    word,
+                    result.cloze_suitable === true,
+                    result.cloze_sentence || '',
+                    result.cloze_reason || '',
+                    normalizedCollocations
+                );
 
                 if (mode === 'new') {
                     tempAutoDefinition = result.definition || '';
@@ -4014,6 +4060,9 @@ ${mnemonic}`;
                     tempMorphemes = result.morphemes;
                     tempFamily = result.family;
                     tempCollocations = normalizedCollocations;
+                    tempClozeSentence = clozeCandidate.sentence;
+                    tempClozeEnabled = clozeCandidate.enabled;
+                    tempClozeReason = clozeCandidate.reason;
                     const preview = document.getElementById('newCardPreview');
                     if (preview) preview.classList.remove('hidden');
                     document.getElementById('newSenseLabelInput').value = tempSenseLabel;
@@ -4021,6 +4070,11 @@ ${mnemonic}`;
                     document.getElementById('newGlossInput').value = tempGlossZh;
                     document.getElementById('newDefinitionInput').value = tempAutoDefinition;
                     document.getElementById('newCollocationsInput').value = tempCollocations.join(', ');
+                    document.getElementById('newClozeSentenceInput').value = tempClozeSentence;
+                    document.getElementById('newClozeEnabled').checked = tempClozeEnabled;
+                    document.getElementById('newClozeSentenceInput').placeholder = tempClozeEnabled
+                        ? '已生成专用挖空句'
+                        : `不启用挖空：${tempClozeReason || '答案约束不足'}`;
                     document.getElementById('newMnemonicInput').value = tempMnemonic;
                     const familyKeyEl = document.getElementById('newFamilyKeyInput');
                     if (familyKeyEl && !familyKeyEl.value.trim()) familyKeyEl.value = word;
@@ -4032,6 +4086,11 @@ ${mnemonic}`;
                     document.getElementById('editSenseLabelInput').value = result.sense_label || '';
                     document.getElementById('editPosInput').value = result.pos || '';
                     document.getElementById('editCollocationsInput').value = normalizedCollocations.join(', ');
+                    document.getElementById('editClozeSentenceInput').value = clozeCandidate.sentence;
+                    document.getElementById('editClozeEnabled').checked = clozeCandidate.enabled;
+                    document.getElementById('editClozeStatus').textContent = clozeCandidate.enabled
+                        ? 'AI判断：适合挖空；至少复习4次后启用。'
+                        : `AI判断：不适合挖空（${clozeCandidate.reason || '答案约束不足'}）`;
                     let aiMnemonic = await ensureMixedChineseMnemonic(word, result.mnemonic || "", result.morphemes);
                     if (result.family) aiMnemonic += `\n[Family: ${result.family}]`;
                     document.getElementById('editMnemonicInput').value = aiMnemonic;
@@ -4041,7 +4100,10 @@ ${mnemonic}`;
                         morphemes: result.morphemes,
                         family: result.family,
                         contrast: result.contrast,
-                        collocations: normalizedCollocations
+                        collocations: normalizedCollocations,
+                        clozeSentence: clozeCandidate.sentence,
+                        clozeEnabled: clozeCandidate.enabled,
+                        clozeDisabledReason: clozeCandidate.reason
                     };
                 }
             } catch (err) {
@@ -4069,6 +4131,9 @@ ${mnemonic}`;
             const sourceType = document.getElementById('newSourceTypeSelect').value || 'manual';
             const sourceLabel = document.getElementById('newSourceLabelInput').value.trim();
             const countTowardGoal = document.getElementById('newCountTowardGoal').checked;
+            const clozeSentence = (document.getElementById('newClozeSentenceInput').value || tempClozeSentence || '').trim();
+            const clozeEnabled = document.getElementById('newClozeEnabled').checked && hasExactClozeTarget(clozeSentence, word);
+            const clozeDisabledReason = clozeEnabled ? '' : (tempClozeReason || (clozeSentence ? 'invalid_manual_cloze' : 'not_configured'));
 
             if (!word) return;
 
@@ -4079,7 +4144,7 @@ ${mnemonic}`;
                 return;
             }
 
-            deck.push(createCardObject(word, sentence, definition, mnemonic, tempSocratic, tempEmoji, pos, "", "", tempContrast, tempMorphemes, tempFamily, "", collocations, glossZh, senseLabel, familyKey, frequencyBand, sourceType, sourceLabel, countTowardGoal));
+            deck.push(createCardObject(word, sentence, definition, mnemonic, tempSocratic, tempEmoji, pos, "", "", tempContrast, tempMorphemes, tempFamily, "", collocations, glossZh, senseLabel, familyKey, frequencyBand, sourceType, sourceLabel, countTowardGoal, clozeSentence, clozeEnabled, clozeDisabledReason));
 
             wInput.value = '';
             sInput.value = '';
@@ -4097,14 +4162,19 @@ ${mnemonic}`;
             tempMnemonic = ""; tempSocratic = ""; tempEmoji = "";
             tempContrast = "";
             tempCollocations = [];
+            tempClozeSentence = ""; tempClozeEnabled = false; tempClozeReason = "";
             tempPOS = ""; // 【新增】重置词性
             tempGlossZh = ""; tempSenseLabel = "";
             const posDisplayEl = document.getElementById('newPosDisplay');
             if (posDisplayEl) posDisplayEl.innerText = "";
             const preview = document.getElementById('newCardPreview');
             if (preview) preview.classList.add('hidden');
-            ['newSenseLabelInput', 'newPosInput', 'newGlossInput', 'newDefinitionInput', 'newCollocationsInput', 'newMnemonicInput', 'newFamilyKeyInput', 'newSourceLabelInput']
+            ['newSenseLabelInput', 'newPosInput', 'newGlossInput', 'newDefinitionInput', 'newCollocationsInput', 'newClozeSentenceInput', 'newMnemonicInput', 'newFamilyKeyInput', 'newSourceLabelInput']
                 .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            const newClozeEnabledEl = document.getElementById('newClozeEnabled');
+            if (newClozeEnabledEl) newClozeEnabledEl.checked = false;
+            const newClozeSentenceEl = document.getElementById('newClozeSentenceInput');
+            if (newClozeSentenceEl) newClozeSentenceEl.placeholder = '专用挖空句（必须包含目标词；普通例句不会自动拿来挖空）';
             const frequencyEl = document.getElementById('newFrequencyBandSelect');
             if (frequencyEl) frequencyEl.value = 'unknown';
             const sourceEl = document.getElementById('newSourceTypeSelect');
@@ -4141,33 +4211,135 @@ ${mnemonic}`;
             return (div.textContent || div.innerText || '').trim();
         }
 
+        const BROAD_CLOZE_WORDS = new Set([
+            'be', 'do', 'get', 'go', 'have', 'make', 'take', 'put', 'set', 'come', 'run',
+            'work', 'change', 'move', 'turn', 'keep', 'hold', 'thing', 'issue', 'point',
+            'case', 'good', 'bad', 'big', 'small', 'great', 'mean', 'matter', 'use'
+        ]);
+
+        function hasExactClozeTarget(sentence, word) {
+            const cleanSentence = getPlainText(sentence);
+            const cleanWord = String(word || '').trim();
+            if (!cleanSentence || !cleanWord) return false;
+            const pattern = new RegExp(`(^|[^A-Za-z])${escapeArticleRegExp(cleanWord)}(?=$|[^A-Za-z])`, 'i');
+            return pattern.test(cleanSentence);
+        }
+
+        function isBroadClozeWord(word) {
+            const key = normalizeWordKey(word);
+            return !key || key.length < 5 || /\s/.test(key) || BROAD_CLOZE_WORDS.has(key);
+        }
+
+        function validateClozeCandidate(word, suitable, sentence, reason = '', collocations = []) {
+            const cleanSentence = getPlainText(sentence);
+            if (suitable !== true) {
+                return { enabled: false, sentence: '', reason: String(reason || 'AI判断该词不适合唯一挖空').trim() };
+            }
+            if (isBroadClozeWord(word)) {
+                return { enabled: false, sentence: '', reason: '词义过宽或属于短语，不适合作为唯一答案挖空' };
+            }
+            if (!hasExactClozeTarget(cleanSentence, word)) {
+                return { enabled: false, sentence: '', reason: '专用挖空句没有按原形包含目标词' };
+            }
+            const normalizedSentence = normalizeWordKey(cleanSentence);
+            const hasCollocation = normalizeCollocations(collocations).some(item => {
+                const key = normalizeWordKey(item);
+                return key && key !== normalizeWordKey(word) && normalizedSentence.includes(key);
+            });
+            if (!hasCollocation) {
+                return { enabled: false, sentence: '', reason: '句中没有出现已保存的典型搭配，答案约束不足' };
+            }
+            return { enabled: true, sentence: cleanSentence, reason: '' };
+        }
+
+        function isClozeEligible(card) {
+            if (!card || Number(card.reps || 0) < 4 || card.clozeEnabled !== true) return false;
+            if (!card.pos || !String(card.glossZh || '').trim()) return false;
+            if (isBroadClozeWord(card.word)) return false;
+            return hasExactClozeTarget(card.clozeSentence, card.word);
+        }
+
         function choosePromptType(card, isExam) {
             if (isExam || !card || card.state === 0 || (card.reps || 0) < 2) return 'meaning';
             const hasDefinition = !!String(card.glossZh || card.definition || '').trim();
-            const sentence = getPlainText(card.sentence);
-            const hasCloze = sentence && normalizeWordKey(sentence).includes(normalizeWordKey(card.word));
+            const hasCloze = isClozeEligible(card);
             const roll = Math.random();
             if (roll < 0.15) return 'audio';
-            if (roll < 0.35 && hasCloze) return 'cloze';
-            if (roll < 0.55 && hasDefinition) return 'form';
+            if (roll < 0.30 && hasCloze) return 'cloze';
+            if (roll < 0.50 && hasDefinition) return 'form';
             return 'meaning';
         }
 
         function buildClozePrompt(card) {
-            const sentence = getPlainText(card.sentence);
-            if (!sentence || !card.word) return '';
-            const pattern = new RegExp(escapeArticleRegExp(card.word), 'i');
+            const sentence = getPlainText(card && card.clozeSentence);
+            if (!sentence || !card || !card.word) return '';
+            const pattern = new RegExp(`(^|[^A-Za-z])${escapeArticleRegExp(card.word)}(?=$|[^A-Za-z])`, 'i');
             if (!pattern.test(sentence)) return '';
-            return sentence.replace(pattern, '________');
+            return sentence.replace(pattern, (match, prefix) => `${prefix}________`);
         }
 
         function getPromptLabel(type) {
             return {
                 meaning: '看到英文，回忆核心含义',
                 form: '根据含义，写出英文',
-                cloze: '根据语境，补全目标词',
+                cloze: '根据专用语境、词性和核心义，提取目标词',
                 audio: '只听发音，写出英文'
             }[type] || '独立回忆后再看答案';
+        }
+
+        function showClozeFirstLetterHint() {
+            if (!currentCard || currentPromptType !== 'cloze' || currentAnswerRevealed) return;
+            const input = document.getElementById('recallInput');
+            if (!input) return;
+            const compactWord = String(currentCard.word || '').replace(/[^A-Za-z]/g, '');
+            input.placeholder = compactWord
+                ? `首字母 ${compactWord[0].toUpperCase()} · 共 ${compactWord.length} 个字母`
+                : '已使用词形提示';
+            currentUsedHint = true;
+            currentClozeHintUsed = true;
+            const btn = document.getElementById('clozeFirstLetterBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '已给首字母'; }
+        }
+
+        function reportClozeAlternative() {
+            if (!currentCard || currentPromptType !== 'cloze' || currentAnswerRevealed) return;
+            const input = document.getElementById('recallInput');
+            if (!input || !input.value.trim()) {
+                alert('请先输入你想到的那个合理单词。');
+                return;
+            }
+            currentClozeAlternative = true;
+            currentUsedHint = true;
+            revealAnswer();
+        }
+
+        async function disableCurrentCloze() {
+            if (!currentCard || currentPromptType !== 'cloze' || currentAnswerRevealed) return;
+            if (!confirm('以后不再给这张卡出语境挖空题？可在 Edit 中重新开启。')) return;
+            currentCard.clozeEnabled = false;
+            currentCard.clozeDisabledReason = 'user_rejected_sentence';
+            currentCard.needsSync = true;
+            currentCard.updated_at = new Date().toISOString();
+            await db.saveCard(currentCard);
+            currentPromptCardId = null;
+            currentClozeHintUsed = false;
+            currentClozeAlternative = false;
+            render();
+            pushToCloud();
+        }
+
+        function renderClozeSupportControls(actionWrapper, showBtn) {
+            const old = document.getElementById('clozeSupportControls');
+            if (old) old.remove();
+            if (currentPromptType !== 'cloze') return;
+            const wrap = document.createElement('div');
+            wrap.id = 'clozeSupportControls';
+            wrap.style.cssText = 'display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-bottom:10px;';
+            wrap.innerHTML = `
+                <button type="button" id="clozeFirstLetterBtn" class="action-btn" onclick="showClozeFirstLetterHint()" style="padding:9px 5px; font-size:11px; background:#f2f2f7; color:#333;">首字母提示</button>
+                <button type="button" class="action-btn" onclick="reportClozeAlternative()" style="padding:9px 5px; font-size:11px; background:#fff7e6; color:#9a5b00;">想到其他合理词</button>
+                <button type="button" class="action-btn" onclick="disableCurrentCloze()" style="padding:9px 5px; font-size:11px; background:#fff1f0; color:#b42318;">句子不适合</button>`;
+            actionWrapper.insertBefore(wrap, showBtn);
         }
 
         function render() {
@@ -4263,6 +4435,8 @@ ${mnemonic}`;
                     currentUsedHint = false;
                     currentAnswerRevealed = false;
                     currentReviewStartedAt = now;
+                    currentClozeHintUsed = false;
+                    currentClozeAlternative = false;
                 }
                 revContainer.classList.remove('hidden');
                 empty.classList.add('hidden');
@@ -4307,7 +4481,8 @@ ${mnemonic}`;
                 } else if (currentPromptType === 'cloze') {
                     const cloze = buildClozePrompt(currentCard);
                     if (cloze) {
-                        wordEl.innerHTML = `<div style="font-size:13px; color:#86868b; margin-bottom:10px;">语境挖空 · 补全目标词</div><div style="font-size:20px; line-height:1.65; font-weight:650; text-align:left;">${escapeHTML(cloze)}</div>`;
+                        const cue = [currentCard.pos, currentCard.glossZh].filter(Boolean).join(' · ');
+                        wordEl.innerHTML = `<div style="font-size:13px; color:#86868b; margin-bottom:10px;">专用语境挖空 · 提取本卡目标词</div><div style="font-size:20px; line-height:1.65; font-weight:650; text-align:left;">${escapeHTML(cloze)}</div><div style="margin-top:12px; padding:8px 10px; background:#f5f8ff; border-radius:9px; color:#475467; font-size:13px; text-align:left;">词性与核心义：${escapeHTML(cue)}</div>`;
                         wordEl.onclick = null;
                     } else {
                         currentPromptType = 'meaning';
@@ -4430,6 +4605,8 @@ ${mnemonic}`;
                 const actionWrapper = document.querySelector('.actions-wrapper');
                 const oldInput = document.getElementById('recallInput');
                 if (oldInput) oldInput.remove();
+                const oldClozeControls = document.getElementById('clozeSupportControls');
+                if (oldClozeControls) oldClozeControls.remove();
                 // 【清理】移除上一张卡可能残留的辨析挑战框, 防跨卡串味
                 const oldDistractor = document.getElementById('distractorBox');
                 if (oldDistractor) oldDistractor.remove();
@@ -4446,6 +4623,7 @@ ${mnemonic}`;
                     input.onkeypress = (e) => { if (e.key === 'Enter') revealAnswer(); };
                     const showBtn = document.getElementById('showAnswerBtn');
                     actionWrapper.insertBefore(input, showBtn);
+                    renderClozeSupportControls(actionWrapper, showBtn);
                     showBtn.innerText = "检查答案";
                     setTimeout(() => input.focus(), 100);
                 } else {
@@ -4567,8 +4745,10 @@ ${mnemonic}`;
             const predicted = getRetrievabilityPercent(currentCard);
             const predictionHtml = predicted === null ? '' :
                 `<br><span style="font-size:11px; color:#666;">模型预测回忆概率：${predicted.toFixed(1)}% · S:${Number(currentCard.stability || 0).toFixed(1)} D:${Number(currentCard.difficulty || 0).toFixed(1)}</span>`;
-            const signalHtml = currentAnswerCorrect === null ? '' :
-                `<br><span style="font-size:11px; color:${currentAnswerCorrect ? '#15803d' : '#b91c1c'};">本题输入：${currentAnswerCorrect ? '正确' : '未正确'}${currentUsedHint ? ' · 使用过提示' : ''}</span>`;
+            const signalHtml = currentClozeAlternative
+                ? '<br><span style="font-size:11px; color:#9a5b00;">你的答案在语境中可能成立，但没有提取到本卡目标词；本题最多按“勉强”评价。</span>'
+                : (currentAnswerCorrect === null ? '' :
+                    `<br><span style="font-size:11px; color:${currentAnswerCorrect ? '#15803d' : '#b91c1c'};">本题输入：${currentAnswerCorrect ? '正确' : '未正确'}${currentUsedHint ? ' · 使用过提示' : ''}</span>`);
             target.innerHTML = stateLabel + predictionHtml + signalHtml;
         }
 
@@ -4580,12 +4760,19 @@ ${mnemonic}`;
             const recallInput = document.getElementById('recallInput');
             if (recallInput && !recallInput.disabled) {
                 const userSpelling = recallInput.value;
-                currentAnswerCorrect = normalizeWordKey(userSpelling) === normalizeWordKey(currentCard.word);
-                if (currentAnswerCorrect) {
+                if (currentPromptType === 'cloze' && currentClozeAlternative) {
+                    currentAnswerCorrect = null;
+                    currentConfidence = 2;
+                    recallInput.style.borderColor = '#ff9500';
+                    recallInput.style.backgroundColor = '#fff7e6';
+                } else {
+                    currentAnswerCorrect = normalizeWordKey(userSpelling) === normalizeWordKey(currentCard.word);
+                }
+                if (currentAnswerCorrect === true) {
                     recallInput.style.borderColor = '#34c759';
                     recallInput.style.backgroundColor = '#e8f5e9';
                     currentConfidence = 3;
-                } else {
+                } else if (currentAnswerCorrect === false) {
                     recallInput.style.borderColor = '#ff3b30';
                     recallInput.style.backgroundColor = '#ffebee';
                     recallInput.value = currentCard.word;
@@ -5056,6 +5243,18 @@ ${mnemonic}`;
         function rate(g) {
             if (!currentCard) return;
             if (!currentAnswerRevealed) return;
+            if (currentPromptType === 'cloze' && currentAnswerCorrect === false && g >= 2) {
+                alert('这次没有提取到目标词，请按“忘了”。如果你的答案在语境中也成立，答题前应使用“想到其他合理词”。');
+                return;
+            }
+            if (currentPromptType === 'cloze' && currentClozeAlternative && g >= 3) {
+                alert('你想到了合理表达，但没有提取到本卡目标词；本题最多选择“勉强想起”。');
+                return;
+            }
+            if (currentPromptType === 'cloze' && currentClozeHintUsed && g >= 3) {
+                alert('本题使用过首字母提示，最多选择“勉强想起”。');
+                return;
+            }
             if (currentAnswerCorrect === false && g >= 3) {
                 const proceed = confirm('本题输入没有答对。仍按 Good/Easy 会让间隔变长并降低调度准确性，确定继续吗？');
                 if (!proceed) return;
@@ -5084,7 +5283,9 @@ ${mnemonic}`;
                 prompt_type: currentPromptType,
                 answer_correct: currentAnswerCorrect,
                 confidence: currentConfidence || null,
-                hint_used: !!currentUsedHint
+                hint_used: !!currentUsedHint,
+                cloze_hint_used: !!currentClozeHintUsed,
+                cloze_alternative_reported: !!currentClozeAlternative
             });
 
             const againCount = currentCard.history.filter(item => Number(item.rating) === 1).length;
@@ -5102,6 +5303,8 @@ ${mnemonic}`;
             currentPromptCardId = null;
             currentAnswerCorrect = null;
             currentUsedHint = false;
+            currentClozeHintUsed = false;
+            currentClozeAlternative = false;
             currentReviewStartedAt = 0;
             render();
             pushToCloud();
@@ -5687,6 +5890,11 @@ ${mnemonic}`;
             document.getElementById('editSenseLabelInput').value = card.senseLabel || "";
             document.getElementById('editPosInput').value = card.pos || "";
             document.getElementById('editCollocationsInput').value = getCardCollocations(card).join(', ');
+            document.getElementById('editClozeSentenceInput').value = card.clozeSentence || "";
+            document.getElementById('editClozeEnabled').checked = card.clozeEnabled === true;
+            document.getElementById('editClozeStatus').textContent = card.clozeEnabled === true
+                ? (Number(card.reps || 0) >= 4 ? '已启用：符合条件时会抽到挖空题。' : `已配置：还需复习 ${Math.max(0, 4 - Number(card.reps || 0))} 次后启用。`)
+                : (card.clozeDisabledReason === 'user_rejected_sentence' ? '已被你标记为“不适合挖空”。' : '未启用挖空；普通例句不会被自动挖空。');
             document.getElementById('editFamilyKeyInput').value = card.familyKey || card.word || "";
             document.getElementById('editFrequencyBandSelect').value = card.frequencyBand || 'unknown';
             const sourceTypeEl = document.getElementById('editSourceTypeSelect');
@@ -5714,6 +5922,12 @@ ${mnemonic}`;
             const newSourceType = document.getElementById('editSourceTypeSelect').value || 'legacy';
             const newSourceLabel = document.getElementById('editSourceLabelInput').value.trim();
             const newCountTowardGoal = document.getElementById('editCountTowardGoal').checked;
+            const newClozeSentence = document.getElementById('editClozeSentenceInput').value.trim();
+            const newClozeEnabled = document.getElementById('editClozeEnabled').checked;
+            if (newClozeEnabled && !hasExactClozeTarget(newClozeSentence, newWord)) {
+                alert('专用挖空句必须原样包含目标词；否则请取消“允许挖空”。');
+                return;
+            }
 
             const cardIndex = deck.findIndex(c => c.id === id);
             if (cardIndex > -1) {
@@ -5735,6 +5949,9 @@ ${mnemonic}`;
                 deck[cardIndex].sourceType = newSourceType;
                 deck[cardIndex].sourceLabel = newSourceLabel;
                 deck[cardIndex].countTowardGoal = newCountTowardGoal;
+                deck[cardIndex].clozeSentence = newClozeSentence;
+                deck[cardIndex].clozeEnabled = newClozeEnabled;
+                deck[cardIndex].clozeDisabledReason = newClozeEnabled ? '' : (deck[cardIndex].clozeDisabledReason || 'manual_disabled');
 
                 // 【新增】检查并合并编辑期间 AI 生成的新高级数据
                 if (tempEditData && Object.keys(tempEditData).length > 0) {
@@ -6240,6 +6457,7 @@ ${mnemonic}`;
 2. 例句必须是"自解释谜题"：必须含明确逻辑路标(because, despite等)，让学生仅凭基础词汇就能推理出目标词意。严禁废话语境。除目标词外限制在CET-4难度。
 3. 助记法(mnemonic)：严禁谐音！必须是"词根词缀物理动作 -> 抽象隐喻"的推导，必须用中文写，禁止英文解释句和英文模板词，除目标英文词、词根/前后缀字母本身外不要出现英文。
 4. 思维差异(contrast)：指出最致命的中式英语误区。
+5. 语境挖空(cloze)：只有词义具体、句中含典型搭配、常见替代答案很少时 cloze_suitable 才能为 true。宽泛词、多义词、短语或替代词很多时必须为 false，不能硬生成。
 只输出JSON格式，不要任何多余解释。`;
 
             // User Prompt：只负责结构约束，保持轻量
@@ -6257,7 +6475,10 @@ ${mnemonic}`;
   "socratic": "引导底层逻辑思考的提问",
   "emoji": "最精准的表情符号",
   "contrast": "🇨🇳🇺🇸中英思维差异(中文)",
-  "family": "同根词(仅列举单词)"
+  "family": "同根词(仅列举单词)",
+  "cloze_suitable": true,
+  "cloze_sentence": "只在答案接近唯一时生成；必须原样包含 ${word} 和上述一个典型搭配，否则为空",
+  "cloze_reason": "不适合时说明词义过宽、多义或替代答案过多"
 }`;
 
             const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -6346,6 +6567,14 @@ ${mnemonic}`;
                         if (jsonMatch) rawContent = jsonMatch[0];
 
                         const result = JSON.parse(rawContent);
+                        const batchCollocations = normalizeCollocations(result.collocations || []);
+                        const batchCloze = validateClozeCandidate(
+                            word,
+                            result.cloze_suitable === true,
+                            result.cloze_sentence || '',
+                            result.cloze_reason || '',
+                            batchCollocations
+                        );
 
                         const newCard = createCardObject(
                             word, result.sentence || "", result.definition || "", result.mnemonic || "",
@@ -6353,14 +6582,17 @@ ${mnemonic}`;
                             "", result.contrast || "", result.morphemes || null,
                             Array.isArray(result.family) ? result.family.join(', ') : (result.family || ""),
                             "",
-                            result.collocations || [],
+                            batchCollocations,
                             result.gloss_zh || "",
                             result.sense_label || "",
                             word,
                             batchFrequencyBand,
                             batchSourceType,
                             batchSourceLabel,
-                            !/\s/.test(word.trim())
+                            !/\s/.test(word.trim()),
+                            batchCloze.sentence,
+                            batchCloze.enabled,
+                            batchCloze.reason
                         );
 
                         await saveCardDirect(newCard);
