@@ -1117,10 +1117,30 @@
             <option value="其他">📌 其他 (Others)</option>
         </select>
 
-        <!-- 【新增】胜任感仪表盘 (Competence Dashboard) -->
-        <div style="text-align:center; font-size:12px; color:#86868b; margin-bottom:5px;">Language Mastery Level</div>
-        <div class="mastery-bar-container">
-            <div id="masteryBar" class="mastery-bar-fill"></div>
+        <div id="vocabGoalDashboard"
+            style="background:linear-gradient(135deg,#f5f9ff,#eef8f4); border:1px solid #d8e7df; border-radius:16px; padding:14px; margin-bottom:16px; text-align:left;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
+                <div>
+                    <div style="font-size:12px; color:#667085;">四个月词汇目标</div>
+                    <div id="goalHeadline" style="font-size:19px; font-weight:850; color:#1f2937;">4,000 → 8,000</div>
+                </div>
+                <button type="button" onclick="openGoalSettings()"
+                    style="border:1px solid #9bc7b2; background:white; color:#177245; border-radius:9px; padding:7px 10px; cursor:pointer;">调整目标</button>
+            </div>
+            <div class="mastery-bar-container" style="margin-bottom:6px;">
+                <div id="masteryBar" class="mastery-bar-fill"></div>
+            </div>
+            <div id="goalProgressText" style="font-size:11px; color:#667085; margin-bottom:11px;"></div>
+            <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; text-align:center;">
+                <div style="background:rgba(255,255,255,.8); border-radius:10px; padding:8px 4px;"><div id="goalIntroducedCount" style="font-weight:850; font-size:17px;">0</div><div style="font-size:10px; color:#777;">目标词族入库</div></div>
+                <div style="background:rgba(255,255,255,.8); border-radius:10px; padding:8px 4px;"><div id="goalConsolidatedCount" style="font-weight:850; font-size:17px;">0</div><div style="font-size:10px; color:#777;">已巩固</div></div>
+                <div style="background:rgba(255,255,255,.8); border-radius:10px; padding:8px 4px;"><div id="goalDaysLeft" style="font-weight:850; font-size:17px;">-</div><div style="font-size:10px; color:#777;">剩余天数</div></div>
+                <div style="background:rgba(255,255,255,.8); border-radius:10px; padding:8px 4px;"><div id="goalDailyTarget" style="font-weight:850; font-size:17px;">-</div><div style="font-size:10px; color:#777;">今日新词目标</div></div>
+            </div>
+            <div id="goalTodayLine" style="font-size:12px; color:#475467; margin-top:10px;"></div>
+            <div id="goalWeeklyLine" style="font-size:11px; color:#667085; margin-top:4px;"></div>
+            <div id="goalCoverageLine" style="font-size:11px; color:#667085; margin-top:4px;"></div>
+            <div id="goalStatus" style="font-size:12px; font-weight:700; margin-top:6px;"></div>
         </div>
 
         <div id="inputSection" class="input-section">
@@ -1165,6 +1185,33 @@
                         style="margin-top:8px;"></textarea>
                     <textarea id="newCollocationsInput" rows="2" placeholder="核心搭配，用逗号分隔"
                         style="margin-top:8px;"></textarea>
+                    <div style="font-size:12px; font-weight:800; color:#555; margin:10px 0 6px;">目标计数与来源</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <input id="newFamilyKeyInput" type="text" placeholder="词族主词，如：act（留空=本词）">
+                        <select id="newFrequencyBandSelect" title="目标频段">
+                            <option value="unknown">频段：待标注</option>
+                            <option value="gap_1_4k">1–4k 漏词</option>
+                            <option value="5k">5k 频段</option>
+                            <option value="6k">6k 频段</option>
+                            <option value="7k">7k 频段</option>
+                            <option value="8k">8k 频段</option>
+                            <option value="academic">学术高频</option>
+                            <option value="domain">专业领域</option>
+                        </select>
+                        <select id="newSourceTypeSelect" title="词汇来源">
+                            <option value="manual">来源：手动添加</option>
+                            <option value="reading">阅读生词</option>
+                            <option value="listening">听力生词</option>
+                            <option value="frequency_list">频率词表</option>
+                            <option value="exam">考试材料</option>
+                            <option value="ai">AI 推荐</option>
+                        </select>
+                        <input id="newSourceLabelInput" type="text" placeholder="来源备注，如：书名/文章/日期">
+                    </div>
+                    <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#475467; margin-top:8px;">
+                        <input id="newCountTowardGoal" type="checkbox" checked style="width:auto; margin:0;">
+                        计入 4k→8k 目标（短语默认不计，除非手动勾选）
+                    </label>
                     <textarea id="newMnemonicInput" rows="2" placeholder="助记（可选，确认准确后再保存）"
                         style="margin-top:8px;"></textarea>
                 </div>
@@ -1201,7 +1248,7 @@
 
         <div id="reviewContainer" class="hidden">
             <div class="card-display">
-                <button class="edit-card-btn" onclick="openEditModal(currentCard.id)">✏️</button>
+                <button class="edit-card-btn" id="editCurrentCardBtn" onclick="openEditModal(currentCard.id)">✏️</button>
 
                 <div class="word-text" id="currentWord" onclick="speakCurrentCard()">Word</div>
                 <div class="pronounce-hint">Tap word to listen</div>
@@ -1477,6 +1524,27 @@
                 lines). The AI will process them one by one automatically.</p>
             <textarea id="batchWordInput" rows="8" placeholder="apple&#10;banana&#10;turn up..."
                 style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px;"></textarea>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+                <select id="batchFrequencyBandSelect">
+                    <option value="unknown">频段：待标注</option>
+                    <option value="gap_1_4k">1–4k 漏词</option>
+                    <option value="5k">5k 频段</option>
+                    <option value="6k">6k 频段</option>
+                    <option value="7k">7k 频段</option>
+                    <option value="8k">8k 频段</option>
+                    <option value="academic">学术高频</option>
+                    <option value="domain">专业领域</option>
+                </select>
+                <select id="batchSourceTypeSelect">
+                    <option value="frequency_list">来源：频率词表</option>
+                    <option value="reading">阅读生词</option>
+                    <option value="listening">听力生词</option>
+                    <option value="exam">考试材料</option>
+                    <option value="batch_ai">仅批量 AI</option>
+                </select>
+                <input id="batchSourceLabelInput" type="text" placeholder="来源备注，如：BNC 5k / 文章名">
+            </div>
+            <div id="batchGoalHint" style="font-size:11px; color:#667085; margin:-4px 0 12px;"></div>
 
             <div id="batchProgress" class="hidden" style="margin-bottom:15px;">
                 <div style="font-size:13px; font-weight:bold; color:var(--accent); margin-bottom:5px;"
@@ -1548,6 +1616,38 @@
                 <div>
                     <label style="font-size:12px; color:gray;">Core Collocations</label>
                     <textarea id="editCollocationsInput" rows="2" placeholder="用逗号分隔"></textarea>
+                </div>
+
+                <div>
+                    <label style="font-size:12px; color:gray;">目标计数与来源</label>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <input id="editFamilyKeyInput" type="text" placeholder="词族主词（留空=本词）">
+                        <select id="editFrequencyBandSelect">
+                            <option value="unknown">频段：待标注</option>
+                            <option value="gap_1_4k">1–4k 漏词</option>
+                            <option value="5k">5k 频段</option>
+                            <option value="6k">6k 频段</option>
+                            <option value="7k">7k 频段</option>
+                            <option value="8k">8k 频段</option>
+                            <option value="academic">学术高频</option>
+                            <option value="domain">专业领域</option>
+                        </select>
+                        <select id="editSourceTypeSelect">
+                            <option value="legacy">历史数据</option>
+                            <option value="manual">手动添加</option>
+                            <option value="reading">阅读生词</option>
+                            <option value="listening">听力生词</option>
+                            <option value="frequency_list">频率词表</option>
+                            <option value="exam">考试材料</option>
+                            <option value="ai">AI 推荐</option>
+                            <option value="batch_ai">批量 AI</option>
+                        </select>
+                        <input id="editSourceLabelInput" type="text" placeholder="来源备注">
+                    </div>
+                    <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#475467; margin-top:8px;">
+                        <input id="editCountTowardGoal" type="checkbox" style="width:auto; margin:0;">
+                        计入 4k→8k 词族目标
+                    </label>
                 </div>
 
                 <div>
@@ -1691,16 +1791,16 @@
 
                     <button id="articleRevealBtn" class="action-btn"
                         style="width:100%; margin-top:16px; background:#007aff; color:white;"
-                        onclick="revealArticleWordReview()">检查目标词并逐个反馈</button>
+                        onclick="revealArticleWordReview()">完成阅读，标记当时的理解情况</button>
 
                     <div id="articleWordReviewPanel" class="hidden" style="margin-top:16px;">
-                        <div style="font-size:12px; font-weight:800; color:#86868b; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px;">📖 词义对照表</div>
+                        <div style="font-size:12px; font-weight:800; color:#86868b; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px;">📖 阅读理解反馈</div>
                         <div id="articleWordList" style="display:flex; flex-direction:column; gap:6px;"></div>
                         <div style="margin-top:18px; padding-top:14px; border-top:1px solid #eee;">
-                            <div style="font-size:13px; color:#555; margin-bottom:10px;">请逐词标记：独立想起、靠语境推断，或没有想起。</div>
+                            <div style="font-size:13px; color:#555; margin-bottom:10px;">回想你刚才读到该词时的真实情况。选择完成前不显示释义，避免答案反过来影响判断。</div>
                             <button id="articleSaveFeedbackBtn" class="action-btn" disabled
                                 style="width:100%; background:#34c759; color:white; opacity:0.5;"
-                                onclick="finishArticleReading()">保存逐词反馈</button>
+                                onclick="finishArticleReading()">核对词义并保存反馈</button>
                         </div>
                         <p id="articleFeedbackMsg" style="font-size:12px; color:#34c759; text-align:center; margin-top:8px; min-height:14px;"></p>
                     </div>
@@ -3257,6 +3357,17 @@
         let currentReviewStartedAt = 0;
         let lastReviewedWordKey = '';
         let newCardsPerDay = 15;
+        const DEFAULT_VOCAB_GOAL = {
+            enabled: true,
+            baselineVocabulary: 4000,
+            targetVocabulary: 8000,
+            startDate: '2026-07-10',
+            deadline: '2026-11-07',
+            consolidationDays: 14,
+            bufferRate: 0.10,
+            autoDailyTarget: true
+        };
+        let vocabGoal = { ...DEFAULT_VOCAB_GOAL };
 
         const p = {
             w: [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61],
@@ -3484,6 +3595,13 @@
             if (!Array.isArray(card.contextHistory)) card.contextHistory = [];
             if (card.glossZh === undefined || card.glossZh === null) card.glossZh = '';
             if (card.senseLabel === undefined || card.senseLabel === null) card.senseLabel = '';
+            if (!card.familyKey) card.familyKey = String(card.word || '').trim();
+            if (!card.frequencyBand) card.frequencyBand = 'unknown';
+            if (!card.sourceType) card.sourceType = 'legacy';
+            if (card.sourceLabel === undefined || card.sourceLabel === null) card.sourceLabel = '';
+            if (card.countTowardGoal === undefined || card.countTowardGoal === null) {
+                card.countTowardGoal = !!card.word && !/\s/.test(String(card.word).trim());
+            }
             if (!card.created_at) card.created_at = card.updated_at || new Date().toISOString();
             if (!card.id) card.id = generateID();
             return card;
@@ -3669,11 +3787,12 @@
         }
 
         // 修改：增加了 morphemes (形态学), family (词族), originalContext 和 collocations (核心搭配) 参数
-        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", pos = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "", originalContext = "", collocations = [], glossZh = "", senseLabel = "") {
+        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", pos = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "", originalContext = "", collocations = [], glossZh = "", senseLabel = "", familyKey = "", frequencyBand = "unknown", sourceType = "manual", sourceLabel = "", countTowardGoal = null) {
             const createdAt = new Date().toISOString();
+            const cleanWord = word.trim();
             return {
                 id: generateID(),
-                word: word.trim(),
+                word: cleanWord,
                 // 【Expert Structure】核心形态学对象
                 morphemes: morphemes || { prefix: "", root: word.trim(), suffix: "" },
                 family: family ? (Array.isArray(family) ? family.join(', ') : String(family)).trim() : "", // 词族网络
@@ -3685,6 +3804,11 @@
                 pos: pos ? String(pos).trim() : "", // 【新增】存储词性，复习时显示
                 glossZh: glossZh ? String(glossZh).trim() : "",
                 senseLabel: senseLabel ? String(senseLabel).trim() : "",
+                familyKey: familyKey ? String(familyKey).trim() : cleanWord,
+                frequencyBand: frequencyBand || 'unknown',
+                sourceType: sourceType || 'manual',
+                sourceLabel: sourceLabel ? String(sourceLabel).trim() : '',
+                countTowardGoal: countTowardGoal === null ? !/\s/.test(cleanWord) : !!countTowardGoal,
                 mnemonic: mnemonic.trim(),
                 socratic: socratic ? socratic.trim() : "", // 【新增】保存苏格拉底提问
                 emoji: emoji.trim(),
@@ -3898,6 +4022,10 @@ ${mnemonic}`;
                     document.getElementById('newDefinitionInput').value = tempAutoDefinition;
                     document.getElementById('newCollocationsInput').value = tempCollocations.join(', ');
                     document.getElementById('newMnemonicInput').value = tempMnemonic;
+                    const familyKeyEl = document.getElementById('newFamilyKeyInput');
+                    if (familyKeyEl && !familyKeyEl.value.trim()) familyKeyEl.value = word;
+                    const sourceTypeEl = document.getElementById('newSourceTypeSelect');
+                    if (sourceTypeEl && sourceTypeEl.value === 'manual') sourceTypeEl.value = 'ai';
                 } else if (mode === 'edit' && defInputId) {
                     document.getElementById(defInputId).value = result.definition;
                     document.getElementById('editGlossInput').value = result.gloss_zh || '';
@@ -3936,6 +4064,11 @@ ${mnemonic}`;
             const senseLabel = (document.getElementById('newSenseLabelInput').value || tempSenseLabel || '').trim();
             const mnemonic = (document.getElementById('newMnemonicInput').value || tempMnemonic || '').trim();
             const collocations = normalizeCollocations(document.getElementById('newCollocationsInput').value || tempCollocations);
+            const familyKey = document.getElementById('newFamilyKeyInput').value.trim() || word;
+            const frequencyBand = document.getElementById('newFrequencyBandSelect').value || 'unknown';
+            const sourceType = document.getElementById('newSourceTypeSelect').value || 'manual';
+            const sourceLabel = document.getElementById('newSourceLabelInput').value.trim();
+            const countTowardGoal = document.getElementById('newCountTowardGoal').checked;
 
             if (!word) return;
 
@@ -3946,7 +4079,7 @@ ${mnemonic}`;
                 return;
             }
 
-            deck.push(createCardObject(word, sentence, definition, mnemonic, tempSocratic, tempEmoji, pos, "", "", tempContrast, tempMorphemes, tempFamily, "", collocations, glossZh, senseLabel));
+            deck.push(createCardObject(word, sentence, definition, mnemonic, tempSocratic, tempEmoji, pos, "", "", tempContrast, tempMorphemes, tempFamily, "", collocations, glossZh, senseLabel, familyKey, frequencyBand, sourceType, sourceLabel, countTowardGoal));
 
             wInput.value = '';
             sInput.value = '';
@@ -3970,8 +4103,15 @@ ${mnemonic}`;
             if (posDisplayEl) posDisplayEl.innerText = "";
             const preview = document.getElementById('newCardPreview');
             if (preview) preview.classList.add('hidden');
-            ['newSenseLabelInput', 'newPosInput', 'newGlossInput', 'newDefinitionInput', 'newCollocationsInput', 'newMnemonicInput']
+            ['newSenseLabelInput', 'newPosInput', 'newGlossInput', 'newDefinitionInput', 'newCollocationsInput', 'newMnemonicInput', 'newFamilyKeyInput', 'newSourceLabelInput']
                 .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            const frequencyEl = document.getElementById('newFrequencyBandSelect');
+            if (frequencyEl) frequencyEl.value = 'unknown';
+            const sourceEl = document.getElementById('newSourceTypeSelect');
+            if (sourceEl) sourceEl.value = 'manual';
+            const countEl = document.getElementById('newCountTowardGoal');
+            const currentWord = document.getElementById('newWordInput')?.value.trim() || '';
+            if (countEl) countEl.checked = !!currentWord && !/\s/.test(currentWord);
         }
 
         function toggleNewCardPreview() {
@@ -4033,6 +4173,7 @@ ${mnemonic}`;
         function render() {
             const now = Date.now();
             const filteredDeck = getSubjectFilteredDeck(deck);
+            const goalStats = renderVocabGoalDashboard(now);
             let rawDueCards = filteredDeck.filter(c => c.due <= now);
             let dueCards;
             if (isExamSubjectActive()) {
@@ -4083,7 +4224,7 @@ ${mnemonic}`;
             <div id="todayRemainingStats" style="display:flex; justify-content:space-between; align-items:center; gap:8px; background:#fff7e6; border:1px solid #ffd8a8; border-radius:8px; padding:8px 10px; margin-top:6px; color:#7a4a00; font-size:12px;">
                 <span><strong>今日剩余</strong>: ${sessionDueToday}</span>
                 <span>现在可背: ${dueCards.length}</span>
-                <span>新词上限: ${newCardsPerDay}</span>
+                <span>新词上限: ${isExamSubjectActive() ? newCardsPerDay : (goalStats ? goalStats.effectiveDailyTarget : newCardsPerDay)}</span>
             </div>
             
             <!-- Apollo Prophecy Visualization -->
@@ -4143,6 +4284,9 @@ ${mnemonic}`;
 
                 // === 传统回忆模式：正面直接显示单词，不再挖空 ===
                 const wordEl = document.getElementById('currentWord');
+                wordEl.style.webkitTextFillColor = "initial";
+                wordEl.style.background = "none";
+                wordEl.style.color = "var(--text)";
 
                 // 针对备考卡片的极简 Q&A 布局
                 if (isExam) {
@@ -4153,28 +4297,27 @@ ${mnemonic}`;
                     wordEl.style.background = "none";
                     wordEl.style.color = "var(--text)";
 
-                    if (currentPromptType === 'form') {
-                        const meaning = [currentCard.glossZh, currentCard.definition].filter(Boolean).join(' · ');
-                        wordEl.innerHTML = `<div style="font-size:13px; color:#86868b; margin-bottom:10px;">主动回忆 · 根据含义写出英文</div><div style="font-size:22px; line-height:1.55; font-weight:700;">${escapeHTML(meaning)}</div>`;
-                        wordEl.onclick = null;
-                    } else if (currentPromptType === 'cloze') {
-                        const cloze = buildClozePrompt(currentCard);
-                        if (cloze) {
-                            wordEl.innerHTML = `<div style="font-size:13px; color:#86868b; margin-bottom:10px;">语境挖空 · 补全目标词</div><div style="font-size:20px; line-height:1.65; font-weight:650; text-align:left;">${escapeHTML(cloze)}</div>`;
-                            wordEl.onclick = null;
-                        } else {
-                            currentPromptType = 'meaning';
-                            wordEl.onclick = speakCurrentCard;
-                        }
-                    } else if (currentPromptType === 'audio') {
-                        wordEl.innerHTML = '<div style="font-size:13px; color:#86868b; margin-bottom:10px;">听音拼写 · 不显示单词</div><div style="font-size:34px;">🔊</div><div style="font-size:15px; color:#007aff; margin-top:6px;">点击播放发音</div>';
-                        wordEl.onclick = speakCurrentCard;
-                    } else {
-                        wordEl.onclick = speakCurrentCard;
-                    }
+                    wordEl.onclick = null;
                 }
-                // 英语单词的处理逻辑 (传统回忆模式：直接显示单词大字，不再挖空)
-                else {
+                // 释义→英文、语境挖空、听音拼写：题面严禁出现目标词、词根拆解或 Emoji。
+                else if (currentPromptType === 'form') {
+                    const meaning = [currentCard.glossZh, currentCard.definition].filter(Boolean).join(' · ');
+                    wordEl.innerHTML = `<div style="font-size:13px; color:#86868b; margin-bottom:10px;">主动回忆 · 根据含义写出英文</div><div style="font-size:22px; line-height:1.55; font-weight:700;">${escapeHTML(meaning || '该卡片缺少释义，请先编辑补充')}</div>`;
+                    wordEl.onclick = null;
+                } else if (currentPromptType === 'cloze') {
+                    const cloze = buildClozePrompt(currentCard);
+                    if (cloze) {
+                        wordEl.innerHTML = `<div style="font-size:13px; color:#86868b; margin-bottom:10px;">语境挖空 · 补全目标词</div><div style="font-size:20px; line-height:1.65; font-weight:650; text-align:left;">${escapeHTML(cloze)}</div>`;
+                        wordEl.onclick = null;
+                    } else {
+                        currentPromptType = 'meaning';
+                    }
+                } else if (currentPromptType === 'audio') {
+                    wordEl.innerHTML = '<div style="font-size:13px; color:#86868b; margin-bottom:10px;">听音拼写 · 题面不显示单词</div><div style="font-size:34px;">🔊</div><div style="font-size:15px; color:#007aff; margin-top:6px;">点击播放发音</div>';
+                    wordEl.onclick = speakCurrentCard;
+                }
+                // 词义回忆：英文是题目，可以显示；释义仍保持隐藏。
+                if (!isExam && currentPromptType === 'meaning') {
                     // 【Expert Visual】形态学合成器 - 极简稳定版
                     // 逻辑：不再尝试用碎片拼凑单词，而是"大字显示单词，小字显示分析"
 
@@ -4219,6 +4362,7 @@ ${mnemonic}`;
                     wordEl.style.webkitTextFillColor = "initial";
                     wordEl.style.background = "none";
                     wordEl.style.color = "var(--text)";
+                    wordEl.onclick = speakCurrentCard;
                 }
 
                 // 翻答案前不展示 Why 思考题，避免给回忆测试提供线索。
@@ -4235,6 +4379,7 @@ ${mnemonic}`;
                 document.getElementById('definitionArea').classList.add('hidden');
                 document.getElementById('mnemonicArea').classList.add('hidden'); // 隐藏助记法
                 document.getElementById('contextArea').classList.add('hidden');
+                document.getElementById('editCurrentCardBtn')?.classList.add('hidden');
                 const postAnswerSocratic = document.getElementById('postAnswerSocratic');
                 if (postAnswerSocratic) {
                     postAnswerSocratic.classList.add('hidden');
@@ -4281,12 +4426,6 @@ ${mnemonic}`;
                 const cdEl = document.querySelector('.card-display');
                 if (cdEl) cdEl.classList.remove('survival-mode');
 
-                // 【新增】更新胜任感进度条 (Competence Bar)
-                const matureCount = filteredDeck.filter(c => c.stability > 21).length; // S > 21 天视作掌握
-                const totalCount = filteredDeck.length || 1;
-                const progressPct = Math.min((matureCount / totalCount) * 100, 100);
-                document.getElementById('masteryBar').style.width = `${progressPct}%`;
-
                 // 主动回忆题型输入：释义→词形、语境挖空、听音拼写。
                 const actionWrapper = document.querySelector('.actions-wrapper');
                 const oldInput = document.getElementById('recallInput');
@@ -4318,11 +4457,13 @@ ${mnemonic}`;
                 // === 【辨析挑战触发】仅成熟词(reps>=4) + 非备考 ===
                 // 科学依据: Kornell & Bjork 辨析对比, 已掌握的词需同框检验, 防止再认错觉
                 // 设计: 用 30% 概率避免疲劳
-                const showDistractor = !isExam && currentCard.reps >= 4 && Math.random() < 0.3;
+                const showDistractor = !isExam && currentPromptType === 'meaning' && currentCard.reps >= 4 && Math.random() < 0.3;
                 renderDistractorChallenge(showDistractor, currentCard);
             } else {
                 const heldNewCount = filteredDeck.filter(card => Number(card.state) === 0 && Number(card.due) <= now).length;
-                const reachedNewLimit = heldNewCount > 0 && countNewCardsStudiedToday(filteredDeck, now) >= newCardsPerDay;
+                const dailyLimit = !isExamSubjectActive() && goalStats ? goalStats.effectiveDailyTarget : newCardsPerDay;
+                const studiedToday = !isExamSubjectActive() && goalStats ? goalStats.todayNew : countNewCardsStudiedToday(filteredDeck, now);
+                const reachedNewLimit = heldNewCount > 0 && studiedToday >= dailyLimit;
                 // 如果暂时没卡片，但 10 分钟内有即将到期的，就开启倒计时自动刷新。
                 const nextCard = filteredDeck.slice().sort((a, b) => a.due - b.due).find(c => c.due > now);
 
@@ -4476,6 +4617,7 @@ ${mnemonic}`;
             // 【修改】看答案时强制显示大号 Emoji，作为多巴胺奖励
             renderWordWithEmoji(wordEl, currentCard.word, currentCard.emoji, true);
             wordEl.style.color = "var(--accent)"; // 高亮显示
+            document.getElementById('editCurrentCardBtn')?.classList.remove('hidden');
             const shouldAutoSpeakOnReveal = wasAnswerHidden;
             if (shouldAutoSpeakOnReveal) {
                 speakCurrentCard();
@@ -4670,17 +4812,216 @@ ${mnemonic}`;
             }).length;
         }
 
+        function parseGoalDate(dateText, endOfDay = false) {
+            const suffix = endOfDay ? 'T23:59:59' : 'T00:00:00';
+            const parsed = new Date(String(dateText || '') + suffix).getTime();
+            return Number.isFinite(parsed) ? parsed : Date.now();
+        }
+
+        function isCountableGoalCard(card) {
+            if (!card || !card.word || isExamCardData(card) || isCloudClearMarkerCard(card)) return false;
+            if (card.countTowardGoal === false) return false;
+            if (card.countTowardGoal === true) return true;
+            return !/\s/.test(String(card.word).trim());
+        }
+
+        function getGoalFamilyKey(card) {
+            return normalizeWordKey(card && (card.familyKey || card.word));
+        }
+
+        function getGoalFamilyMap(cards = deck) {
+            const map = new Map();
+            cards.forEach(card => {
+                if (!isCountableGoalCard(card)) return;
+                const key = getGoalFamilyKey(card);
+                if (!key) return;
+                if (!map.has(key)) map.set(key, []);
+                map.get(key).push(card);
+            });
+            return map;
+        }
+
+        function getFirstReviewTime(card) {
+            if (!card || !Array.isArray(card.history) || !card.history.length) return 0;
+            return Math.min(...card.history.map(item => Number(item.date) || Infinity).filter(Number.isFinite));
+        }
+
+        function countGoalFamiliesStudiedToday(familyMap, now = Date.now()) {
+            let count = 0;
+            familyMap.forEach(cards => {
+                const first = Math.min(...cards.map(getFirstReviewTime).filter(time => time > 0));
+                if (Number.isFinite(first) && isSameLocalDay(first, now)) count++;
+            });
+            return count;
+        }
+
+        function calculateStudyStreak(cards, now = Date.now()) {
+            const active = new Set();
+            cards.forEach(card => (card.history || []).forEach(item => {
+                const time = Number(item.date) || 0;
+                if (time > 0) {
+                    const date = new Date(time);
+                    active.add(`${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`);
+                }
+            }));
+            let cursor = new Date(now);
+            const todayKey = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`;
+            if (!active.has(todayKey)) cursor.setDate(cursor.getDate() - 1);
+            let streak = 0;
+            while (true) {
+                const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`;
+                if (!active.has(key)) break;
+                streak++;
+                cursor.setDate(cursor.getDate() - 1);
+            }
+            return streak;
+        }
+
+        function getRecentReviewSignals(cards, now = Date.now(), days = 7) {
+            const cutoff = now - days * 86400000;
+            const events = [];
+            const activeDays = new Set();
+            cards.forEach(card => (card.history || []).forEach(item => {
+                const time = Number(item.date) || 0;
+                if (time < cutoff) return;
+                events.push(item);
+                const date = new Date(time);
+                activeDays.add(`${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`);
+            }));
+            const again = events.filter(item => Number(item.rating) === 1).length;
+            const hard = events.filter(item => Number(item.rating) === 2).length;
+            return {
+                reviews: events.length,
+                activeDays: activeDays.size,
+                againRate: events.length ? again / events.length : 0,
+                hardRate: events.length ? hard / events.length : 0
+            };
+        }
+
+        function getVocabGoalStats(cards = deck, now = Date.now()) {
+            const englishCards = cards.filter(card => card && !isExamCardData(card) && !isCloudClearMarkerCard(card));
+            const familyMap = getGoalFamilyMap(englishCards);
+            let consolidated = 0;
+            let started = 0;
+            familyMap.forEach(group => {
+                const hasStarted = group.some(card => getFirstReviewTime(card) > 0 || Number(card.reps || 0) > 0);
+                if (hasStarted) started++;
+                const learned = group.some(card => Number(card.reps || 0) >= 3 && Number(card.stability || 0) >= 21);
+                if (learned) consolidated++;
+            });
+
+            const baseline = Math.max(0, Number(vocabGoal.baselineVocabulary) || 0);
+            const target = Math.max(baseline + 1, Number(vocabGoal.targetVocabulary) || 8000);
+            const growthTarget = target - baseline;
+            const introduced = familyMap.size;
+            const remainingToIntroduce = Math.max(0, growthTarget - introduced);
+            const remainingToStart = Math.max(0, growthTarget - started);
+            const deadlineMs = parseGoalDate(vocabGoal.deadline, true);
+            const daysLeft = Math.max(0, Math.ceil((deadlineMs - now) / 86400000));
+            const consolidationDays = Math.max(0, Number(vocabGoal.consolidationDays) || 0);
+            const learningDaysLeft = Math.max(0, daysLeft - consolidationDays);
+            const bufferRate = Math.min(0.5, Math.max(0, Number(vocabGoal.bufferRate) || 0));
+            // 每日上限按“真正开始学习的词族”计算；即使提前批量入库，也不会把新词目标错误归零。
+            const plannedRemaining = Math.ceil(remainingToStart * (1 + bufferRate));
+            const baseDailyTarget = learningDaysLeft > 0 ? Math.ceil(plannedRemaining / learningDaysLeft) : 0;
+            const dueReviews = englishCards.filter(card => Number(card.state) !== 0 && Number(card.due) <= now).length;
+            const signals = getRecentReviewSignals(englishCards, now, 7);
+            let frequencyTagged = 0;
+            let sourceTagged = 0;
+            familyMap.forEach(group => {
+                if (group.some(card => card.frequencyBand && card.frequencyBand !== 'unknown')) frequencyTagged++;
+                if (group.some(card => card.sourceType && card.sourceType !== 'legacy' && card.sourceLabel)) sourceTagged++;
+            });
+
+            let effectiveDailyTarget = vocabGoal.autoDailyTarget ? baseDailyTarget : newCardsPerDay;
+            let throttleReason = '';
+            if (daysLeft <= consolidationDays) {
+                effectiveDailyTarget = 0;
+                throttleReason = '已进入最后巩固期';
+            } else if (dueReviews > 250) {
+                effectiveDailyTarget = 0;
+                throttleReason = '到期复习超过250，今日暂停新词';
+            } else if (dueReviews > 150) {
+                effectiveDailyTarget = Math.ceil(effectiveDailyTarget * 0.5);
+                throttleReason = '到期复习超过150，新词自动减半';
+            } else if (signals.reviews >= 20 && signals.againRate > 0.25) {
+                effectiveDailyTarget = Math.ceil(effectiveDailyTarget * 0.5);
+                throttleReason = '近7日忘记率偏高，新词自动减半';
+            }
+
+            const todayNew = countGoalFamiliesStudiedToday(familyMap, now);
+            const estimatedVocabulary = Math.min(target, baseline + consolidated);
+            const progressPct = Math.min(100, Math.max(0, consolidated / growthTarget * 100));
+            const phraseCards = englishCards.filter(card => card.word && /\s/.test(String(card.word).trim()) && card.countTowardGoal !== true).length;
+            return {
+                baseline, target, growthTarget, introduced, started, consolidated, remainingToIntroduce, remainingToStart,
+                daysLeft, learningDaysLeft, baseDailyTarget,
+                effectiveDailyTarget: Math.max(0, effectiveDailyTarget),
+                dueReviews, signals, todayNew, estimatedVocabulary, progressPct,
+                totalEnglishCards: englishCards.length, phraseCards, frequencyTagged, sourceTagged,
+                streak: calculateStudyStreak(englishCards, now), throttleReason
+            };
+        }
+
+        function renderVocabGoalDashboard(now = Date.now()) {
+            const panel = document.getElementById('vocabGoalDashboard');
+            if (!panel) return null;
+            const stats = getVocabGoalStats(deck, now);
+            panel.classList.toggle('hidden', !vocabGoal.enabled);
+            if (!vocabGoal.enabled) return stats;
+            document.getElementById('goalHeadline').textContent = `${stats.baseline.toLocaleString()} → ${stats.target.toLocaleString()} · 当前估算 ${stats.estimatedVocabulary.toLocaleString()}`;
+            document.getElementById('goalIntroducedCount').textContent = stats.introduced.toLocaleString();
+            document.getElementById('goalConsolidatedCount').textContent = stats.consolidated.toLocaleString();
+            document.getElementById('goalDaysLeft').textContent = stats.daysLeft;
+            document.getElementById('goalDailyTarget').textContent = stats.effectiveDailyTarget;
+            document.getElementById('masteryBar').style.width = `${stats.progressPct}%`;
+            document.getElementById('goalProgressText').textContent = `已开始 ${stats.started}/${stats.growthTarget}，已巩固 ${stats.consolidated}/${stats.growthTarget}；词库共 ${stats.totalEnglishCards} 张英语卡，其中 ${stats.phraseCards} 张短语默认不重复计入词汇量。`;
+            document.getElementById('goalTodayLine').textContent = `今日新词 ${stats.todayNew}/${stats.effectiveDailyTarget} · 到期复习 ${stats.dueReviews} · 连续学习 ${stats.streak} 天 · 近7日学习 ${stats.signals.activeDays}/7 天`;
+            document.getElementById('goalWeeklyLine').textContent = `近7日校准：复习 ${stats.signals.reviews} 次 · 忘了 ${(stats.signals.againRate * 100).toFixed(1)}% · 勉强 ${(stats.signals.hardRate * 100).toFixed(1)}%`;
+            document.getElementById('goalCoverageLine').textContent = `数据质量：频段已标 ${stats.frequencyTagged}/${stats.introduced} · 有明确来源 ${stats.sourceTagged}/${stats.introduced} · 待学队列 ${Math.max(0, stats.introduced - stats.started)}`;
+
+            const status = document.getElementById('goalStatus');
+            const notices = [];
+            if (stats.throttleReason) notices.push(stats.throttleReason);
+            if (stats.signals.reviews >= 20 && stats.signals.againRate < 0.03) notices.push('近7日“忘了”低于3%，请确认没有把忘记记成“勉强想起”');
+            if (stats.signals.reviews >= 20 && stats.signals.hardRate > 0.5) notices.push('“勉强想起”超过50%，评分或卡片难度需要校准');
+            if (stats.baseDailyTarget > 45) notices.push('按期完成所需新词已超过45/天，计划风险很高');
+            if (!notices.length) notices.push(`动态计划正常：尚需开始约 ${stats.remainingToStart} 个目标词族，词库待补 ${stats.remainingToIntroduce} 个，预留最后 ${vocabGoal.consolidationDays} 天巩固。`);
+            status.textContent = notices.join('；');
+            status.style.color = notices.length > 1 || stats.throttleReason ? '#b25c00' : '#177245';
+            return stats;
+        }
+
         function buildDueQueue(cards, now = Date.now()) {
             const due = cards.filter(card => Number(card.due) <= now);
             const reviews = due.filter(card => Number(card.state) !== 0).sort((a, b) => a.due - b.due);
-            const remainingNew = Math.max(0, newCardsPerDay - countNewCardsStudiedToday(cards, now));
-            const newCards = due
+            const goalStats = vocabGoal.enabled ? getVocabGoalStats(deck, now) : null;
+            const dailyLimit = goalStats ? goalStats.effectiveDailyTarget : newCardsPerDay;
+            // 所有新卡（包括短语和同词不同义项）都占学习负荷，不能借“不计词汇量”绕过每日上限。
+            const studiedToday = countNewCardsStudiedToday(cards, now);
+            const remainingNew = Math.max(0, dailyLimit - studiedToday);
+            const candidates = due
                 .filter(card => Number(card.state) === 0)
                 .sort((a, b) => {
                     const batchDiff = String(getCardBatchKey(a)).localeCompare(String(getCardBatchKey(b)));
                     return batchDiff || a.due - b.due;
-                })
-                .slice(0, remainingNew);
+                });
+            const studiedGoalFamiliesToday = new Set();
+            if (goalStats) {
+                getGoalFamilyMap(deck).forEach((group, key) => {
+                    const first = Math.min(...group.map(getFirstReviewTime).filter(time => time > 0));
+                    if (Number.isFinite(first) && isSameLocalDay(first, now)) studiedGoalFamiliesToday.add(key);
+                });
+            }
+            const selectedFamilies = new Set(studiedGoalFamiliesToday);
+            const newCards = [];
+            for (const card of candidates) {
+                const key = isCountableGoalCard(card) ? getGoalFamilyKey(card) : '';
+                if (key && selectedFamilies.has(key)) continue;
+                newCards.push(card);
+                if (key) selectedFamilies.add(key);
+                if (newCards.length >= remainingNew) break;
+            }
 
             const queue = [];
             let reviewIndex = 0;
@@ -4884,7 +5225,10 @@ ${mnemonic}`;
             selected.forEach(chip => {
                 const word = chip.innerText;
                 if (!hasCardWord(word)) {
-                    deck.push(createCardObject(word));
+                    const card = createCardObject(word);
+                    card.sourceType = 'reading';
+                    card.sourceLabel = 'OCR 图片取词';
+                    deck.push(card);
                     count++;
                 }
             });
@@ -4906,7 +5250,12 @@ ${mnemonic}`;
             const exportPackage = {
                 version: 2,
                 timestamp: Date.now(),
-                settings: { fsrs_weights: currentWeights },
+                settings: {
+                    fsrs_weights: currentWeights,
+                    fsrs_retention: p.requestRetention,
+                    fsrs_new_limit: newCardsPerDay,
+                    vocab_goal_plan: vocabGoal
+                },
                 cards: deck
             };
 
@@ -5005,6 +5354,16 @@ ${mnemonic}`;
                             p.w = newSettings.fsrs_weights;
                             await db.saveSetting('fsrs_weights', p.w);
                         }
+                    }
+                    if (newSettings && newSettings.vocab_goal_plan && confirm('备份中包含词汇目标和学习负荷设置，是否一并恢复？')) {
+                        vocabGoal = { ...DEFAULT_VOCAB_GOAL, ...newSettings.vocab_goal_plan };
+                        if (Number.isInteger(Number(newSettings.fsrs_new_limit))) newCardsPerDay = Number(newSettings.fsrs_new_limit);
+                        if (Number.isFinite(Number(newSettings.fsrs_retention))) p.requestRetention = Number(newSettings.fsrs_retention);
+                        await Promise.all([
+                            db.saveSetting('vocab_goal_plan', vocabGoal),
+                            db.saveSetting('fsrs_new_limit', newCardsPerDay),
+                            db.saveSetting('fsrs_retention', p.requestRetention)
+                        ]);
                     }
 
                     // 4. 处理卡片
@@ -5223,6 +5582,17 @@ ${mnemonic}`;
                         senseEl.textContent = senseMeta;
                         info.appendChild(senseEl);
                     }
+                    const sourceMeta = [
+                        card.frequencyBand && card.frequencyBand !== 'unknown' ? card.frequencyBand : '',
+                        card.sourceLabel || '',
+                        isCountableGoalCard(card) ? '计入目标' : '不计入目标'
+                    ].filter(Boolean).join(' · ');
+                    if (sourceMeta) {
+                        const sourceEl = document.createElement('div');
+                        sourceEl.style.cssText = 'font-size:10px; color:#98a2b3; margin-top:2px;';
+                        sourceEl.textContent = sourceMeta;
+                        info.appendChild(sourceEl);
+                    }
                 }
                 
                 header.appendChild(info);
@@ -5317,6 +5687,13 @@ ${mnemonic}`;
             document.getElementById('editSenseLabelInput').value = card.senseLabel || "";
             document.getElementById('editPosInput').value = card.pos || "";
             document.getElementById('editCollocationsInput').value = getCardCollocations(card).join(', ');
+            document.getElementById('editFamilyKeyInput').value = card.familyKey || card.word || "";
+            document.getElementById('editFrequencyBandSelect').value = card.frequencyBand || 'unknown';
+            const sourceTypeEl = document.getElementById('editSourceTypeSelect');
+            sourceTypeEl.value = card.sourceType || 'legacy';
+            if (!sourceTypeEl.value) sourceTypeEl.value = 'legacy';
+            document.getElementById('editSourceLabelInput').value = card.sourceLabel || "";
+            document.getElementById('editCountTowardGoal').checked = isCountableGoalCard(card);
             document.getElementById('editModal').classList.remove('hidden');
         }
 
@@ -5332,6 +5709,11 @@ ${mnemonic}`;
             const newSenseLabel = document.getElementById('editSenseLabelInput').value.trim();
             const newPos = document.getElementById('editPosInput').value.trim();
             const newCollocations = normalizeCollocations(document.getElementById('editCollocationsInput').value);
+            const newFamilyKey = document.getElementById('editFamilyKeyInput').value.trim() || newWord;
+            const newFrequencyBand = document.getElementById('editFrequencyBandSelect').value || 'unknown';
+            const newSourceType = document.getElementById('editSourceTypeSelect').value || 'legacy';
+            const newSourceLabel = document.getElementById('editSourceLabelInput').value.trim();
+            const newCountTowardGoal = document.getElementById('editCountTowardGoal').checked;
 
             const cardIndex = deck.findIndex(c => c.id === id);
             if (cardIndex > -1) {
@@ -5348,6 +5730,11 @@ ${mnemonic}`;
                 deck[cardIndex].senseLabel = newSenseLabel;
                 deck[cardIndex].pos = newPos;
                 deck[cardIndex].collocations = newCollocations;
+                deck[cardIndex].familyKey = newFamilyKey;
+                deck[cardIndex].frequencyBand = newFrequencyBand;
+                deck[cardIndex].sourceType = newSourceType;
+                deck[cardIndex].sourceLabel = newSourceLabel;
+                deck[cardIndex].countTowardGoal = newCountTowardGoal;
 
                 // 【新增】检查并合并编辑期间 AI 生成的新高级数据
                 if (tempEditData && Object.keys(tempEditData).length > 0) {
@@ -5549,14 +5936,62 @@ ${mnemonic}`;
             noiseSource.start();
         }
 
-        // 学习负荷设置：只暴露对用户有明确意义的参数。
-        async function openSettings() {
-            const limitInput = prompt('每天最多引入多少张新词卡？（0-100）', String(newCardsPerDay));
-            if (limitInput === null) return;
-            const parsedLimit = Number(limitInput);
-            if (!Number.isInteger(parsedLimit) || parsedLimit < 0 || parsedLimit > 100) {
-                alert('请输入 0 到 100 之间的整数。');
+        async function openGoalSettings() {
+            const baselineInput = prompt('当前已知词汇量基线', String(vocabGoal.baselineVocabulary));
+            if (baselineInput === null) return;
+            const targetInput = prompt('目标词汇量', String(vocabGoal.targetVocabulary));
+            if (targetInput === null) return;
+            const deadlineInput = prompt('目标截止日期（YYYY-MM-DD）', String(vocabGoal.deadline));
+            if (deadlineInput === null) return;
+            const consolidationInput = prompt('截止日前预留多少天只巩固、不加新词？', String(vocabGoal.consolidationDays));
+            if (consolidationInput === null) return;
+            const bufferInput = prompt('为遗忘和无效词预留多少百分比缓冲？（建议10）', String(Math.round(vocabGoal.bufferRate * 100)));
+            if (bufferInput === null) return;
+
+            const baseline = Number(baselineInput);
+            const target = Number(targetInput);
+            const consolidationDays = Number(consolidationInput);
+            const bufferPct = Number(bufferInput);
+            const deadlineMs = parseGoalDate(deadlineInput, true);
+            if (!Number.isInteger(baseline) || baseline < 0 || !Number.isInteger(target) || target <= baseline) {
+                alert('基线和目标必须是有效整数，且目标必须高于基线。');
                 return;
+            }
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(deadlineInput) || !Number.isFinite(deadlineMs) || deadlineMs <= Date.now()) {
+                alert('请输入未来的有效截止日期，格式为 YYYY-MM-DD。');
+                return;
+            }
+            if (!Number.isInteger(consolidationDays) || consolidationDays < 0 || consolidationDays > 60 || !Number.isFinite(bufferPct) || bufferPct < 0 || bufferPct > 50) {
+                alert('巩固天数需为0-60的整数，缓冲比例需为0-50。');
+                return;
+            }
+
+            const autoDailyTarget = confirm('是否让软件根据剩余词数、天数、积压和忘记率自动调整每日新词？\n\n确定＝自动计划（推荐）\n取消＝使用 Params 中的手动上限');
+            vocabGoal = {
+                ...vocabGoal,
+                enabled: true,
+                baselineVocabulary: baseline,
+                targetVocabulary: target,
+                deadline: deadlineInput,
+                consolidationDays,
+                bufferRate: bufferPct / 100,
+                autoDailyTarget
+            };
+            await db.saveSetting('vocab_goal_plan', vocabGoal);
+            render();
+        }
+
+        // 学习负荷设置：目标系统自动运行时这里只调整保留率。
+        async function openSettings() {
+            let parsedLimit = newCardsPerDay;
+            if (!vocabGoal.autoDailyTarget) {
+                const limitInput = prompt('手动模式：每天最多引入多少张新词卡？（0-100）', String(newCardsPerDay));
+                if (limitInput === null) return;
+                parsedLimit = Number(limitInput);
+                if (!Number.isInteger(parsedLimit) || parsedLimit < 0 || parsedLimit > 100) {
+                    alert('请输入 0 到 100 之间的整数。');
+                    return;
+                }
             }
 
             const retentionInput = prompt('目标保留率（85-95，建议 90）', String(Math.round(p.requestRetention * 100)));
@@ -5713,6 +6148,14 @@ ${mnemonic}`;
                 render();
             }
         });
+        db.getSetting('vocab_goal_plan').then(saved => {
+            if (saved && typeof saved === 'object') {
+                vocabGoal = { ...DEFAULT_VOCAB_GOAL, ...saved };
+            } else {
+                db.saveSetting('vocab_goal_plan', vocabGoal);
+            }
+            render();
+        });
 
         loadDeck();
 
@@ -5722,6 +6165,8 @@ ${mnemonic}`;
             document.getElementById('batchWordInput').value = '';
             document.getElementById('batchProgress').classList.add('hidden');
             document.getElementById('batchLog').innerHTML = '';
+            const stats = getVocabGoalStats(deck);
+            document.getElementById('batchGoalHint').textContent = `当前动态目标 ${stats.effectiveDailyTarget}/天，今日已学 ${stats.todayNew}；批量录入不会绕过每日新词上限。`;
 
             const startBtn = document.getElementById('startBatchBtn');
             startBtn.disabled = false;
@@ -5735,6 +6180,9 @@ ${mnemonic}`;
 
         async function startBatchProcess() {
             const text = document.getElementById('batchWordInput').value;
+            const batchFrequencyBand = document.getElementById('batchFrequencyBandSelect').value || 'unknown';
+            const batchSourceType = document.getElementById('batchSourceTypeSelect').value || 'batch_ai';
+            const batchSourceLabel = document.getElementById('batchSourceLabelInput').value.trim();
             // 通过换行或逗号分割，并进行深度清洗（去除Markdown符号，压缩多余特殊空格）
             let rawWords = text.split(/[\n,]+/).map(w => {
                 let clean = w.replace(/[*_~`]/g, ''); // 去除 Markdown 的加粗**、下划线__等符号
@@ -5755,7 +6203,10 @@ ${mnemonic}`;
             }
 
             const estimatedSeconds = Math.max(3, Math.ceil(words.length / BATCH_CONCURRENCY) * 3);
-            const confirmStart = confirm(`即将调用 AI 自动生成 ${words.length} 个单词的深度解析。\n预计需要 ${estimatedSeconds} 秒左右。\n在此期间请不要关闭或切换页面，确定开始吗？`);
+            const goalStats = getVocabGoalStats(deck);
+            const daysOfNewWords = goalStats.effectiveDailyTarget > 0 ? Math.ceil(words.length / goalStats.effectiveDailyTarget) : 0;
+            const backlogNotice = daysOfNewWords > 7 ? `\n这相当于约 ${daysOfNewWords} 天的新词量；系统仍会按每日上限放出，不会一次塞进复习。` : '';
+            const confirmStart = confirm(`即将调用 AI 自动生成 ${words.length} 个单词的深度解析。\n预计需要 ${estimatedSeconds} 秒左右。${backlogNotice}\n在此期间请不要关闭或切换页面，确定开始吗？`);
             if (!confirmStart) return;
 
             // 【核心修复】设置批量处理保护标志，防止切屏时 pullFromCloud 的 store.clear() 清空正在写入的数据
@@ -5904,7 +6355,12 @@ ${mnemonic}`;
                             "",
                             result.collocations || [],
                             result.gloss_zh || "",
-                            result.sense_label || ""
+                            result.sense_label || "",
+                            word,
+                            batchFrequencyBand,
+                            batchSourceType,
+                            batchSourceLabel,
+                            !/\s/.test(word.trim())
                         );
 
                         await saveCardDirect(newCard);
@@ -7514,9 +7970,9 @@ ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).
             const listEl = document.getElementById('articleWordList');
             if (!listEl) return;
             const statusMeta = {
-                recalled: { label: '独立想起', color: '#34c759' },
-                inferred: { label: '靠语境推断', color: '#007aff' },
-                forgotten: { label: '没想起', color: '#ff9500' }
+                recalled: { label: '读到时就懂', color: '#34c759' },
+                inferred: { label: '靠语境猜到', color: '#007aff' },
+                forgotten: { label: '读到时没懂', color: '#ff9500' }
             };
             listEl.innerHTML = (articleReaderState.words || []).map((word, index) => {
                 const selected = articleReaderState.feedback[index] || '';
@@ -7524,8 +7980,11 @@ ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).
                     const active = selected === status;
                     return `<button class="action-btn" ${articleReaderState.saved ? 'disabled' : ''} onclick="setArticleWordFeedback(${index}, '${status}')" style="padding:7px 8px; font-size:11px; background:${active ? meta.color : '#fff'}; color:${active ? '#fff' : '#555'}; border:1px solid ${active ? meta.color : '#d1d5db'}; opacity:${articleReaderState.saved ? '0.7' : '1'};">${meta.label}</button>`;
                 }).join('');
+                const definitionHtml = articleReaderState.saved
+                    ? `${word.gloss_zh ? `<span style="color:#333;"> — ${escapeHTML(word.gloss_zh)}</span>` : ''}${word.definition ? `<span style="color:#666;"> · ${escapeHTML(word.definition)}</span>` : ''}`
+                    : '<span style="color:#98a2b3; font-size:12px;"> · 释义将在全部选择后显示</span>';
                 return `<div style="background:#f8f9fa; border-radius:10px; padding:10px; font-size:14px;">
-                    <div><span style="font-weight:700; color:#007a5a;">${escapeHTML(word.word)}</span>${word.gloss_zh ? `<span style="color:#333;"> — ${escapeHTML(word.gloss_zh)}</span>` : ''}${word.definition ? `<span style="color:#666;"> · ${escapeHTML(word.definition)}</span>` : ''}</div>
+                    <div><span style="font-weight:700; color:#007a5a;">${escapeHTML(word.word)}</span>${definitionHtml}</div>
                     <div style="display:flex; gap:6px; margin-top:8px;">${buttons}</div>
                 </div>`;
             }).join('');
@@ -7573,7 +8032,7 @@ ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).
             });
         }
 
-        // --- 7. 阅读完反馈：没想起来的词触发提前复习 ---
+        // --- 7. 阅读完反馈：记录“阅读当时是否理解”，不是伪装成独立回忆测试 ---
         function finishArticleReading() {
             const fbEl = document.getElementById('articleFeedbackMsg');
             if (articleReaderState.saved) return;
@@ -7616,7 +8075,7 @@ ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).
                 render();
                 if (fbEl) {
                     fbEl.style.color = counts.forgotten ? '#ff9500' : '#15803d';
-                    fbEl.innerText = `已记录：独立想起 ${counts.recalled}，语境推断 ${counts.inferred}，没想起 ${counts.forgotten}。${counts.forgotten ? '没想起的词已进入待复习。' : ''}`;
+                    fbEl.innerText = `已记录：读到时就懂 ${counts.recalled}，靠语境猜到 ${counts.inferred}，读到时没懂 ${counts.forgotten}。${counts.forgotten ? '阅读时没懂的词已进入待复习。' : ''}`;
                 }
                 const saveBtn = document.getElementById('articleSaveFeedbackBtn');
                 if (saveBtn) saveBtn.disabled = true;
