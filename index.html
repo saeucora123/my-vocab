@@ -4252,6 +4252,8 @@ ${mnemonic}`;
 
         // 用户已停用“看语境填写目标英文”题型。保留旧字段仅用于数据兼容，绝不进入复习调度。
         const CLOZE_RECALL_ENABLED = false;
+        // 用户也已停用“根据释义/例句填写英文”题型，只保留看到英文回忆含义与听音拼写。
+        const FORM_RECALL_ENABLED = false;
 
         function isClozeEligible(card) {
             if (!CLOZE_RECALL_ENABLED) return false;
@@ -4263,10 +4265,8 @@ ${mnemonic}`;
 
         function choosePromptType(card, isExam) {
             if (isExam || !card || card.state === 0 || (card.reps || 0) < 2) return 'meaning';
-            const hasDefinition = !!String(card.glossZh || card.definition || '').trim();
             const roll = Math.random();
             if (roll < 0.15) return 'audio';
-            if (roll < 0.50 && hasDefinition) return 'form';
             return 'meaning';
         }
 
@@ -4438,6 +4438,9 @@ ${mnemonic}`;
                     currentClozeHintUsed = false;
                     currentClozeAlternative = false;
                 }
+                // 双重保险：旧页面状态或测试参数也不能恢复“看提示写英文”题型。
+                if (!FORM_RECALL_ENABLED && currentPromptType === 'form') currentPromptType = 'meaning';
+                if (!CLOZE_RECALL_ENABLED && currentPromptType === 'cloze') currentPromptType = 'meaning';
                 revContainer.classList.remove('hidden');
                 empty.classList.add('hidden');
                 // inputSec.classList.add('hidden'); // <--- 注释掉这一行，输入框就会一直显示！
