@@ -1297,7 +1297,7 @@
             <div class="actions-wrapper">
                 <div id="recallPromptHint"
                     style="font-size:12px; color:#666; text-align:center; margin-bottom:10px; line-height:1.5;">
-                    先独立回忆，再看答案；使用发音、词根或例句提示会被记录。
+                    先独立回忆，再看答案；答案揭示后可自由查看发音、词根、例句与 Logic。
                 </div>
 
                 <button id="showAnswerBtn" class="add-btn full-width-btn"
@@ -4174,6 +4174,19 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             target.append(document.createTextNode(word || ''));
         }
 
+        function buildMorphemeAnalysisHTML(card) {
+            if (!card || !card.morphemes || !card.morphemes.root) return '';
+            const clean = value => escapeHTML(String(value || '')
+                .replace(/\(.*?\)/g, '')
+                .replace(/（.*?）/g, '')
+                .trim());
+            const parts = [];
+            if (card.morphemes.prefix) parts.push(`<span style="color:#d63384">${clean(card.morphemes.prefix)}</span>`);
+            parts.push(`<span style="font-weight:bold; border-bottom:2px solid #007aff; color:var(--text);">${clean(card.morphemes.root)}</span>`);
+            if (card.morphemes.suffix) parts.push(`<span style="color:#007aff">${clean(card.morphemes.suffix)}</span>`);
+            return `<div class="etymology-line" style="margin-top:8px; font-family:'Courier New', monospace; font-size:13px; opacity:0.8;">${parts.join(' + ')}</div>`;
+        }
+
         function renderTextCard(target, options) {
             const {
                 label = '',
@@ -5380,6 +5393,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         let tempClozeSentence = "";
         let tempClozeEnabled = false;
         let tempClozeReason = "";
+        let autoFetchRequestSerial = 0;
+        const latestAutoFetchRequest = { new: 0, edit: 0 };
         let isBatchProcessing = false; // 【修复】批量处理保护标志，防止云端拉取覆盖本地数据
         let currentPromptType = 'meaning';
         let currentPromptCardId = null;
@@ -5413,6 +5428,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             w: Array.from(FSRS.default_w),
             requestRetention: 0.9
         };
+
+        function isValidFsrs6Weights(weights) {
+            return Array.isArray(weights) && weights.length === 21
+                && weights.every(value => Number.isFinite(Number(value)));
+        }
 
         function getFsrsParameters() {
             return FSRS.generatorParameters({
@@ -5475,8 +5495,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
                 // 3. 只接受 FSRS-6 的 21 参数。旧版 17 参数保留在备份历史中，但不再驱动调度。
                 const savedV6 = await db.getSetting('fsrs_parameters_v6');
-                if (savedV6 && Array.isArray(savedV6.w) && savedV6.w.length === 21) {
-                    p.w = Array.from(savedV6.w);
+                if (savedV6 && isValidFsrs6Weights(savedV6.w)) {
+                    p.w = savedV6.w.map(Number);
                 } else {
                     await db.saveSetting('fsrs_parameters_v6', getFsrsParameters());
                 }
@@ -5983,6 +6003,15 @@ ${mnemonic}`;
             const iconEl = btnElement;
             const word = document.getElementById(wordInputId).value.trim();
             const sentenceEl = document.getElementById(sentenceInputId);
+            const requestToken = ++autoFetchRequestSerial;
+            const editCardIdAtStart = mode === 'edit' ? document.getElementById('editCardId').value : '';
+            latestAutoFetchRequest[mode] = requestToken;
+            const requestStillCurrent = () => {
+                if (latestAutoFetchRequest[mode] !== requestToken) return false;
+                if (normalizeWordKey(document.getElementById(wordInputId).value) !== normalizeWordKey(word)) return false;
+                if (mode === 'edit' && document.getElementById('editCardId').value !== editCardIdAtStart) return false;
+                return true;
+            };
 
             if (!AI_CONFIG.apiKey || AI_CONFIG.apiKey.includes("这里填入")) {
                 alert("请先在代码的 AI_CONFIG 中填入正确的 DeepSeek API Key！");
@@ -6113,6 +6142,9 @@ ${mnemonic}`;
                 // 确保 root 字段存在，如果 AI 漏了 root，就用单词本身代替
                 if (!result.morphemes.root) result.morphemes.root = word;
 
+                // 用户可能已经换词、换卡或发起了更新请求；旧响应不得覆盖当前表单。
+                if (!requestStillCurrent()) return;
+
                 sentenceEl.value = result.sentence;
                 const normalizedCollocations = normalizeCollocations(result.collocations);
                 const clozeCandidate = validateClozeCandidate(
@@ -6131,6 +6163,7 @@ ${mnemonic}`;
                     const posDisplayEl = document.getElementById('newPosDisplay');
                     if (posDisplayEl) posDisplayEl.innerText = tempPOS ? `词性：${tempPOS}` : '';
                     tempMnemonic = await ensureMixedChineseMnemonic(word, result.mnemonic || "", result.morphemes);
+                    if (!requestStillCurrent()) return;
                     tempSocratic = result.socratic || ""; // 【新增】提取苏格拉底提问
                     tempEmoji = result.emoji;
                     tempContrast = result.contrast || ""; // 【新增】提取思维差异
@@ -6170,6 +6203,7 @@ ${mnemonic}`;
                         ? 'AI判断：适合挖空；至少复习4次后启用。'
                         : `AI判断：不适合挖空（${clozeCandidate.reason || '答案约束不足'}）`;
                     let aiMnemonic = await ensureMixedChineseMnemonic(word, result.mnemonic || "", result.morphemes);
+                    if (!requestStillCurrent()) return;
                     if (result.family) aiMnemonic += `\n[Family: ${result.family}]`;
                     document.getElementById('editMnemonicInput').value = aiMnemonic;
 
@@ -6186,8 +6220,10 @@ ${mnemonic}`;
                 }
             } catch (err) {
                 console.error(err);
-                alert("出错了：" + err.message);
-                sentenceEl.placeholder = "生成失败，请重试。";
+                if (requestStillCurrent()) {
+                    alert("出错了：" + err.message);
+                    sentenceEl.placeholder = "生成失败，请重试。";
+                }
             } finally {
                 iconEl.innerHTML = originalIcon;
             }
@@ -6230,8 +6266,10 @@ ${mnemonic}`;
 
             // 【修改】只保存当前这一张卡片到数据库
             const newCard = deck[deck.length - 1];
-            db.saveCard(newCard);
             render(); // 仅刷新界面，不进行全量保存
+            db.saveCard(newCard)
+                .then(() => pushToCloud())
+                .catch(error => console.error('新增单词保存失败', error));
         }
 
         // 【修复】新增函数：当用户修改输入框文字时，必须清空之前 AI 生成的临时数据，防止"张冠李戴"
@@ -6591,32 +6629,8 @@ ${mnemonic}`;
                     const safeWord = sanitizeHTML(currentCard.word);
                     const mainWordHtml = `<div style="font-size:32px; font-weight:800; color:var(--text); letter-spacing:0.5px;">${safeWord}</div>`;
 
-                    // 2. 辅助：如果有词根数据，在下方生成一条彩色的分析链
-                    let analysisHtml = "";
-                    if (currentCard.morphemes && currentCard.morphemes.root) {
-                        const m = currentCard.morphemes;
-
-                        // 简单的清洗函数：去掉括号里的解释，只留词素本身
-                        const clean = (str) => str ? escapeHTML(str.replace(/\(.*\)/g, '').replace(/（.*）/g, '').trim()) : "";
-
-                        let parts = [];
-                        // 只有当有内容时才添加，避免空标签
-                        if (m.prefix) parts.push(`<span style="color:#d63384">${clean(m.prefix)}</span>`);
-                        parts.push(`<span style="font-weight:bold; border-bottom:2px solid #007aff; color:var(--text);">${clean(m.root)}</span>`);
-                        if (m.suffix) parts.push(`<span style="color:#007aff">${clean(m.suffix)}</span>`);
-
-                        // 【Pedagogy Fix】复习模式默认模糊 (Blur)，点击揭示，防止“看答案”错觉
-                        const isReview = currentCard.state > 0;
-                        const blurClass = isReview ? "cognitive-blur" : "";
-                        const clickAction = isReview ? "markHintUsed(this)" : "";
-
-                        analysisHtml = `<div class="etymology-line ${blurClass}" onclick="${clickAction}" style="margin-top:8px; font-family:'Courier New', monospace; font-size:13px; opacity:0.8; transition: all 0.3s; cursor: pointer;">
-                        ${parts.join(' + ')}
-                    </div>`;
-                    }
-
-                    // 3. 组合显示
-                    wordEl.innerHTML = `${emojiHtml}${mainWordHtml}${analysisHtml}`;
+                    // 题面只显示目标词。词根属于答案解析，翻答案后再显示，避免手机误触污染评分。
+                    wordEl.innerHTML = `${emojiHtml}${mainWordHtml}`;
 
                     // 重置所有颜色干扰，确保黑色字体清晰
                     wordEl.style.webkitTextFillColor = "initial";
@@ -6647,6 +6661,7 @@ ${mnemonic}`;
                 }
 
                 document.getElementById('deepLearningTools').classList.add('hidden');
+                document.getElementById('disclosureBar').classList.add('hidden');
 
                 // 2. Hide Ratings, Show "Show Answer"
                 document.getElementById('ratingButtons').classList.add('hidden');
@@ -6759,6 +6774,7 @@ ${mnemonic}`;
         }
 
         function toggleSection(id, btn) {
+            if (!currentAnswerRevealed) return;
             const el = document.getElementById(id);
             const isHidden = el.classList.contains('hidden');
             if (isHidden) {
@@ -6891,6 +6907,8 @@ ${mnemonic}`;
             const wordEl = document.getElementById('currentWord');
             // 【修改】看答案时强制显示大号 Emoji，作为多巴胺奖励
             renderWordWithEmoji(wordEl, currentCard.word, currentCard.emoji, true);
+            const morphemeHtml = buildMorphemeAnalysisHTML(currentCard);
+            if (morphemeHtml) wordEl.insertAdjacentHTML('beforeend', morphemeHtml);
             wordEl.style.color = "var(--accent)"; // 高亮显示
             document.getElementById('editCurrentCardBtn')?.classList.remove('hidden');
             const shouldAutoSpeakOnReveal = wasAnswerHidden;
@@ -7000,10 +7018,11 @@ ${mnemonic}`;
 
             // 4. (Smart Feature) If no definition exists (old cards), try to fetch it now
             if (!currentCard.definition) {
+                const definitionCard = currentCard;
                 const defEl = document.getElementById('currentDefinition');
                 defEl.innerText = "Fetching definition...";
                 try {
-                    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${currentCard.word}`);
+                    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(definitionCard.word)}`);
                     const data = await res.json();
                     // Extract first definition
                     let def = "";
@@ -7012,20 +7031,18 @@ ${mnemonic}`;
                     }
 
                     if (def) {
-                        defEl.innerText = def;
-                        // Auto-save this definition to the card so we don't fetch again next time
-                        currentCard.definition = def;
-                        currentCard.needsSync = true;
-                        currentCard.updated_at = new Date().toISOString();
-
-                        // 【修改】使用新的数据库方法静默保存，确保数据同步且不刷新界面
-                        db.saveCard(currentCard);
-                        pushToCloud();
-                    } else {
+                        // 请求返回时用户可能已经评分切卡；只能写回发起请求的那张卡。
+                        if (!definitionCard.definition) definitionCard.definition = def;
+                        definitionCard.needsSync = true;
+                        definitionCard.updated_at = new Date().toISOString();
+                        await db.saveCard(definitionCard);
+                        await pushToCloud();
+                        if (currentCard && currentCard.id === definitionCard.id && currentAnswerRevealed) defEl.innerText = definitionCard.definition;
+                    } else if (currentCard && currentCard.id === definitionCard.id && currentAnswerRevealed) {
                         defEl.innerText = "No definition found in dictionary.";
                     }
                 } catch (e) {
-                    defEl.innerText = "Could not fetch definition.";
+                    if (currentCard && currentCard.id === definitionCard.id && currentAnswerRevealed) defEl.innerText = "Could not fetch definition.";
                 }
             }
         }
@@ -7374,7 +7391,10 @@ ${mnemonic}`;
             lastReviewedWordKey = normalizeWordKey(currentCard.word);
             currentCard.needsSync = true;
             currentCard.updated_at = new Date().toISOString();
-            db.saveCard(currentCard);
+            const ratedCard = currentCard;
+            db.saveCard(ratedCard)
+                .then(() => pushToCloud())
+                .catch(error => console.error('评分保存失败', error));
 
             currentPromptCardId = null;
             currentAnswerCorrect = null;
@@ -7384,7 +7404,6 @@ ${mnemonic}`;
             currentClozeAlternative = false;
             currentReviewStartedAt = 0;
             render();
-            pushToCloud();
         }
 
         // 修改：默认回车键触发“简单模式”，并传入 null 作为 btnElement (需要稍微修改 autoFetchContext 防报错)
@@ -7628,14 +7647,16 @@ ${mnemonic}`;
                     const importedWeights = importedV6 && Array.isArray(importedV6.w)
                         ? importedV6.w
                         : (newSettings && Array.isArray(newSettings.fsrs_weights) ? newSettings.fsrs_weights : null);
-                    if (importedWeights && importedWeights.length === 21 && confirm('文件中包含 FSRS-6 参数，是否应用？')) {
-                        p.w = Array.from(importedWeights);
+                    if (isValidFsrs6Weights(importedWeights) && confirm('文件中包含 FSRS-6 参数，是否应用？')) {
+                        p.w = importedWeights.map(Number);
                         await db.saveSetting('fsrs_parameters_v6', getFsrsParameters());
                     }
                     if (newSettings && newSettings.vocab_goal_plan && confirm('备份中包含词汇目标和学习负荷设置，是否一并恢复？')) {
                         vocabGoal = { ...DEFAULT_VOCAB_GOAL, ...newSettings.vocab_goal_plan };
-                        if (Number.isInteger(Number(newSettings.fsrs_new_limit))) newCardsPerDay = Number(newSettings.fsrs_new_limit);
-                        if (Number.isFinite(Number(newSettings.fsrs_retention))) p.requestRetention = Number(newSettings.fsrs_retention);
+                        const importedLimit = Number(newSettings.fsrs_new_limit);
+                        const importedRetention = Number(newSettings.fsrs_retention);
+                        if (Number.isInteger(importedLimit) && importedLimit >= 0 && importedLimit <= 100) newCardsPerDay = importedLimit;
+                        if (Number.isFinite(importedRetention) && importedRetention >= 0.85 && importedRetention <= 0.95) p.requestRetention = importedRetention;
                         await Promise.all([
                             db.saveSetting('vocab_goal_plan', vocabGoal),
                             db.saveSetting('fsrs_new_limit', newCardsPerDay),
@@ -7644,14 +7665,22 @@ ${mnemonic}`;
                         ]);
                     }
 
-                    // 4. 处理卡片
+                    // 4. 处理卡片。ID 是稳定身份；释义会被编辑，不能拿释义当主键。
+                    const importTime = new Date().toISOString();
                     newCards.forEach(importCard => {
-                        const existingIndex = findCardIndexBySense(importCard.word, importCard.pos, importCard.senseLabel, importCard.definition);
+                        const idIndex = importCard && importCard.id
+                            ? deck.findIndex(card => card && card.id === importCard.id)
+                            : -1;
+                        const existingIndex = idIndex !== -1
+                            ? idIndex
+                            : findCardIndexBySense(importCard.word, importCard.pos, importCard.senseLabel, importCard.definition);
 
                         if (existingIndex === -1) {
                             // 新词 -> 直接添加 (规整字段, 防 FSRS/reps 判定错乱)
                             const normalized = normalizeCardFields(importCard);
                             migrateCardToFsrs6(normalized);
+                            normalized.needsSync = true;
+                            normalized.updated_at = importTime;
                             deck.push(normalized);
                             addedCount++;
                         } else {
@@ -7660,6 +7689,10 @@ ${mnemonic}`;
                                 // 强制覆盖
                                 const normalized = normalizeCardFields(importCard);
                                 migrateCardToFsrs6(normalized);
+                                // 若靠义项匹配而不是 ID 匹配，沿用本地稳定 ID，避免 IndexedDB 留下孤儿卡。
+                                normalized.id = deck[existingIndex].id;
+                                normalized.needsSync = true;
+                                normalized.updated_at = importTime;
                                 deck[existingIndex] = normalized;
                                 updatedCount++;
                             }
@@ -7668,6 +7701,9 @@ ${mnemonic}`;
 
                     // 5. 保存并刷新
                     await db.saveAll(deck);
+                    currentCard = null;
+                    currentPromptCardId = null;
+                    currentAnswerRevealed = false;
                     render();
                     await pushToCloud();
                     alert(`导入完成!\n新增: ${addedCount}\n更新/覆盖: ${updatedCount}`);
@@ -7987,7 +8023,7 @@ ${mnemonic}`;
 
         function closeEditModal() { document.getElementById('editModal').classList.add('hidden'); }
 
-        function saveCardEdit() {
+        async function saveCardEdit() {
             const id = document.getElementById('editCardId').value;
             const newWord = document.getElementById('editWordInput').value.trim();
             const newSentence = document.getElementById('editSentenceInput').value.trim();
@@ -7997,7 +8033,6 @@ ${mnemonic}`;
             const newSenseLabel = document.getElementById('editSenseLabelInput').value.trim();
             const newPos = document.getElementById('editPosInput').value.trim();
             const newCollocations = normalizeCollocations(document.getElementById('editCollocationsInput').value);
-            const newFamilyKey = document.getElementById('editFamilyKeyInput').value.trim() || newWord;
             const newFrequencyBand = document.getElementById('editFrequencyBandSelect').value || 'unknown';
             const newSourceType = document.getElementById('editSourceTypeSelect').value || 'legacy';
             const newSourceLabel = document.getElementById('editSourceLabelInput').value.trim();
@@ -8011,6 +8046,12 @@ ${mnemonic}`;
 
             const cardIndex = deck.findIndex(c => c.id === id);
             if (cardIndex > -1) {
+                const oldWord = deck[cardIndex].word || '';
+                const wordIdentityChanged = normalizeWordKey(oldWord) !== normalizeWordKey(newWord);
+                const enteredFamilyKey = document.getElementById('editFamilyKeyInput').value.trim();
+                const resolvedFamilyKey = !enteredFamilyKey || normalizeWordKey(enteredFamilyKey) === normalizeWordKey(oldWord)
+                    ? newWord
+                    : enteredFamilyKey;
                 const duplicateIndex = findCardIndexBySense(newWord, newPos, newSenseLabel, newDef);
                 if (duplicateIndex !== -1 && deck[duplicateIndex].id !== id) {
                     alert('相同单词、词性和义项的卡片已经存在。');
@@ -8024,7 +8065,7 @@ ${mnemonic}`;
                 deck[cardIndex].senseLabel = newSenseLabel;
                 deck[cardIndex].pos = newPos;
                 deck[cardIndex].collocations = newCollocations;
-                deck[cardIndex].familyKey = newFamilyKey;
+                deck[cardIndex].familyKey = resolvedFamilyKey;
                 deck[cardIndex].frequencyBand = newFrequencyBand;
                 deck[cardIndex].sourceType = newSourceType;
                 deck[cardIndex].sourceLabel = newSourceLabel;
@@ -8039,6 +8080,10 @@ ${mnemonic}`;
                     if (tempEditData.family) deck[cardIndex].family = tempEditData.family;
                     if (tempEditData.contrast) deck[cardIndex].contrast = tempEditData.contrast;
                     tempEditData = {}; // 用完即焚，清空数据
+                } else if (wordIdentityChanged) {
+                    // 改成另一个词时，旧词根/词族已不可信，不能继续展示。
+                    deck[cardIndex].morphemes = null;
+                    deck[cardIndex].family = '';
                 }
 
                 // 【关键同步修复】标记该卡片在云端已过期，需要被同步
@@ -8046,15 +8091,17 @@ ${mnemonic}`;
                 deck[cardIndex].updated_at = new Date().toISOString();
 
                 // 【修改】改为单条保存
-                db.saveCard(deck[cardIndex]);
+                await db.saveCard(deck[cardIndex]);
 
                 // saveDeck(); // 原来的全量保存注释掉
+                currentPromptCardId = null;
+                currentAnswerRevealed = false;
                 renderListContent();
                 render();
                 closeEditModal();
 
                 // 【自动同步】触发后台云同步，防止多设备数据断流
-                pushToCloud();
+                await pushToCloud();
             }
         }
 
@@ -8121,6 +8168,7 @@ ${mnemonic}`;
 
         // 【新增】功能1：RSVP 极速阅读模式 (优化版：requestAnimationFrame防卡顿)
         function startRSVP() {
+            if (!currentAnswerRevealed) return;
             if (!currentCard || !currentCard.sentence) return alert("No context sentence to RSVP!");
 
             const displayEl = document.getElementById('currentSentence');
@@ -8310,13 +8358,15 @@ ${mnemonic}`;
 
         // 【新增】造句挑战逻辑
         async function startSentenceChallenge() {
-            const userSentence = prompt(`请用单词 "${currentCard.word}" 造一个句子（英文）：`);
+            if (!currentCard || !currentAnswerRevealed) return;
+            const targetCard = currentCard;
+            const userSentence = prompt(`请用单词 "${targetCard.word}" 造一个句子（英文）：`);
             if (!userSentence) return;
 
             const contentDiv = document.getElementById('deepContent');
             contentDiv.innerHTML = '<div class="spinner"></div> 正在分析你的语法和地道程度...';
 
-            const promptCheck = `用户正在尝试用单词 "${currentCard.word}" 造句。
+            const promptCheck = `用户正在尝试用单词 "${targetCard.word}" 造句。
         用户的句子是: "${userSentence}"
         请你作为母语英语老师进行评估：
         1. 语法是否正确？如果不正确，请修正。
@@ -8335,7 +8385,9 @@ ${mnemonic}`;
                     })
                 });
                 const data = await response.json();
-                renderTextCard(contentDiv, { label: '🕵️ AI Feedback:', text: data.choices[0].message.content, background: '#e3f2fd', borderColor: '#2196f3' });
+                if (currentCard && currentCard.id === targetCard.id && currentAnswerRevealed) {
+                    renderTextCard(contentDiv, { label: '🕵️ AI Feedback:', text: data.choices[0].message.content, background: '#e3f2fd', borderColor: '#2196f3' });
+                }
             } catch (e) { alert("AI Error"); }
         }
 
@@ -8368,9 +8420,10 @@ ${mnemonic}`;
         // 新增：思维差异生成
         async function fetchDeepContext(type, btn) {
             if (!currentCard || type !== 'contrast') return;
+            const targetCard = currentCard;
 
             const contentDiv = document.getElementById('deepContent');
-            if (currentCard.contrast) {
+            if (targetCard.contrast) {
                 renderContrastForCurrentCard();
                 return;
             }
@@ -8379,7 +8432,7 @@ ${mnemonic}`;
             btn.innerText = "Thinking...";
             contentDiv.innerHTML = '<div class="spinner"></div>';
 
-            const promptContrast = `针对单词 "${currentCard.word}"，请进行【中英思维对比分析】(Contrastive Analysis)。
+            const promptContrast = `针对单词 "${targetCard.word}"，请进行【中英思维对比分析】(Contrastive Analysis)。
         1. 指出该词在中文直译时容易产生的误解（L1 Interference）。
         2. 解释在英语母语语境下(尤其是考研/学术)，它真正的逻辑色彩是什么（褒义/贬义/中性）。
         3. 举一个简单的例子说明这种差异。
@@ -8405,14 +8458,19 @@ ${mnemonic}`;
                 const data = await response.json();
                 const text = data.choices[0].message.content;
 
-                currentCard.contrast = text;
-                db.saveCard(currentCard);
+                targetCard.contrast = text;
+                targetCard.needsSync = true;
+                targetCard.updated_at = new Date().toISOString();
+                await db.saveCard(targetCard);
+                await pushToCloud();
 
-                renderContrastForCurrentCard();
+                if (currentCard && currentCard.id === targetCard.id && currentAnswerRevealed) renderContrastForCurrentCard();
 
             } catch (e) {
-                alert("AI Error: " + e.message);
-                contentDiv.innerText = "";
+                if (currentCard && currentCard.id === targetCard.id && currentAnswerRevealed) {
+                    alert("AI Error: " + e.message);
+                    contentDiv.innerText = "";
+                }
             } finally {
                 btn.innerText = originalText;
             }
@@ -9896,13 +9954,13 @@ ${mnemonic}`;
             return card.history.filter(h => Number(h.rating) <= 2).length;
         }
 
-        // FSRS 可提取度 R: 此刻能想起的概率。复用 rate() 同款公式。
+        // FSRS 可提取度 R: 此刻能想起的概率。与主调度器共用 FSRS-6 遗忘曲线。
         function getRetrievability(card, now = Date.now()) {
             const s = Number(card.stability) || 0;
             const state = (card.state === undefined) ? ((card.reps === 0) ? 0 : 2) : card.state;
             if (state === 0 || !card.lastReview) return 0;
             const elapsed = (now - card.lastReview) / 86400000;
-            return 1 / (1 + elapsed / (9 * (s || 1)));
+            return predictR(s, elapsed);
         }
 
         // 回忆甜区打分: 高斯钟形, 中心 R=0.55, 标准差 0.2
@@ -10097,10 +10155,8 @@ ${mnemonic}`;
                 return false;
             }
 
-            if (Array.isArray(parsed.used_words)) {
-                parsed.used_words.forEach(addWord);
-            }
-
+            // used_words 只是模型自报，不能作为“正文确实出现”的证据。
+            // 只接受正文 [[...]] 标记或正文实际匹配到的词，避免假覆盖。
             const highlightedTerms = [...body.matchAll(/\[\[([^\]]+)\]\]/g)].map(m => normalizeArticleWordText(m[1]));
             highlightedTerms.forEach(term => {
                 if (addWord(term)) return;
@@ -10358,6 +10414,11 @@ ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).
                 return;
             }
 
+            // 在任何异步写入前先锁定，避免手机双击重复追加阅读记录。
+            articleReaderState.saved = true;
+            const saveBtn = document.getElementById('articleSaveFeedbackBtn');
+            if (saveBtn) saveBtn.disabled = true;
+
             const now = Date.now();
             const counts = { recalled: 0, inferred: 0, forgotten: 0 };
             const promises = [];
@@ -10383,16 +10444,21 @@ ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).
             });
 
             Promise.all(promises).then(() => {
-                articleReaderState.saved = true;
                 pushToCloud();
                 render();
                 if (fbEl) {
                     fbEl.style.color = counts.forgotten ? '#ff9500' : '#15803d';
                     fbEl.innerText = `已记录：读到时就懂 ${counts.recalled}，靠语境猜到 ${counts.inferred}，读到时没懂 ${counts.forgotten}。${counts.forgotten ? '阅读时没懂的词已进入待复习。' : ''}`;
                 }
-                const saveBtn = document.getElementById('articleSaveFeedbackBtn');
-                if (saveBtn) saveBtn.disabled = true;
                 renderArticleFeedbackList();
+            }).catch(error => {
+                articleReaderState.saved = false;
+                if (saveBtn) saveBtn.disabled = false;
+                console.error('阅读反馈保存失败', error);
+                if (fbEl) {
+                    fbEl.style.color = '#ff3b30';
+                    fbEl.innerText = '保存失败，请重试。';
+                }
             });
         }
 
