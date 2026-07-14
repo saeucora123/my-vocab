@@ -8061,7 +8061,6 @@ ${mnemonic}`;
         // --- 8. Speech (Updated with Edge TTS Logic) ---
         function speakCurrentCard() {
             if (!currentCard || !currentCard.word) return;
-            if (!currentAnswerRevealed && currentPromptType !== 'audio') currentUsedHint = true;
 
             // 1. 智能语音选择 (兼容 iOS Safari 和 PC Edge)
             const voices = speechSynthesis.getVoices();
