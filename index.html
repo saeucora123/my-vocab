@@ -5385,6 +5385,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         let currentPromptCardId = null;
         let currentAnswerCorrect = null;
         let currentUsedHint = false;
+        // 评分只读取翻答案瞬间冻结的提示状态；答案页上的 Logic/例句/词根不属于提示。
+        let currentRecallHintUsed = false;
         let currentAnswerRevealed = false;
         let currentReviewStartedAt = 0;
         let currentClozeHintUsed = false;
@@ -6512,6 +6514,7 @@ ${mnemonic}`;
                     currentConfidence = 0;
                     currentAnswerCorrect = null;
                     currentUsedHint = false;
+                    currentRecallHintUsed = false;
                     currentAnswerRevealed = false;
                     currentReviewStartedAt = now;
                     currentClozeHintUsed = false;
@@ -6830,7 +6833,7 @@ ${mnemonic}`;
             const signalHtml = currentClozeAlternative
                 ? '<br><span style="font-size:11px; color:#9a5b00;">你的答案在语境中可能成立，但没有提取到本卡目标词；本题最多按“勉强”评价。</span>'
                 : (currentAnswerCorrect === null ? '' :
-                    `<br><span style="font-size:11px; color:${currentAnswerCorrect ? '#15803d' : '#b91c1c'};">本题输入：${currentAnswerCorrect ? '正确' : '未正确'}${currentUsedHint ? ' · 使用过提示' : ''}</span>`);
+                    `<br><span style="font-size:11px; color:${currentAnswerCorrect ? '#15803d' : '#b91c1c'};">本题输入：${currentAnswerCorrect ? '正确' : '未正确'}${currentRecallHintUsed ? ' · 答案揭示前使用过提示' : ''}</span>`);
             target.innerHTML = stateLabel + predictionHtml + signalHtml;
         }
 
@@ -6877,6 +6880,9 @@ ${mnemonic}`;
             }
 
             // --- 3. 真正揭示答案 (Actual Reveal) ---
+            // 从这里开始，用户看到的 Logic、Context、词根、例句都属于答案解析。
+            // 本次评分只使用此刻之前的提示状态，之后任何展开操作都不能反向污染评分。
+            if (!currentAnswerRevealed) currentRecallHintUsed = !!currentUsedHint;
             currentAnswerRevealed = true;
             // 隐藏自信度选择器
             document.getElementById('confidenceSelector').classList.add('hidden');
@@ -7331,8 +7337,8 @@ ${mnemonic}`;
                 alert('本题输入没有答对，本次应按“忘了”。');
                 return;
             }
-            if (currentUsedHint && g >= 3) {
-                alert('本题使用过提示，本次最多按“勉强想起”。');
+            if (currentRecallHintUsed && g >= 3) {
+                alert('本题在答案揭示前使用过提示，本次最多按“勉强想起”。');
                 return;
             }
             const now = Date.now();
@@ -7354,7 +7360,7 @@ ${mnemonic}`;
                 prompt_type: currentPromptType,
                 answer_correct: currentAnswerCorrect,
                 confidence: currentConfidence || null,
-                hint_used: !!currentUsedHint,
+                hint_used: !!currentRecallHintUsed,
                 cloze_hint_used: !!currentClozeHintUsed,
                 cloze_alternative_reported: !!currentClozeAlternative
             });
@@ -7373,6 +7379,7 @@ ${mnemonic}`;
             currentPromptCardId = null;
             currentAnswerCorrect = null;
             currentUsedHint = false;
+            currentRecallHintUsed = false;
             currentClozeHintUsed = false;
             currentClozeAlternative = false;
             currentReviewStartedAt = 0;
