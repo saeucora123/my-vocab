@@ -1185,12 +1185,10 @@
                         style="margin-top:8px;"></textarea>
                     <textarea id="newCollocationsInput" rows="2" placeholder="核心搭配，用逗号分隔"
                         style="margin-top:8px;"></textarea>
-                    <textarea id="newClozeSentenceInput" rows="2" placeholder="专用挖空句（必须包含目标词；普通例句不会自动拿来挖空）"
-                        style="margin-top:8px;"></textarea>
-                    <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#475467; margin-top:7px;">
-                        <input id="newClozeEnabled" type="checkbox" style="width:auto; margin:0;">
-                        该词和这句话适合语境挖空（至少复习4次后才会出题）
-                    </label>
+                    <div hidden aria-hidden="true" data-retired-feature="cloze-recall">
+                        <textarea id="newClozeSentenceInput" rows="2" placeholder="语境挖空已停用"></textarea>
+                        <input id="newClozeEnabled" type="checkbox">
+                    </div>
                     <div style="font-size:12px; font-weight:800; color:#555; margin:10px 0 6px;">目标计数与来源</div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                         <input id="newFamilyKeyInput" type="text" placeholder="词族主词，如：act（留空=本词）">
@@ -1624,7 +1622,7 @@
                     <textarea id="editCollocationsInput" rows="2" placeholder="用逗号分隔"></textarea>
                 </div>
 
-                <div>
+                <div hidden aria-hidden="true" data-retired-feature="cloze-recall">
                     <label style="font-size:12px; color:gray;">专用语境挖空句</label>
                     <textarea id="editClozeSentenceInput" rows="2" placeholder="必须包含目标词；留空则不出挖空题"></textarea>
                     <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#475467; margin-top:7px;">
@@ -4252,7 +4250,11 @@ ${mnemonic}`;
             return { enabled: true, sentence: cleanSentence, reason: '' };
         }
 
+        // 用户已停用“看语境填写目标英文”题型。保留旧字段仅用于数据兼容，绝不进入复习调度。
+        const CLOZE_RECALL_ENABLED = false;
+
         function isClozeEligible(card) {
+            if (!CLOZE_RECALL_ENABLED) return false;
             if (!card || Number(card.reps || 0) < 4 || card.clozeEnabled !== true) return false;
             if (!card.pos || !String(card.glossZh || '').trim()) return false;
             if (isBroadClozeWord(card.word)) return false;
@@ -4262,10 +4264,8 @@ ${mnemonic}`;
         function choosePromptType(card, isExam) {
             if (isExam || !card || card.state === 0 || (card.reps || 0) < 2) return 'meaning';
             const hasDefinition = !!String(card.glossZh || card.definition || '').trim();
-            const hasCloze = isClozeEligible(card);
             const roll = Math.random();
             if (roll < 0.15) return 'audio';
-            if (roll < 0.30 && hasCloze) return 'cloze';
             if (roll < 0.50 && hasDefinition) return 'form';
             return 'meaning';
         }
