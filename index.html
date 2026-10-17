@@ -4255,7 +4255,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
         const AI_CONFIG = {
             // 请在下面引号里填入你的 DeepSeek API Key，例如 "sk-ab12345..."
-            apiKey: "sk-611bb4f526e9451a95ca2cc30fc0d830",
+            apiKey: "sk-1530c3811593405b977c519d81bc637d",
 
             // DeepSeek 的接口地址
             baseUrl: "https://api.deepseek.com/chat/completions",
@@ -10212,26 +10212,25 @@ ${mnemonic}`;
                 definition: (c.definition || '').trim()
             }));
 
-            const prompt = `你是一位克制、自然的英语写作老师。你的目标不是炫技，也不是把单词硬塞进文章，而是写出像真实英文材料一样顺滑的短文。
+            const prompt = `你是一位面向中国大学英语学习者的英语六级词汇复习短文编辑。首要目标是帮助学习者在自然语境中复习候选词；文章应短而易读，不要为了显得难而堆词。
 
-请从下面 ${wordList.length} 个候选单词/词组中，挑选最适合放进同一个自然场景的 ${ARTICLE_TARGET_MIN}-${ARTICLE_TARGET_MAX} 个，写一篇 140-190 词的英文短文，帮读者在语境中回忆这些词。
+请从下面 ${wordList.length} 个候选单词/词组中，挑选最适合自然共处的 ${ARTICLE_TARGET_MIN}-${ARTICLE_TARGET_MAX} 个，写一篇约 160-210 个英文词的短文，帮助读者通过语境理解并记住这些目标词。
 
-【硬性要求】
-1. 只使用你挑中的目标词，不必用完全部候选词。used_words 必须只填写实际用到的词，并使用候选词中的原始拼写。
-2. 文章必须像真实材料：可以是校园片段、工作讨论、新闻短评、日记、考试阅读段落或短辩论。
-3. 不要写童话、夸张剧情、鸡汤、强行反转，也不要为了塞词制造奇怪句子。
-4. 目标词在正文中请用 [[目标词]] 包裹；可以合理变形，但读者要一眼能认出。
-5. 除目标词外，其它词汇尽量用常见词（CET-4 以内），降低阅读门槛。
-6. 写完后自检：如果某个目标词显得突兀，请换一个候选词或重写句子。
-7. 输出必须是严格的 JSON，格式如下，不要输出 JSON 以外的任何文字或 Markdown 代码块：
+【难度与选词】
+1. 词汇和句式整体接近 CET-6 阅读材料（约 CEFR B2），有适度挑战但清楚易读；非目标词不必全部高级，避免罕见词。
+2. 只选候选词中最自然的一组，共 ${ARTICLE_TARGET_MIN}-${ARTICLE_TARGET_MAX} 个。目标词须符合所给释义和词性，放进自然搭配和语境；不硬塞，也不必使用全部候选词。
+3. 每个选中的目标词至少自然出现一次。用上下文提供理解线索，不要直接给中文释义或词典式解释。目标词可按语法需要变形，正文用 [[...]] 标出实际词形；used_words 只列正文实际使用的候选词原形。
+4. 围绕一个明确主题或情境，用 1-2 个自然段即可，不必写成完整议论文。可用例子、原因结果或对比帮助理解；不要编造具体数据、研究、机构或引语。
+5. 标题和正文均用英文；除目标词标记外，正文不加 HTML、Markdown 或中文释义。
+6. 输出前检查正文约 160-210 个英文词、目标词释义准确、标记和 used_words 一致、语篇自然；严格输出 JSON，不要输出 JSON 以外的文字或代码块：
 {
-  "title": "文章标题(英文)",
-  "style": "chosen style",
+  "title": "Article title",
+  "style": "Topic or genre",
   "used_words": ["word1", "word2"],
-  "body": "文章正文(英文)，目标词请用 [[目标词]] 这种双方括号包裹，例如 The scientist could [[mitigate]] the risk."
+  "body": "A 160-210-word English passage; mark each used target word as [[word]]."
 }
 
-【候选目标词及其释义（供你理解词义，body 里只放英文单词本身，不要放释义）】
+【候选目标词及其释义（仅用于判断词义和自然选词；正文用英文，不要抄写或翻译释义）】
 ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).join(' / ') || '(无释义)'}`).join('\n')}`;
 
             try {
@@ -10241,7 +10240,7 @@ ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).
                     body: JSON.stringify({
                         model: AI_CONFIG.model,
                         messages: [
-                            { role: 'system', content: '你是英语写作助手，擅长从候选生词中挑选能自然共处的一组，写成真实、克制、易读的英文短文，并严格按 JSON 输出。' },
+                            { role: 'system', content: '你是面向中国大学英语学习者的英语六级词汇复习短文编辑。首要目标是帮助学习者在自然语境中复习候选词；文章约 160-210 个英文词，词汇和句式有适度六级挑战且容易理解。保持自然、准确、连贯，不堆砌生僻词，并严格遵守提示中的目标词标记和 JSON 格式。' },
                             { role: 'user', content: prompt }
                         ],
                         temperature: 0.6
