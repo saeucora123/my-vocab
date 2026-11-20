@@ -1,0 +1,27 @@
+name: Keep Supabase Alive
+on:
+  schedule:
+    # 每 3 天自动运行一次（UTC 02:17 ≈ 北京时间 10:17），防止 Supabase 免费版 7 天无访问自动暂停
+    - cron: '17 2 */3 * *'
+  workflow_dispatch:
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Postgres (cards table)
+        env:
+          SUPABASE_URL: https://uwkcoklvlpajqnzcuque.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3a2Nva2x2bHBhanFuemN1cXVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNzU5MjUsImV4cCI6MjA4Njg1MTkyNX0.F8uiQkRxa3lK7c8gJ673jOrLK7bNNsbLIYnLKBo7iAA
+        run: |
+          HTTP_STATUS=$(curl -sS -o /tmp/supabase_ping.out -w "%{http_code}" \
+            --retry 2 --retry-delay 5 --max-time 30 \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/cards?select=id&limit=1")
+          echo "Supabase ping HTTP status: ${HTTP_STATUS}"
+          if [ "${HTTP_STATUS}" -lt 200 ] || [ "${HTTP_STATUS}" -ge 300 ]; then
+            echo "Supabase ping failed! Body:"
+            cat /tmp/supabase_ping.out || true
+            exit 1
+          fi
+          echo "Supabase keep-alive succeeded."
