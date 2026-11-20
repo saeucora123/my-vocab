@@ -1456,17 +1456,17 @@
             <div class="data-tools">
                 <span class="text-link" onclick="window.location.reload()">🔄 Refresh</span>
                 <span class="text-link" onclick="toggleWordList()">📖 View List</span>
-                <span class="text-link" onclick="exportData()">⬇ Export</span>
+                <span class="text-link" id="exportDataBtn" onclick="exportData()">⬇ Export</span>
                 <span class="text-link" onclick="triggerImport()">⬆ Import</span>
                 <span class="text-link" onclick="openSettings()">⚙️ Params</span>
                 <span class="text-link" style="color: var(--danger);" onclick="clearData()">Reset</span>
             </div>
-            <input type="file" id="importJsonInput" accept=".json" onchange="handleFileImport(event)"
+            <input type="file" id="importJsonInput" accept=".json,application/json,text/plain" onchange="handleFileImport(event)"
                 style="display:none;">
         </div>
     </div>
 
-    <div class="watermark">软件制作者微信 Saeuco v3.1 · FSRS-6 English Pro</div>
+    <div class="watermark">软件制作者微信 Saeuco v3.1.1 · FSRS-6 English Pro</div>
 
     <!-- [新增] 传送门按钮：点击跳转到 listening.html -->
     <a href="listening.html" class="portal-btn" title="去听力训练">
@@ -1939,6 +1939,37 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- 【新增】iOS / 全平台可靠备份与导入弹窗 (Export & Paste Backup Modal) -->
+    <div id="exportBackupModal" class="modal-overlay hidden" style="z-index: 1500;">
+        <div class="modal-content" style="height: auto; max-height: 88vh; overflow-y: auto;">
+            <div class="modal-header">
+                <div class="modal-title">💾 备份导出（iPhone / 电脑兼容）</div>
+                <button class="close-btn" onclick="closeExportBackupModal()">Close</button>
+            </div>
+            <div id="exportBackupSummary" style="background:#f8f9fa; border-radius:12px; padding:12px; font-size:13px; color:#475467; line-height:1.6; margin-bottom:14px;"></div>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+                <button type="button" id="btnShareBackupFile" class="add-btn full-width-btn"
+                    style="background:linear-gradient(135deg,#007aff,#005bb5); padding:14px; font-size:15px;"
+                    onclick="shareExportBackupFile()">📤 系统分享 / 存储到「文件」（iPhone 推荐）</button>
+                <button type="button" class="action-btn"
+                    style="width:100%; background:#34c759; color:white; padding:13px; font-size:14px;"
+                    onclick="downloadExportBackupFile()">⬇️ 直接下载 .json 文件</button>
+                <button type="button" class="action-btn"
+                    style="width:100%; background:#5856d6; color:white; padding:13px; font-size:14px;"
+                    onclick="copyExportBackupJson()">📋 一键复制完整 JSON（可粘贴存到备忘录）</button>
+            </div>
+            <div id="exportBackupStatus" style="font-size:12px; color:#15803d; text-align:center; min-height:18px; margin-bottom:12px;"></div>
+            <details style="background:#f8f9fa; border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px;">
+                <summary style="font-size:13px; font-weight:700; color:#374151; cursor:pointer;">📥 或者：粘贴 JSON 文本直接导入恢复</summary>
+                <textarea id="pasteImportJsonInput" rows="4" placeholder="把之前复制保存的备份 JSON 粘贴到这里..."
+                    style="width:100%; margin-top:10px; padding:10px; font-size:13px; background:#fff; border:1px solid #d1d5db; border-radius:8px; box-sizing:border-box;"></textarea>
+                <button type="button" class="action-btn"
+                    style="width:100%; margin-top:8px; background:#ff9500; color:white; padding:11px; font-size:13px;"
+                    onclick="handlePasteImport()">导入粘贴的 JSON</button>
+            </details>
         </div>
     </div>
 
@@ -6697,14 +6728,16 @@ ${senseInstruction}
             const empty = document.getElementById('emptyState');
             const inputSec = document.getElementById('inputSection');
 
-            // --- 备份提醒逻辑 (新增) ---
+            // --- 备份提醒逻辑 (修复：用精确 ID 定位 Export 按钮，不再误改 View List) ---
             const lastBackup = localStorage.getItem('fsrs_last_backup');
             const daysSinceBackup = lastBackup ? (Date.now() - parseInt(lastBackup)) / (1000 * 60 * 60 * 24) : 999;
-            const exportBtn = document.querySelector('.data-tools span:nth-child(2)'); // 找到 Export 按钮
-            if (daysSinceBackup > 3) {
-                exportBtn.innerHTML = "⬇ Export <span style='color:red;font-weight:bold'>(!Backup Needed!)</span>";
-            } else {
-                exportBtn.innerHTML = "⬇ Export";
+            const exportBtn = document.getElementById('exportDataBtn');
+            if (exportBtn) {
+                if (daysSinceBackup > 3) {
+                    exportBtn.innerHTML = "⬇ Export <span style='color:red;font-weight:bold'>(!Backup Needed!)</span>";
+                } else {
+                    exportBtn.innerHTML = "⬇ Export";
+                }
             }
 
             if (dueCards.length > 0) {
@@ -7722,9 +7755,10 @@ ${senseInstruction}
             alert(`Added ${count} words! Use Edit (✏️) to auto-fill context later.`);
         }
 
-        // --- 6. Data Management ---
-        async function exportData() {
-            // 构建可自描述的 FSRS-6 数据包；旧版导入器仍可读取 cards/settings。
+        // --- 6. Data Management (iOS Safari / PWA & Desktop 兼容升级) ---
+        let lastPreparedExport = null;
+
+        function buildExportPayload() {
             const exportPackage = {
                 version: 3,
                 timestamp: Date.now(),
@@ -7739,18 +7773,170 @@ ${senseInstruction}
                 },
                 cards: deck
             };
+            const jsonText = JSON.stringify(exportPackage);
+            const filename = `fsrs_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            const blob = new Blob([jsonText], { type: 'application/json;charset=utf-8' });
+            let file = null;
+            try {
+                const jsonFile = new File([blob], filename, { type: 'application/json' });
+                if (typeof navigator !== 'undefined' && navigator.canShare && !navigator.canShare({ files: [jsonFile] })) {
+                    const textFile = new File([jsonText], filename, { type: 'text/plain;charset=utf-8' });
+                    file = navigator.canShare({ files: [textFile] }) ? textFile : jsonFile;
+                } else {
+                    file = jsonFile;
+                }
+            } catch (e) {
+                file = null;
+            }
+            return { exportPackage, jsonText, filename, blob, file };
+        }
 
-            // 3. 记录备份时间
+        function isIOSDevice() {
+            return /iP(hone|ad|od)/i.test(navigator.userAgent || '')
+                || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        }
+
+        function setExportBackupStatus(message, color = '#15803d') {
+            const el = document.getElementById('exportBackupStatus');
+            if (el) {
+                el.style.color = color;
+                el.innerText = message || '';
+            }
+        }
+
+        function openExportBackupModal(prepared) {
+            lastPreparedExport = prepared || buildExportPayload();
+            const sizeKB = (lastPreparedExport.blob.size / 1024).toFixed(1);
+            const summaryEl = document.getElementById('exportBackupSummary');
+            if (summaryEl) {
+                summaryEl.innerHTML = `共 <strong>${deck.length}</strong> 张卡片 · 文件大小约 <strong>${sizeKB} KB</strong><br>文件名：<code>${escapeHTML(lastPreparedExport.filename)}</code><br><span style="font-size:12px; color:#667085;">iPhone 上请优先点「系统分享」，再选择「存储到“文件”」或发给微信文件传输助手。</span>`;
+            }
+            const shareBtn = document.getElementById('btnShareBackupFile');
+            if (shareBtn) {
+                const canShareFiles = !!(lastPreparedExport.file && navigator.share && (!navigator.canShare || navigator.canShare({ files: [lastPreparedExport.file] })));
+                shareBtn.style.display = canShareFiles ? 'block' : 'none';
+            }
+            setExportBackupStatus('');
+            document.getElementById('exportBackupModal')?.classList.remove('hidden');
+        }
+
+        function closeExportBackupModal() {
+            document.getElementById('exportBackupModal')?.classList.add('hidden');
+        }
+
+        function triggerBlobDownload(prepared) {
+            const url = URL.createObjectURL(prepared.blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = prepared.filename;
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 15000);
+        }
+
+        async function shareExportBackupFile() {
+            const prepared = lastPreparedExport || buildExportPayload();
+            lastPreparedExport = prepared;
+            try {
+                if (prepared.file && navigator.share && (!navigator.canShare || navigator.canShare({ files: [prepared.file] }))) {
+                    await navigator.share({
+                        files: [prepared.file],
+                        title: prepared.filename
+                    });
+                    localStorage.setItem('fsrs_last_backup', Date.now());
+                    render();
+                    setExportBackupStatus('✅ 已完成系统分享导出！');
+                    return true;
+                }
+                setExportBackupStatus('当前浏览器不支持文件分享，请改点下方「直接下载」或「一键复制」。', '#b45309');
+                return false;
+            } catch (err) {
+                if (err && err.name === 'AbortError') {
+                    setExportBackupStatus('已取消分享。如需备份可重新点击，或使用下方「一键复制」。', '#667085');
+                    return false;
+                }
+                console.warn('Share export failed:', err);
+                setExportBackupStatus('系统分享不可用，请改点下方「直接下载」或「一键复制」。', '#b45309');
+                return false;
+            }
+        }
+
+        function downloadExportBackupFile() {
+            const prepared = lastPreparedExport || buildExportPayload();
+            lastPreparedExport = prepared;
+            try {
+                triggerBlobDownload(prepared);
+                localStorage.setItem('fsrs_last_backup', Date.now());
+                render();
+                setExportBackupStatus('✅ 已触发文件下载（iPhone 若未弹窗，请点上方「系统分享」或下方「一键复制」）。');
+            } catch (err) {
+                console.error('Blob download failed:', err);
+                setExportBackupStatus('直接下载受限，请改用「系统分享」或「一键复制」。', '#ff3b30');
+            }
+        }
+
+        async function copyExportBackupJson() {
+            const prepared = lastPreparedExport || buildExportPayload();
+            lastPreparedExport = prepared;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(prepared.jsonText);
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = prepared.jsonText;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    document.execCommand('copy');
+                    ta.remove();
+                }
+                localStorage.setItem('fsrs_last_backup', Date.now());
+                render();
+                setExportBackupStatus(`✅ 已复制完整备份（${deck.length} 张卡），可直接粘贴保存到 iPhone 备忘录！`);
+            } catch (err) {
+                console.error('Clipboard copy failed:', err);
+                setExportBackupStatus('复制失败，请尝试「系统分享」导出文件。', '#ff3b30');
+            }
+        }
+
+        async function exportData() {
+            const prepared = buildExportPayload();
+            lastPreparedExport = prepared;
+
+            // iPhone / iPad（尤其是主屏幕全屏 PWA）：优先直接调起原生分享面板（存储到“文件”），彻底避开 data: URL 超限与 PWA 拦截下载
+            if (isIOSDevice()) {
+                if (prepared.file && navigator.share && (!navigator.canShare || navigator.canShare({ files: [prepared.file] }))) {
+                    try {
+                        await navigator.share({
+                            files: [prepared.file],
+                            title: prepared.filename
+                        });
+                        localStorage.setItem('fsrs_last_backup', Date.now());
+                        render();
+                        return;
+                    } catch (err) {
+                        // 用户取消或 iOS 拒绝时自动打开可视化备份面板（提供分享 / Blob下载 / 一键复制）
+                        openExportBackupModal(prepared);
+                        if (err && err.name === 'AbortError') {
+                            setExportBackupStatus('已取消分享。你也可以在这里重新分享、下载或一键复制备份。', '#667085');
+                        } else {
+                            setExportBackupStatus('请点上方蓝色按钮调用系统分享，或一键复制 JSON 备份。', '#b45309');
+                        }
+                        return;
+                    }
+                }
+                openExportBackupModal(prepared);
+                return;
+            }
+
+            // 桌面端 / Android：改用 Blob URL 直接下载（无大小上限），不再用旧版 data: URI
             localStorage.setItem('fsrs_last_backup', Date.now());
             render();
-
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportPackage));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", `fsrs_backup_${new Date().toISOString().slice(0, 10)}.json`);
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+            triggerBlobDownload(prepared);
         }
 
         async function clearData() {
@@ -7798,113 +7984,137 @@ ${senseInstruction}
         }
 
         function triggerImport() { document.getElementById('importJsonInput').click(); }
+
+        async function importJsonText(rawText) {
+            try {
+                const rawData = JSON.parse(rawText);
+                let newCards = [];
+                let newSettings = null;
+
+                // 1. 识别数据格式 (兼容旧版数组和新版对象)
+                if (Array.isArray(rawData)) {
+                    newCards = rawData; // 旧版格式
+                } else if (rawData && Array.isArray(rawData.cards)) {
+                    newCards = rawData.cards; // 新版格式
+                    newSettings = rawData.settings;
+                } else {
+                    throw new Error("Invalid Format");
+                }
+
+                // 2. 询问合并策略
+                const mode = prompt(
+                    "导入模式 (请输入数字):\n1. 跳过重复 (保留当前进度)\n2. 强制覆盖 (使用文件中的进度)\n3. 仅添加新词",
+                    "1"
+                );
+                if (!['1', '2', '3'].includes(mode)) return false;
+
+                let addedCount = 0;
+                let updatedCount = 0;
+
+                // 3. 只导入合法的 FSRS-6 参数；17参数旧备份只迁移卡片，不复活旧调度器。
+                const importedV6 = newSettings && newSettings.fsrs_parameters_v6;
+                const importedWeights = importedV6 && Array.isArray(importedV6.w)
+                    ? importedV6.w
+                    : (newSettings && Array.isArray(newSettings.fsrs_weights) ? newSettings.fsrs_weights : null);
+                if (isValidFsrs6Weights(importedWeights) && confirm('文件中包含 FSRS-6 参数，是否应用？')) {
+                    p.w = importedWeights.map(Number);
+                    await db.saveSetting('fsrs_parameters_v6', getFsrsParameters());
+                }
+                if (newSettings && newSettings.vocab_goal_plan && confirm('备份中包含词汇目标和学习负荷设置，是否一并恢复？')) {
+                    vocabGoal = { ...DEFAULT_VOCAB_GOAL, ...newSettings.vocab_goal_plan };
+                    const importedLimit = Number(newSettings.fsrs_new_limit);
+                    const importedRetention = Number(newSettings.fsrs_retention);
+                    if (Number.isInteger(importedLimit) && importedLimit >= 0 && importedLimit <= 100) newCardsPerDay = importedLimit;
+                    if (Number.isFinite(importedRetention) && importedRetention >= 0.85 && importedRetention <= 0.95) p.requestRetention = importedRetention;
+                    if (typeof newSettings.auto_speak_front === 'boolean') autoSpeakFront = newSettings.auto_speak_front;
+                    await Promise.all([
+                        db.saveSetting('vocab_goal_plan', vocabGoal),
+                        db.saveSetting('fsrs_new_limit', newCardsPerDay),
+                        db.saveSetting('fsrs_retention', p.requestRetention),
+                        db.saveSetting('auto_speak_front', autoSpeakFront),
+                        db.saveSetting('fsrs_parameters_v6', getFsrsParameters())
+                    ]);
+                }
+
+                // 4. 处理卡片。ID 是稳定身份；释义会被编辑，不能拿释义当主键。
+                const importTime = new Date().toISOString();
+                newCards.forEach(importCard => {
+                    const idIndex = importCard && importCard.id
+                        ? deck.findIndex(card => card && card.id === importCard.id)
+                        : -1;
+                    const existingIndex = idIndex !== -1
+                        ? idIndex
+                        : findCardIndexBySense(importCard.word, importCard.pos, importCard.senseLabel, importCard.definition);
+
+                    if (existingIndex === -1) {
+                        // 新词 -> 直接添加 (规整字段, 防 FSRS/reps 判定错乱)
+                        const normalized = normalizeCardFields(importCard);
+                        migrateCardToFsrs6(normalized);
+                        normalized.needsSync = true;
+                        normalized.updated_at = importTime;
+                        deck.push(normalized);
+                        addedCount++;
+                    } else {
+                        // 单词已存在
+                        if (mode === '2') {
+                            // 强制覆盖
+                            const normalized = normalizeCardFields(importCard);
+                            migrateCardToFsrs6(normalized);
+                            // 若靠义项匹配而不是 ID 匹配，沿用本地稳定 ID，避免 IndexedDB 留下孤儿卡。
+                            normalized.id = deck[existingIndex].id;
+                            normalized.needsSync = true;
+                            normalized.updated_at = importTime;
+                            deck[existingIndex] = normalized;
+                            updatedCount++;
+                        }
+                    }
+                });
+
+                // 5. 保存并刷新（云端不可用时不影响本地导入成功）
+                await db.saveAll(deck);
+                currentCard = null;
+                currentPromptCardId = null;
+                currentAnswerRevealed = false;
+                render();
+                try {
+                    await pushToCloud();
+                } catch (syncErr) {
+                    console.warn('本地导入成功，云端同步暂不可用已跳过:', syncErr);
+                }
+                alert(`导入完成!\n新增: ${addedCount}\n更新/覆盖: ${updatedCount}`);
+                renderListContent();
+                return true;
+            } catch (err) {
+                console.error(err);
+                alert("导入失败: JSON 格式错误或内容不完整");
+                return false;
+            }
+        }
+
         function handleFileImport(event) {
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
 
             reader.onload = async function (e) {
-                try {
-                    const rawData = JSON.parse(e.target.result);
-                    let newCards = [];
-                    let newSettings = null;
-
-                    // 1. 识别数据格式 (兼容旧版数组和新版对象)
-                    if (Array.isArray(rawData)) {
-                        newCards = rawData; // 旧版格式
-                    } else if (rawData.cards && Array.isArray(rawData.cards)) {
-                        newCards = rawData.cards; // 新版格式
-                        newSettings = rawData.settings;
-                    } else {
-                        throw new Error("Invalid Format");
-                    }
-
-                    // 2. 询问合并策略
-                    const mode = prompt(
-                        "导入模式 (请输入数字):\n1. 跳过重复 (保留当前进度)\n2. 强制覆盖 (使用文件中的进度)\n3. 仅添加新词",
-                        "1"
-                    );
-                    if (!['1', '2', '3'].includes(mode)) return;
-
-                    let addedCount = 0;
-                    let updatedCount = 0;
-
-                    // 3. 只导入合法的 FSRS-6 参数；17参数旧备份只迁移卡片，不复活旧调度器。
-                    const importedV6 = newSettings && newSettings.fsrs_parameters_v6;
-                    const importedWeights = importedV6 && Array.isArray(importedV6.w)
-                        ? importedV6.w
-                        : (newSettings && Array.isArray(newSettings.fsrs_weights) ? newSettings.fsrs_weights : null);
-                    if (isValidFsrs6Weights(importedWeights) && confirm('文件中包含 FSRS-6 参数，是否应用？')) {
-                        p.w = importedWeights.map(Number);
-                        await db.saveSetting('fsrs_parameters_v6', getFsrsParameters());
-                    }
-                    if (newSettings && newSettings.vocab_goal_plan && confirm('备份中包含词汇目标和学习负荷设置，是否一并恢复？')) {
-                        vocabGoal = { ...DEFAULT_VOCAB_GOAL, ...newSettings.vocab_goal_plan };
-                        const importedLimit = Number(newSettings.fsrs_new_limit);
-                        const importedRetention = Number(newSettings.fsrs_retention);
-                        if (Number.isInteger(importedLimit) && importedLimit >= 0 && importedLimit <= 100) newCardsPerDay = importedLimit;
-                        if (Number.isFinite(importedRetention) && importedRetention >= 0.85 && importedRetention <= 0.95) p.requestRetention = importedRetention;
-                        if (typeof newSettings.auto_speak_front === 'boolean') autoSpeakFront = newSettings.auto_speak_front;
-                        await Promise.all([
-                            db.saveSetting('vocab_goal_plan', vocabGoal),
-                            db.saveSetting('fsrs_new_limit', newCardsPerDay),
-                            db.saveSetting('fsrs_retention', p.requestRetention),
-                            db.saveSetting('auto_speak_front', autoSpeakFront),
-                            db.saveSetting('fsrs_parameters_v6', getFsrsParameters())
-                        ]);
-                    }
-
-                    // 4. 处理卡片。ID 是稳定身份；释义会被编辑，不能拿释义当主键。
-                    const importTime = new Date().toISOString();
-                    newCards.forEach(importCard => {
-                        const idIndex = importCard && importCard.id
-                            ? deck.findIndex(card => card && card.id === importCard.id)
-                            : -1;
-                        const existingIndex = idIndex !== -1
-                            ? idIndex
-                            : findCardIndexBySense(importCard.word, importCard.pos, importCard.senseLabel, importCard.definition);
-
-                        if (existingIndex === -1) {
-                            // 新词 -> 直接添加 (规整字段, 防 FSRS/reps 判定错乱)
-                            const normalized = normalizeCardFields(importCard);
-                            migrateCardToFsrs6(normalized);
-                            normalized.needsSync = true;
-                            normalized.updated_at = importTime;
-                            deck.push(normalized);
-                            addedCount++;
-                        } else {
-                            // 单词已存在
-                            if (mode === '2') {
-                                // 强制覆盖
-                                const normalized = normalizeCardFields(importCard);
-                                migrateCardToFsrs6(normalized);
-                                // 若靠义项匹配而不是 ID 匹配，沿用本地稳定 ID，避免 IndexedDB 留下孤儿卡。
-                                normalized.id = deck[existingIndex].id;
-                                normalized.needsSync = true;
-                                normalized.updated_at = importTime;
-                                deck[existingIndex] = normalized;
-                                updatedCount++;
-                            }
-                        }
-                    });
-
-                    // 5. 保存并刷新
-                    await db.saveAll(deck);
-                    currentCard = null;
-                    currentPromptCardId = null;
-                    currentAnswerRevealed = false;
-                    render();
-                    await pushToCloud();
-                    alert(`导入完成!\n新增: ${addedCount}\n更新/覆盖: ${updatedCount}`);
-                    renderListContent();
-
-                } catch (err) {
-                    console.error(err);
-                    alert("导入失败: 文件格式错误");
-                }
+                await importJsonText(e.target.result);
                 event.target.value = '';
             };
             reader.readAsText(file);
+        }
+
+        async function handlePasteImport() {
+            const inputEl = document.getElementById('pasteImportJsonInput');
+            const rawText = inputEl ? inputEl.value.trim() : '';
+            if (!rawText) {
+                setExportBackupStatus('请先粘贴完整的 JSON 备份内容。', '#b45309');
+                return;
+            }
+            const ok = await importJsonText(rawText);
+            if (ok) {
+                if (inputEl) inputEl.value = '';
+                closeExportBackupModal();
+            }
         }
 
         // --- 7. List & Edit (Updated with Definition) ---
