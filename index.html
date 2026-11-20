@@ -251,6 +251,102 @@
             display: block;
         }
 
+        /* ✅ 新增：IPA 音标、易混词对照、阅读高亮与校准提示样式 */
+        .ipa-line {
+            font-size: 15px;
+            color: #5856d6;
+            font-family: "SF Mono", "Segoe UI", "Lucida Sans Unicode", "Arial Unicode MS", sans-serif;
+            margin-top: 6px;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            display: block;
+        }
+
+        .confusable-box {
+            margin: 10px 0;
+            padding: 10px 12px;
+            background: #f5f3ff;
+            border-left: 3px solid #7c3aed;
+            border-radius: 10px;
+            text-align: left;
+            font-size: 13px;
+            color: #3b2d63;
+            line-height: 1.5;
+        }
+
+        .confusable-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: #6d28d9;
+            margin-bottom: 6px;
+            letter-spacing: 0.04em;
+        }
+
+        .confusable-chip {
+            display: inline-block;
+            background: #ffffff;
+            border: 1px solid #ddd6fe;
+            border-radius: 8px;
+            padding: 3px 8px;
+            margin: 3px 6px 3px 0;
+            font-size: 12px;
+            color: #2e1065;
+        }
+
+        .article-hl-recalled {
+            background: #dcfce7;
+            color: #166534;
+            padding: 1px 5px;
+            border-radius: 5px;
+            font-weight: 700;
+        }
+
+        .article-hl-inferred {
+            background: #dbeafe;
+            color: #1d4ed8;
+            padding: 1px 5px;
+            border-radius: 5px;
+            font-weight: 700;
+        }
+
+        .article-hl-forgotten {
+            background: #ffedd5;
+            color: #c2410c;
+            border-bottom: 2px solid #ea580c;
+            padding: 1px 5px;
+            border-radius: 5px;
+            font-weight: 700;
+        }
+
+        .article-hl-default {
+            background: #f3f4f6;
+            color: #111827;
+            padding: 1px 5px;
+            border-radius: 5px;
+            font-weight: 700;
+        }
+
+        .calibration-hint {
+            margin: 8px 0 8px;
+            padding: 8px 10px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 8px;
+            color: #9a3412;
+            font-size: 12px;
+            line-height: 1.45;
+            text-align: left;
+        }
+
+        .sentence-challenge-panel {
+            background: #f0f7ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 12px;
+            padding: 12px;
+            text-align: left;
+            margin-top: 8px;
+        }
+
         /* ✅ 新增：Emoji 单独一行的样式 */
         .emoji-badge {
             display: block;
@@ -1165,6 +1261,12 @@
                     </button>
                 </div>
 
+                <!-- 【新增】可选义项/语境锚点：解决4k→8k阶段多义词定位 -->
+                <input type="text" id="newSenseHintInput"
+                    placeholder="可选：指定想学的义项或原句片段（如：处理问题 / harbor resentment）"
+                    onkeypress="handleEnter(event)"
+                    style="padding: 10px 14px; font-size: 13px; background: #f8f9fb;">
+
                 <!-- 【新增】词性显示区域：AI 生成后会在这里显示该词的词性 -->
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                     <div id="newPosDisplay" style="font-size:12px; color:#86868b; margin:2px 0 6px 4px; min-height:14px;"></div>
@@ -1179,6 +1281,8 @@
                         <input id="newSenseLabelInput" type="text" placeholder="义项标签，如：处理问题">
                         <input id="newPosInput" type="text" placeholder="词性，如：v. 动词">
                     </div>
+                    <input id="newIpaInput" type="text" placeholder="IPA 音标（如：/ˈmɪt.ɪ.ɡeɪt/）"
+                        style="width:100%; box-sizing:border-box; margin-top:8px;">
                     <input id="newGlossInput" type="text" placeholder="简短中文核心义"
                         style="width:100%; box-sizing:border-box; margin-top:8px;">
                     <textarea id="newDefinitionInput" rows="2" placeholder="English definition"
@@ -1262,6 +1366,8 @@
                     <div id="currentDefinition" class="def-text"></div>
                 </div>
 
+                <div id="confusableArea" class="confusable-box hidden"></div>
+
                 <div id="postAnswerSocratic" class="hidden"
                     style="margin:10px 0; padding:8px 10px; border-left:3px solid #007aff; background:#f0f7ff; border-radius:8px; color:#24415f; font-size:13px; line-height:1.5; text-align:left;"></div>
 
@@ -1269,14 +1375,14 @@
                     style="display:flex; justify-content:center; gap:8px; margin:15px 0; flex-wrap:wrap;">
                     <button class="icon-btn" id="btnToggleCtx" onclick="toggleSection('contextArea', this)"
                         style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;">📖 Context</button>
-                    <button class="icon-btn" onclick="startRSVP()"
-                        style="font-size:14px; padding:8px 12px; background:#e5e5ea; width:auto;"
-                        title="Rapid Serial Visual Presentation">⚡ RSVP</button>
-                    <button class="icon-btn" id="btnNoiseToggle" onclick="toggleNoiseMode(this)"
-                        style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;"
-                        title="Cocktail Party Effect">🔊 Noise: OFF</button>
                     <button class="icon-btn" id="btnToggleMne" onclick="toggleSection('mnemonicArea', this)"
                         style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;">🧠 Logic</button>
+                    <button class="icon-btn" id="btnSpeakSentence" onclick="speakSentenceOnly()"
+                        style="font-size:14px; padding:8px 12px; background:#f2f2f7; width:auto;"
+                        title="只朗读纯例句（自适应语速）">🔊 读例句</button>
+                    <button class="icon-btn" id="btnAutoSpeakFront" onclick="toggleAutoSpeakFront()"
+                        style="font-size:13px; padding:8px 12px; background:#f2f2f7; width:auto;"
+                        title="正面出词时自动发音，预防眼熟耳生">🔈 正面读: 关</button>
                 </div>
 
                 <div id="mnemonicArea" class="mnemonic-box hidden">
@@ -1297,7 +1403,7 @@
             <div class="actions-wrapper">
                 <div id="recallPromptHint"
                     style="font-size:12px; color:#666; text-align:center; margin-bottom:10px; line-height:1.5;">
-                    先独立回忆，再看答案；答案揭示后可自由查看发音、词根、例句与 Logic。
+                    先独立回忆，再直接选择下方熟悉度翻面（快捷键 1/2/3）；翻面后可查看音标、词根、搭配与易混词。
                 </div>
 
                 <button id="showAnswerBtn" class="add-btn full-width-btn"
@@ -1306,15 +1412,17 @@
                     Show Answer 👁️
                 </button>
 
-                <!-- 【新增】自信度评级按钮 (默认隐藏) -->
-                <div id="confidenceSelector" class="hidden" style="display:flex; gap:8px; margin-top:10px;">
-                    <button class="action-btn" style="background:#ffcc00; color:#333; flex:1;"
-                        onclick="revealAnswer(1)">🎲 盲猜</button>
+                <!-- 【优化】英语复习卡正面直接展示 3 档自判翻面（从 3 步减为 2 步） -->
+                <div id="confidenceSelector" class="hidden" style="display:flex; gap:8px; margin-top:4px;">
+                    <button class="action-btn" style="background:#ff3b30; color:white; flex:1;"
+                        onclick="revealAnswer(1)">😵 想不起</button>
                     <button class="action-btn" style="background:#ff9500; color:white; flex:1;"
-                        onclick="revealAnswer(2)">🤔 有印象</button>
+                        onclick="revealAnswer(2)">🤔 模糊</button>
                     <button class="action-btn" style="background:#34c759; color:white; flex:1;"
-                        onclick="revealAnswer(3)">😎 完全确定</button>
+                        onclick="revealAnswer(3)">😎 想起来了</button>
                 </div>
+
+                <div id="calibrationHint" class="calibration-hint hidden"></div>
 
                 <!-- 新增：深度学习扩展工具栏 -->
                 <div id="deepLearningTools" class="hidden"
@@ -1358,7 +1466,7 @@
         </div>
     </div>
 
-    <div class="watermark">软件制作者微信 Saeuco v3.0 · FSRS-6</div>
+    <div class="watermark">软件制作者微信 Saeuco v3.1 · FSRS-6 English Pro</div>
 
     <!-- [新增] 传送门按钮：点击跳转到 listening.html -->
     <a href="listening.html" class="portal-btn" title="去听力训练">
@@ -1529,6 +1637,10 @@
             <textarea id="batchWordInput" rows="8" placeholder="apple&#10;banana&#10;turn up..."
                 style="width:100%; padding:15px; border-radius:10px; border:1px solid #ddd; margin-bottom:15px;"></textarea>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+                <select id="batchLevelSelect" title="语料难度">
+                    <option value="simple">🌱 简单自然 (4k→6k)</option>
+                    <option value="advanced">⚡ 进阶外刊 (6k→8k / 学术)</option>
+                </select>
                 <select id="batchFrequencyBandSelect">
                     <option value="unknown">频段：待标注</option>
                     <option value="gap_1_4k">1–4k 漏词</option>
@@ -1600,6 +1712,11 @@
                         <input type="text" id="editSenseLabelInput" placeholder="义项标签">
                         <input type="text" id="editPosInput" placeholder="词性">
                     </div>
+                </div>
+
+                <div>
+                    <label style="font-size:12px; color:gray;">IPA 音标</label>
+                    <input type="text" id="editIpaInput" placeholder="如：/ˈmɪt.ɪ.ɡeɪt/">
                 </div>
 
                 <div>
@@ -1798,8 +1915,10 @@
 
                 <!-- 阅读视图 -->
                 <div id="articleReadingView" class="hidden">
-                    <div style="display:flex; gap:8px; font-size:12px; color:#888; margin-bottom:10px; flex-wrap:wrap;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px; color:#888; margin-bottom:10px; flex-wrap:wrap;">
                         <span id="articleMetaInfo"></span>
+                        <button type="button" id="articleSpeakBtn" onclick="toggleSpeakArticle()"
+                            style="border:1px solid #d1d5db; background:#fff; color:#1f2937; border-radius:999px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer;">🔊 朗读全文</button>
                     </div>
                     <div id="articleBody" style="background:#fff; border-radius:12px; padding:18px; font-size:17px; line-height:1.8; color:#1f2937; font-family:'Charter','Sitka Text','Cambria',serif; white-space:pre-wrap;"></div>
 
@@ -4174,17 +4293,71 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             target.append(document.createTextNode(word || ''));
         }
 
+        function buildIpaHTML(card) {
+            if (!card || !card.ipa) return '';
+            return `<div class="ipa-line">${escapeHTML(card.ipa)}</div>`;
+        }
+
         function buildMorphemeAnalysisHTML(card) {
-            if (!card || !card.morphemes || !card.morphemes.root) return '';
-            const clean = value => escapeHTML(String(value || '')
+            if (!card || !card.morphemes) return '';
+            const cleanText = value => String(value || '')
                 .replace(/\(.*?\)/g, '')
                 .replace(/（.*?）/g, '')
-                .trim());
+                .trim();
+            const prefix = cleanText(card.morphemes.prefix);
+            const root = cleanText(card.morphemes.root);
+            const suffix = cleanText(card.morphemes.suffix);
+            if (!prefix && !suffix) {
+                // 若没有前后缀且词根就是单词本身，避免在单词下方重复打印一遍
+                if (!root || normalizeWordKey(root) === normalizeWordKey(card.word)) return '';
+            }
+            if (!root && !prefix && !suffix) return '';
             const parts = [];
-            if (card.morphemes.prefix) parts.push(`<span style="color:#d63384">${clean(card.morphemes.prefix)}</span>`);
-            parts.push(`<span style="font-weight:bold; border-bottom:2px solid #007aff; color:var(--text);">${clean(card.morphemes.root)}</span>`);
-            if (card.morphemes.suffix) parts.push(`<span style="color:#007aff">${clean(card.morphemes.suffix)}</span>`);
+            if (prefix) parts.push(`<span style="color:#d63384">${escapeHTML(prefix)}</span>`);
+            if (root) parts.push(`<span style="font-weight:bold; border-bottom:2px solid #007aff; color:var(--text);">${escapeHTML(root)}</span>`);
+            if (suffix) parts.push(`<span style="color:#007aff">${escapeHTML(suffix)}</span>`);
             return `<div class="etymology-line" style="margin-top:8px; font-family:'Courier New', monospace; font-size:13px; opacity:0.8;">${parts.join(' + ')}</div>`;
+        }
+
+        function renderConfusableWordsForCurrentCard(isExam = false) {
+            const box = document.getElementById('confusableArea');
+            if (!box) return;
+            if (isExam || !currentCard || !currentCard.word) {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+                return;
+            }
+            const targetKey = normalizeWordKey(currentCard.word);
+            if (!targetKey || /\s/.test(targetKey) || targetKey.length < 4) {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+                return;
+            }
+            const seen = new Set([targetKey]);
+            const matches = [];
+            for (const c of deck) {
+                if (!c || !c.word || isExamCardData(c) || isCloudClearMarkerCard(c)) continue;
+                const key = normalizeWordKey(c.word);
+                if (!key || seen.has(key) || /\s/.test(key)) continue;
+                const dist = levenshtein(targetKey, key);
+                if (dist >= 1 && dist <= 2) {
+                    seen.add(key);
+                    const gloss = String(c.glossZh || c.senseLabel || compactDefinitionForOption(c.definition).slice(0, 32) || '').trim();
+                    matches.push({ word: c.word, gloss, dist });
+                }
+            }
+            matches.sort((a, b) => a.dist - b.dist);
+            const top = matches.slice(0, 3);
+            if (!top.length) {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+                return;
+            }
+            const chips = top.map(item =>
+                `<span class="confusable-chip"><strong>${escapeHTML(item.word)}</strong>${item.gloss ? ` · ${escapeHTML(item.gloss)}` : ''}</span>`
+            ).join('');
+            box.innerHTML = `<div class="confusable-title">🔀 词库形近易混词对照</div><div>${chips}</div>`;
+            box.classList.remove('hidden');
         }
 
         function renderTextCard(target, options) {
@@ -5381,8 +5554,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         let isNoiseMode = false;   // 【新增】是否开启白噪音干扰
         let tempAutoDefinition = ""; // Store auto-fetched definition before adding
         let tempPOS = ""; // 【新增】暂存词性 (part of speech)
+        let tempIpa = ""; // 【新增】暂存 IPA 音标
+        let tempFamilyHeadword = ""; // 【新增】暂存 AI 归并的词族主词
         let tempGlossZh = "";
         let tempSenseLabel = "";
+        let autoSpeakFront = false; // 【新增】正面出词时自动朗读开关
+        let lastAutoSpokenCardId = null; // 防止同卡重复触发正面自动朗读
+        let articleSpeaking = false; // 【新增】差词成文朗读状态
         let tempMnemonic = ""; // 新增：暂存助记法
         let tempSocratic = ""; // 【新增】暂存苏格拉底提问
         let tempEmoji = "";    // 新增：暂存 Emoji
@@ -5706,6 +5884,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             if (!Array.isArray(card.contextHistory)) card.contextHistory = [];
             if (card.glossZh === undefined || card.glossZh === null) card.glossZh = '';
             if (card.senseLabel === undefined || card.senseLabel === null) card.senseLabel = '';
+            if (card.ipa === undefined || card.ipa === null) card.ipa = '';
             if (card.clozeSentence === undefined || card.clozeSentence === null) card.clozeSentence = '';
             if (card.clozeEnabled !== true) card.clozeEnabled = false;
             if (card.clozeDisabledReason === undefined || card.clozeDisabledReason === null) card.clozeDisabledReason = '';
@@ -5900,13 +6079,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             showBtn.parentNode.insertBefore(box, showBtn);
         }
 
-        // 修改：增加了 morphemes (形态学), family (词族), originalContext 和 collocations (核心搭配) 参数
-        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", pos = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "", originalContext = "", collocations = [], glossZh = "", senseLabel = "", familyKey = "", frequencyBand = "unknown", sourceType = "manual", sourceLabel = "", countTowardGoal = null, clozeSentence = "", clozeEnabled = false, clozeDisabledReason = "") {
+        // 修改：增加了 morphemes (形态学), family (词族), originalContext, collocations (核心搭配), ipa (音标) 参数
+        function createCardObject(word, sentence = "", definition = "", mnemonic = "", socratic = "", emoji = "", pos = "", _unused2 = "", _unused3 = "", contrast = "", morphemes = null, family = "", originalContext = "", collocations = [], glossZh = "", senseLabel = "", familyKey = "", frequencyBand = "unknown", sourceType = "manual", sourceLabel = "", countTowardGoal = null, clozeSentence = "", clozeEnabled = false, clozeDisabledReason = "", ipa = "") {
             const createdAt = new Date().toISOString();
             const cleanWord = word.trim();
             return {
                 id: generateID(),
                 word: cleanWord,
+                ipa: ipa ? String(ipa).trim() : "",
                 // 【Expert Structure】核心形态学对象
                 morphemes: morphemes || { prefix: "", root: word.trim(), suffix: "" },
                 family: family ? (Array.isArray(family) ? family.join(', ') : String(family)).trim() : "", // 词族网络
@@ -5954,19 +6134,18 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         function isMnemonicMixedChinese(word, mnemonic, morphemes = {}) {
             if (!mnemonic) return true;
             const chineseChars = mnemonic.match(/[\u4e00-\u9fff]/g) || [];
-            const englishWords = mnemonic.match(/[A-Za-z]{3,}/g) || [];
-            return chineseChars.length >= 10 && englishWords.length >= 1;
+            // 只要中文解释足够清晰（>= 8 个汉字），无论是词根中英混排还是纯中文画面/辨析助记都直接放行，避免无意义二次改写
+            return chineseChars.length >= 8;
         }
 
         async function ensureMixedChineseMnemonic(word, mnemonic, morphemes = {}) {
             if (!mnemonic || isMnemonicMixedChinese(word, mnemonic, morphemes)) return mnemonic || "";
 
-            const rewritePrompt = `请把下面这个 Memory Hook / mnemonic 改写成中英混杂版本。
+            const rewritePrompt = `请把下面这个 Memory Hook / mnemonic 改写成中文解释为主的版本。
 要求：
-1. 保留原有词根词缀推导逻辑，不要改意思。
-2. 中文解释占主体，但允许保留 Root/Prefix/Suffix/Core/abstract meaning 等英文结构标签。
-3. 目标词 "${word}"、词根/前后缀和关键英文短语可以保留；不要写成全英文，也不要写成纯中文。
-4. 只输出改写后的 Memory Hook 文本，不要 JSON，不要额外解释。
+1. 保留原有记忆逻辑（词根推导或画面/辨析），不要改意思，严禁编造伪词根。
+2. 中文解释占主体，可保留必要的英文关键词或结构标签。
+3. 只输出改写后的 Memory Hook 文本，不要 JSON，不要额外解释。
 
 原文：
 ${mnemonic}`;
@@ -5993,6 +6172,62 @@ ${mnemonic}`;
             }
         }
 
+        // 【统一升级】单查与批量共用的英语词汇深度编码 Prompt（针对 4,000 -> 8,000 词族进阶）
+        function buildVocabGenerationPrompts(word, level = 'simple', senseHint = '') {
+            const isAdvanced = level === 'advanced';
+            const cleanHint = String(senseHint || '').trim();
+            const senseInstruction = cleanHint
+                ? `【指定目标义项/语境】学习者已给出线索："${cleanHint}"。请严格围绕该义项或语境生成释义、搭配与例句。`
+                : `【4k→8k 义项定位】学习者已有约 4,000 基础词汇，目标进阶到 8,000。若 "${word}" 为多义词，请优先挑选它在 B2–C1 真实阅读/新闻/学术中最核心、最常考的进阶高频义项，跳过 A1 级最浅显旧义。`;
+
+            const sentenceRule = isAdvanced
+                ? `生成 1 句自然、地道、外刊/学术风格（Economist/CET-6+）的例句，约 16-26 词；除目标词外其他词汇尽量控制在 CET-6 范围内。用 <b>...</b> 高亮目标词及其核心搭配。追求真实自然语用，不要生硬凑 "Despite.../Conversely..." 猜谜套话。`
+                : `生成 1 句简短、画面感强、真实自然的现代英语例句，约 11-18 词；除目标词外其他词汇尽量控制在高中/CET-4 范围内。用 <b>...</b> 高亮目标词及其核心搭配。追求自然地道，不要为了强行“自解释”而写成生硬的猜谜套话。`;
+
+            const systemPrompt = `你是一位面向中国进阶学习者（4,000→8,000 词汇）的英语词汇专家，精通搭配学、词源学与汉英对比语言学。
+${senseInstruction}
+
+【生成规范】
+1. **collocations（核心搭配，2-4 个）**：优先给最真实高频的短词块（如动宾、形名、介词搭配），方便快速语块记忆。
+2. **sentence（自然例句）**：${sentenceRule}
+3. **ipa（美式音标）**：给出标准美式 IPA 音标并标明主重音（如 /ˈmɪt.ɪ.ɡeɪt/）；若为多词短语可留空或标核心重读词。
+4. **family_headword（词族主词）**：给出该词所属词族的基础词形（lemma/headword，全部小写，如 adaptation → adapt，mitigation → mitigate，unpredictable → predict；若本身已是基础词或短语，则返回其规范原形）。
+5. **morphemes & mnemonic（反伪词源原则）**：
+   - 严禁谐音梗！
+   - **仅当该词确实有真实、透明、可迁移的拉丁/希腊/构词词根词缀时**，才填写 prefix/root/suffix 并写“词根物理动作 -> 抽象引申”的推导链（中文为主，可保留 Root/Prefix/Core 等英文标签）。
+   - **若为日耳曼原生词、词源不透明或习惯短语**：morphemes 的 prefix 和 suffix 必须留空，严禁编造伪词根！此时 mnemonic 改写为“典型具体场景画面 + 与易混近义词的核心区别”。
+   - 不要在 mnemonic 里罗列同根词列表，同根词放进 family 字段。
+6. **contrast（中英思维差异）**：用简明中文指出中国学习者最容易误用/直译的坑（语义边界、褒贬色彩、主语搭配或正式度）。
+7. 只输出合法 JSON，不要输出任何额外说明或 Markdown 代码块。`;
+
+            const userPrompt = `请为英文单词或词组 "${word}" 生成结构化学习卡片 JSON：
+{
+  "ipa": "/ˈmɪt.ɪ.ɡeɪt/",
+  "family_headword": "词族基础主词（小写，如 mitigate）",
+  "pos": "词性（中文标注），如 n. 名词 / v. 动词 / adj. 形容词 / adv. 副词 / prep. 介词 / phrase 短语",
+  "sense_label": "当前义项简短标签（2-6字）",
+  "gloss_zh": "不超过12个字的精准中文核心义",
+  "definition": "${isAdvanced ? 'Concise B2-C1 English definition.' : 'Simple, clear English definition (CEFR B1).'}",
+  "collocations": ["高频搭配1", "高频搭配2", "高频搭配3"],
+  "sentence": "包含 <b>核心搭配</b> 的地道自然例句",
+  "morphemes": { "prefix": "", "root": "", "suffix": "" },
+  "mnemonic": "中文为主的真实词源推导，或具体画面/辨析助记（严禁编造伪词根、严禁谐音）",
+  "socratic": "一条帮助难词深加工的简短思考题（中文或简明英文）",
+  "emoji": "最贴合核心意象的单个 Emoji",
+  "contrast": "🇨🇳🇺🇸思维差异：中式直译误区 vs 地道语用边界（中文）",
+  "family": "仅列出真实同族高频词（逗号分隔，无则留空）"
+}`;
+            return { systemPrompt, userPrompt };
+        }
+
+        function cleanFamilyHeadword(rawHeadword, fallbackWord) {
+            const cleaned = normalizeWordKey(rawHeadword || '');
+            if (!cleaned || /\s/.test(cleaned) && !/\s/.test(String(fallbackWord || '').trim())) {
+                return String(fallbackWord || '').trim();
+            }
+            return cleaned;
+        }
+
         // --- NEW: AUTO CONTEXT & DEFINITION FETCHING ---
         // ====== 新的 AI 智能查词函数 (开始) ======
         async function autoFetchContext(mode, level, btnElement) {
@@ -6002,9 +6237,14 @@ ${mnemonic}`;
 
             const iconEl = btnElement;
             const word = document.getElementById(wordInputId).value.trim();
+            const editCardIdAtStart = mode === 'edit' ? document.getElementById('editCardId').value : '';
+            const originalEditCard = mode === 'edit' ? deck.find(c => c.id === editCardIdAtStart) : null;
+            const editWordUnchanged = !!(originalEditCard && normalizeWordKey(originalEditCard.word) === normalizeWordKey(word));
+            const senseHint = mode === 'new'
+                ? (document.getElementById('newSenseHintInput')?.value.trim() || '')
+                : (editWordUnchanged ? (document.getElementById('editSenseLabelInput')?.value.trim() || '') : '');
             const sentenceEl = document.getElementById(sentenceInputId);
             const requestToken = ++autoFetchRequestSerial;
-            const editCardIdAtStart = mode === 'edit' ? document.getElementById('editCardId').value : '';
             latestAutoFetchRequest[mode] = requestToken;
             const requestStillCurrent = () => {
                 if (latestAutoFetchRequest[mode] !== requestToken) return false;
@@ -6019,89 +6259,18 @@ ${mnemonic}`;
             }
             if (!word) return alert("请先输入一个单词！");
 
-            // 【安全修复】每次发起 AI 生成前，清空之前的全局缓存数据，防止"张冠李戴"
-            resetTempData();
+            // 【安全修复】每次发起 AI 生成前，清空之前的全局缓存数据（保留用户当前填写的义项锚点）
+            if (mode === 'new') resetTempData(false);
 
             const originalIcon = iconEl.innerText;
             iconEl.innerHTML = '<div class="spinner"></div>';
             sentenceEl.value = "";
             sentenceEl.placeholder = level === 'simple'
-                ? "AI 正在构建逻辑线索，确保你能推导出该词..."
-                : "AI 正在生成考研级长难句，请做好准备...";
+                ? "AI 正在生成自然地道搭配与核心义..."
+                : "AI 正在生成 B2–C1 进阶外刊语料...";
 
             try {
-                // 【Phase 2 深度优化：简单模式 Prompt】
-                const promptSimple = `你是一位精通"i+1"理论的认知语言学专家，专门为词汇量约3500-4000的学生设计学习材料。
-请为单词或词组 "${word}" 生成深度编码卡片。
-
-【核心指令 1：强逻辑互联例句 (Logic-Embedded Context)】
-1.  **逻辑连接词强制**：例句中**必须**包含明确的逻辑路标（如: unlike, because, caused by, similar to, despite, although）。
-2.  **线索闭环**：学生必须能通过句中的逻辑关系+已知词汇，推导出 "${word}" 的含义。严禁生成 "He is very [word]" 这种无效语境。
-3.  **i+1 难度约束**：⚠️ 除目标词外，句子中其他所有词汇必须严格限制在 **CET-4 (高中英语)** 范围内。
-4.  **高亮词块**：必须用 <b>...</b> 标签包裹目标词及其搭配（Collocation）。
-5.你的例句必须是一个"自解释的谜题"。
-6.句子中**必须**包含明确的逻辑线索（如同义词复现、反义词对比、因果解释），让学生即使没见过这个词，读了句子也能猜出这个空应该填什么意思。
-
-【核心指令 2：深度思维编码 (Deep Coding)】
-1.  **mnemonic (逻辑推导)**: 严禁谐音。必须中英混杂：中文解释占主体，但允许保留 Root/Prefix/Suffix/Core/abstract meaning 等英文结构标签和词根英文。若是单词，格式可为：'Root(中文含义) + Prefix(中文含义) -> Core action: 中文解释 -> abstract meaning: 中文引申义'；若是词组，请解析其字面义到实际义的隐喻逻辑。**注意：不要在 mnemonic 字段里包含 Family/词族列表，Family 请单独放在 family 字段返回。**
-2.  **contrast (必需)**: 必须指出该词在中英思维上的核心差异（中文）。
-
-【挖空资格判断】
-只有当目标词词义具体、句中含典型搭配、常见替代答案很少时，cloze_suitable 才能为 true。宽泛词、多义词、短语或明显可由多个近义词替换时必须返回 false；不要为了生成而硬判 true。
-
-【JSON 返回结构】
-{
-  "sentence": "包含逻辑连接词和 <b>词块</b> 的例句...",
-  "collocations": ["mitigate risk", "mitigate damage", "mitigate the impact"],
-  "morphemes": { "prefix": "un- (not)", "root": "help", "suffix": "-ful (full of)" },
-  "sense_label": "当前例句对应的简短义项标签",
-  "gloss_zh": "不超过12个字的准确中文核心义",
-  "definition": "Simple English definition (CEFR B1 level).",
-  "pos": "词性（中文标注），如 n. 名词 / v. 动词 / adj. 形容词 / adv. 副词 / prep. 介词 / phrase 短语",
-  "mnemonic": "Root(duc: 引导) + Prefix(intro: 向内) -> Core action: 向内引导 -> abstract meaning: 介绍/引入",
-  "socratic": "Why does this word imply a process rather than a result?",
-  "emoji": "最精准的表情符号",
-  "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
-  "family": "contract, distract, retract (仅列出同根词)",
-  "cloze_suitable": true,
-  "cloze_sentence": "只在答案接近唯一时生成；必须原样包含 ${word} 和一个典型搭配，否则返回空字符串",
-  "cloze_reason": "若不适合，简短说明词义过宽、多义或替代词过多"
-}`;
-
-                // 【Phase 2 深度优化：进阶模式 Prompt】
-                const promptAdvanced = `你是一位考研英语命题组长，专注于"语篇逻辑"与"长难句解析"。
-请为单词或词组 "${word}" 生成真题级(Economist风格)的深度语料。
-
-【核心指令 1：句法复杂度与逻辑 (Syntactic & Logical Complexity)】
-1.  **语篇逻辑**：例句必须体现考研常见的逻辑关系（转折、让步、因果、条件）。请使用高级连接词 (e.g., Conversely, Notwithstanding, Stemming from)。
-2.  **i+1 难度约束**：⚠️ 除目标词外，句子中其他词汇严格限制在 **CET-6** 范围内。不要堆砌GRE生词，重点在于句法结构的复杂度（定语从句、分词做状语、独立主格）。
-3.  **高亮词块**：必须用 <b>...</b> 标签包裹目标词的地道搭配。
-4. **线索闭环**：⚠️至关重要！虽然句子很长，但必须保证通过句内的逻辑（Contextual Clues）推导出该单词。
-
-【核心指令 2：深度思维编码 (Deep Coding)】
-1.  **mnemonic**: 必须中英混杂：中文解释占主体，但允许保留 Physical image / Core action / abstract meaning 等英文结构标签和关键词。仅输出'物理图景'到'抽象逻辑'的演化推导链（若是词组则侧重解析来源或比喻义）。**不要包含词族列表。**
-2.  **contrast (必需)**: 指出中英思维差异(中文)。
-
-【挖空资格判断】
-只有当目标词词义具体、句中含典型搭配、常见替代答案很少时，cloze_suitable 才能为 true。宽泛词、多义词、短语或明显可由多个近义词替换时必须返回 false；不要为了生成而硬判 true。
-
-【JSON 返回结构】
-{
-  "sentence": "包含复杂句法和 <b>核心搭配</b> 的考研级例句...",
-  "collocations": ["mitigate risk", "mitigate damage", "mitigate the impact"],
-  "sense_label": "当前例句对应的简短义项标签",
-  "gloss_zh": "不超过12个字的准确中文核心义",
-  "definition": "Academic English definition.",
-  "pos": "词性（中文标注），如 n. 名词 / v. 动词 / adj. 形容词 / adv. 副词 / prep. 介词 / phrase 短语",
-  "mnemonic": "Physical image: 向下按压 (press down) -> Core action: 压住反叛、情绪或信息 -> abstract meaning: 镇压/克制",
-  "socratic": "Why is this word used for political contexts but rarely for personal relationships?",
-  "emoji": "抽象概念的具体化Emoji",
-  "contrast": "🇨🇳🇺🇸思维差异: 指出中式英语误区 vs 地道逻辑(中文)",
-  "family": "词族",
-  "cloze_suitable": true,
-  "cloze_sentence": "只在答案接近唯一时生成；必须原样包含 ${word} 和一个典型搭配，否则返回空字符串",
-  "cloze_reason": "若不适合，简短说明词义过宽、多义或替代词过多"
-}`;
+                const { systemPrompt, userPrompt } = buildVocabGenerationPrompts(word, level, senseHint);
 
                 const response = await fetch(AI_CONFIG.baseUrl, {
                     method: "POST",
@@ -6109,11 +6278,10 @@ ${mnemonic}`;
                     body: JSON.stringify({
                         model: AI_CONFIG.model,
                         messages: [
-                            { role: "system", content: level === 'simple' ? promptSimple : promptAdvanced },
-                            { role: "user", content: `生成单词: "${word}"` }
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: userPrompt }
                         ],
-                        // 【修改】0.5是“严谨释义”和“趣味助记”的最佳平衡点，既不瞎编也不死板
-                        temperature: 0.5,
+                        temperature: 0.45,
                         response_format: { type: 'json_object' }
                     })
                 });
@@ -6123,7 +6291,6 @@ ${mnemonic}`;
 
                 // 修复：DeepSeek 有时会返回 Markdown 代码块，需要过滤
                 let rawContent = data.choices[0].message.content;
-                // 【修改】正则提取：只取第一个大括号及内部内容，防止 AI 废话导致解析失败
                 const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
                 if (jsonMatch) rawContent = jsonMatch[0];
 
@@ -6134,88 +6301,81 @@ ${mnemonic}`;
                     throw new Error("AI生成的数据格式异常，请重试");
                 }
 
-                // 【强制兜底修复】防止 AI 返回 null 导致词根消失
-                // 如果 AI 返回的 morphemes 是空的，或者不是对象，我们就手动造一个
+                // 仅当 AI 真正给出了词根/词缀拆解时保留 morphemes；无拆解时不强行拼凑
                 if (!result.morphemes || typeof result.morphemes !== 'object') {
-                    result.morphemes = { prefix: "", root: word, suffix: "" };
+                    result.morphemes = { prefix: "", root: "", suffix: "" };
                 }
-                // 确保 root 字段存在，如果 AI 漏了 root，就用单词本身代替
-                if (!result.morphemes.root) result.morphemes.root = word;
 
                 // 用户可能已经换词、换卡或发起了更新请求；旧响应不得覆盖当前表单。
                 if (!requestStillCurrent()) return;
 
-                sentenceEl.value = result.sentence;
+                sentenceEl.value = result.sentence || '';
                 const normalizedCollocations = normalizeCollocations(result.collocations);
-                const clozeCandidate = validateClozeCandidate(
-                    word,
-                    result.cloze_suitable === true,
-                    result.cloze_sentence || '',
-                    result.cloze_reason || '',
-                    normalizedCollocations
-                );
+                const resolvedIpa = String(result.ipa || '').trim();
+                const resolvedFamilyKey = cleanFamilyHeadword(result.family_headword, word);
 
                 if (mode === 'new') {
                     tempAutoDefinition = result.definition || '';
-                    tempPOS = result.pos || ""; // 【新增】暂存AI返回的词性
+                    tempPOS = result.pos || "";
+                    tempIpa = resolvedIpa;
+                    tempFamilyHeadword = resolvedFamilyKey;
                     tempGlossZh = result.gloss_zh || '';
                     tempSenseLabel = result.sense_label || '';
                     const posDisplayEl = document.getElementById('newPosDisplay');
-                    if (posDisplayEl) posDisplayEl.innerText = tempPOS ? `词性：${tempPOS}` : '';
+                    if (posDisplayEl) {
+                        const parts = [tempPOS ? `词性：${tempPOS}` : '', tempIpa ? tempIpa : '', (resolvedFamilyKey && normalizeWordKey(resolvedFamilyKey) !== normalizeWordKey(word)) ? `词族：${resolvedFamilyKey}` : ''].filter(Boolean);
+                        posDisplayEl.innerText = parts.join('  ·  ');
+                    }
                     tempMnemonic = await ensureMixedChineseMnemonic(word, result.mnemonic || "", result.morphemes);
                     if (!requestStillCurrent()) return;
-                    tempSocratic = result.socratic || ""; // 【新增】提取苏格拉底提问
-                    tempEmoji = result.emoji;
-                    tempContrast = result.contrast || ""; // 【新增】提取思维差异
-                    // 【Expert Data】不再拼接到助记法，而是独立存储
+                    tempSocratic = result.socratic || "";
+                    tempEmoji = result.emoji || "";
+                    tempContrast = result.contrast || "";
                     tempMorphemes = result.morphemes;
-                    tempFamily = result.family;
+                    tempFamily = Array.isArray(result.family) ? result.family.join(', ') : (result.family || "");
                     tempCollocations = normalizedCollocations;
-                    tempClozeSentence = clozeCandidate.sentence;
-                    tempClozeEnabled = clozeCandidate.enabled;
-                    tempClozeReason = clozeCandidate.reason;
+                    tempClozeSentence = '';
+                    tempClozeEnabled = false;
+                    tempClozeReason = 'retired';
                     const preview = document.getElementById('newCardPreview');
                     if (preview) preview.classList.remove('hidden');
                     document.getElementById('newSenseLabelInput').value = tempSenseLabel;
                     document.getElementById('newPosInput').value = tempPOS;
+                    const ipaEl = document.getElementById('newIpaInput');
+                    if (ipaEl) ipaEl.value = tempIpa;
                     document.getElementById('newGlossInput').value = tempGlossZh;
                     document.getElementById('newDefinitionInput').value = tempAutoDefinition;
                     document.getElementById('newCollocationsInput').value = tempCollocations.join(', ');
-                    document.getElementById('newClozeSentenceInput').value = tempClozeSentence;
-                    document.getElementById('newClozeEnabled').checked = tempClozeEnabled;
-                    document.getElementById('newClozeSentenceInput').placeholder = tempClozeEnabled
-                        ? '已生成专用挖空句'
-                        : `不启用挖空：${tempClozeReason || '答案约束不足'}`;
                     document.getElementById('newMnemonicInput').value = tempMnemonic;
                     const familyKeyEl = document.getElementById('newFamilyKeyInput');
-                    if (familyKeyEl && !familyKeyEl.value.trim()) familyKeyEl.value = word;
+                    if (familyKeyEl) familyKeyEl.value = resolvedFamilyKey;
                     const sourceTypeEl = document.getElementById('newSourceTypeSelect');
                     if (sourceTypeEl && sourceTypeEl.value === 'manual') sourceTypeEl.value = 'ai';
                 } else if (mode === 'edit' && defInputId) {
-                    document.getElementById(defInputId).value = result.definition;
+                    document.getElementById(defInputId).value = result.definition || '';
                     document.getElementById('editGlossInput').value = result.gloss_zh || '';
                     document.getElementById('editSenseLabelInput').value = result.sense_label || '';
                     document.getElementById('editPosInput').value = result.pos || '';
+                    const editIpaEl = document.getElementById('editIpaInput');
+                    if (editIpaEl && resolvedIpa) editIpaEl.value = resolvedIpa;
+                    const editFamilyEl = document.getElementById('editFamilyKeyInput');
+                    if (editFamilyEl && (!editFamilyEl.value.trim() || normalizeWordKey(editFamilyEl.value) === normalizeWordKey(word))) {
+                        editFamilyEl.value = resolvedFamilyKey;
+                    }
                     document.getElementById('editCollocationsInput').value = normalizedCollocations.join(', ');
-                    document.getElementById('editClozeSentenceInput').value = clozeCandidate.sentence;
-                    document.getElementById('editClozeEnabled').checked = clozeCandidate.enabled;
-                    document.getElementById('editClozeStatus').textContent = clozeCandidate.enabled
-                        ? 'AI判断：适合挖空；至少复习4次后启用。'
-                        : `AI判断：不适合挖空（${clozeCandidate.reason || '答案约束不足'}）`;
                     let aiMnemonic = await ensureMixedChineseMnemonic(word, result.mnemonic || "", result.morphemes);
                     if (!requestStillCurrent()) return;
-                    if (result.family) aiMnemonic += `\n[Family: ${result.family}]`;
                     document.getElementById('editMnemonicInput').value = aiMnemonic;
 
                     // 【新增】暂存 AI 返回的高级数据，等待保存时写入
                     tempEditData = {
+                        ipa: resolvedIpa,
                         morphemes: result.morphemes,
-                        family: result.family,
+                        family: Array.isArray(result.family) ? result.family.join(', ') : (result.family || ""),
                         contrast: result.contrast,
-                        collocations: normalizedCollocations,
-                        clozeSentence: clozeCandidate.sentence,
-                        clozeEnabled: clozeCandidate.enabled,
-                        clozeDisabledReason: clozeCandidate.reason
+                        socratic: result.socratic,
+                        emoji: result.emoji,
+                        collocations: normalizedCollocations
                     };
                 }
             } catch (err) {
@@ -6236,32 +6396,33 @@ ${mnemonic}`;
             const sentence = sInput.value.trim();
             const definition = (document.getElementById('newDefinitionInput').value || tempAutoDefinition || '').trim();
             const pos = (document.getElementById('newPosInput').value || tempPOS || '').trim();
+            const ipa = (document.getElementById('newIpaInput')?.value || tempIpa || '').trim();
             const glossZh = (document.getElementById('newGlossInput').value || tempGlossZh || '').trim();
             const senseLabel = (document.getElementById('newSenseLabelInput').value || tempSenseLabel || '').trim();
             const mnemonic = (document.getElementById('newMnemonicInput').value || tempMnemonic || '').trim();
             const collocations = normalizeCollocations(document.getElementById('newCollocationsInput').value || tempCollocations);
-            const familyKey = document.getElementById('newFamilyKeyInput').value.trim() || word;
+            const familyKey = document.getElementById('newFamilyKeyInput').value.trim() || tempFamilyHeadword || word;
             const frequencyBand = document.getElementById('newFrequencyBandSelect').value || 'unknown';
             const sourceType = document.getElementById('newSourceTypeSelect').value || 'manual';
             const sourceLabel = document.getElementById('newSourceLabelInput').value.trim();
             const countTowardGoal = document.getElementById('newCountTowardGoal').checked;
             const clozeSentence = (document.getElementById('newClozeSentenceInput').value || tempClozeSentence || '').trim();
-            const clozeEnabled = document.getElementById('newClozeEnabled').checked && hasExactClozeTarget(clozeSentence, word);
-            const clozeDisabledReason = clozeEnabled ? '' : (tempClozeReason || (clozeSentence ? 'invalid_manual_cloze' : 'not_configured'));
+            const clozeEnabled = false;
+            const clozeDisabledReason = 'retired';
 
             if (!word) return;
-
-            // 逻辑修复：确保直接使用全局变量 tempMorphemes，不要在函数内重新声明(let/const)同名变量
 
             if (findCardIndexBySense(word, pos, senseLabel, definition) !== -1) {
                 alert("这个单词的相同义项已经存在。不同词性或不同义项可以分别保存。");
                 return;
             }
 
-            deck.push(createCardObject(word, sentence, definition, mnemonic, tempSocratic, tempEmoji, pos, "", "", tempContrast, tempMorphemes, tempFamily, "", collocations, glossZh, senseLabel, familyKey, frequencyBand, sourceType, sourceLabel, countTowardGoal, clozeSentence, clozeEnabled, clozeDisabledReason));
+            deck.push(createCardObject(word, sentence, definition, mnemonic, tempSocratic, tempEmoji, pos, "", "", tempContrast, tempMorphemes, tempFamily, "", collocations, glossZh, senseLabel, familyKey, frequencyBand, sourceType, sourceLabel, countTowardGoal, clozeSentence, clozeEnabled, clozeDisabledReason, ipa));
 
             wInput.value = '';
             sInput.value = '';
+            const hintInput = document.getElementById('newSenseHintInput');
+            if (hintInput) hintInput.value = '';
             resetTempData();
 
             // 【修改】只保存当前这一张卡片到数据库
@@ -6273,24 +6434,26 @@ ${mnemonic}`;
         }
 
         // 【修复】新增函数：当用户修改输入框文字时，必须清空之前 AI 生成的临时数据，防止"张冠李戴"
-        function resetTempData() {
+        function resetTempData(clearSenseHint = true) {
             tempAutoDefinition = ""; tempMorphemes = null; tempFamily = "";
             tempMnemonic = ""; tempSocratic = ""; tempEmoji = "";
             tempContrast = "";
             tempCollocations = [];
             tempClozeSentence = ""; tempClozeEnabled = false; tempClozeReason = "";
-            tempPOS = ""; // 【新增】重置词性
+            tempPOS = ""; tempIpa = ""; tempFamilyHeadword = "";
             tempGlossZh = ""; tempSenseLabel = "";
+            if (clearSenseHint) {
+                const hintEl = document.getElementById('newSenseHintInput');
+                if (hintEl) hintEl.value = '';
+            }
             const posDisplayEl = document.getElementById('newPosDisplay');
             if (posDisplayEl) posDisplayEl.innerText = "";
             const preview = document.getElementById('newCardPreview');
             if (preview) preview.classList.add('hidden');
-            ['newSenseLabelInput', 'newPosInput', 'newGlossInput', 'newDefinitionInput', 'newCollocationsInput', 'newClozeSentenceInput', 'newMnemonicInput', 'newFamilyKeyInput', 'newSourceLabelInput']
+            ['newSenseLabelInput', 'newPosInput', 'newIpaInput', 'newGlossInput', 'newDefinitionInput', 'newCollocationsInput', 'newClozeSentenceInput', 'newMnemonicInput', 'newFamilyKeyInput', 'newSourceLabelInput']
                 .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
             const newClozeEnabledEl = document.getElementById('newClozeEnabled');
             if (newClozeEnabledEl) newClozeEnabledEl.checked = false;
-            const newClozeSentenceEl = document.getElementById('newClozeSentenceInput');
-            if (newClozeSentenceEl) newClozeSentenceEl.placeholder = '专用挖空句（必须包含目标词；普通例句不会自动拿来挖空）';
             const frequencyEl = document.getElementById('newFrequencyBandSelect');
             if (frequencyEl) frequencyEl.value = 'unknown';
             const sourceEl = document.getElementById('newSourceTypeSelect');
@@ -6654,6 +6817,16 @@ ${mnemonic}`;
                 document.getElementById('mnemonicArea').classList.add('hidden'); // 隐藏助记法
                 document.getElementById('contextArea').classList.add('hidden');
                 document.getElementById('editCurrentCardBtn')?.classList.add('hidden');
+                const confusableArea = document.getElementById('confusableArea');
+                if (confusableArea) {
+                    confusableArea.classList.add('hidden');
+                    confusableArea.innerHTML = "";
+                }
+                const calibrationHint = document.getElementById('calibrationHint');
+                if (calibrationHint) {
+                    calibrationHint.classList.add('hidden');
+                    calibrationHint.innerText = "";
+                }
                 const postAnswerSocratic = document.getElementById('postAnswerSocratic');
                 if (postAnswerSocratic) {
                     postAnswerSocratic.classList.add('hidden');
@@ -6661,14 +6834,24 @@ ${mnemonic}`;
                 }
 
                 document.getElementById('deepLearningTools').classList.add('hidden');
+                const deepContentEl = document.getElementById('deepContent');
+                if (deepContentEl) deepContentEl.innerHTML = "";
                 document.getElementById('disclosureBar').classList.add('hidden');
 
-                // 2. Hide Ratings, Show "Show Answer"
+                // 2. Hide Ratings; 英语词义卡正面直接展示 3 档翻面按钮（减为 2 步交互），备考卡保留 Show Answer
                 document.getElementById('ratingButtons').classList.add('hidden');
-                document.getElementById('showAnswerBtn').classList.remove('hidden');
+                const useDirectFrontConfidence = !isExam && currentPromptType === 'meaning';
+                document.getElementById('showAnswerBtn').classList.toggle('hidden', useDirectFrontConfidence);
+                document.getElementById('confidenceSelector').classList.toggle('hidden', !useDirectFrontConfidence);
 
                 const recallPromptHint = document.getElementById('recallPromptHint');
                 if (recallPromptHint) recallPromptHint.classList.toggle('hidden', isExam);
+
+                // 正面自动朗读开关生效：每张新出现的英语卡只自动读一次单词，避免重复打断
+                if (!isExam && autoSpeakFront && lastAutoSpokenCardId !== currentCard.id) {
+                    lastAutoSpokenCardId = currentCard.id;
+                    speakCurrentCard({ wordOnly: true });
+                }
 
                 // 3. Pre-fill content (but keep hidden)
                 const defEl = document.getElementById('currentDefinition');
@@ -6846,11 +7029,17 @@ ${mnemonic}`;
             const predicted = getRetrievabilityPercent(currentCard);
             const predictionHtml = predicted === null ? '' :
                 `<br><span style="font-size:11px; color:#666;">模型预测回忆概率：${predicted.toFixed(1)}% · S:${Number(currentCard.stability || 0).toFixed(1)} D:${Number(currentCard.difficulty || 0).toFixed(1)}</span>`;
+            const articleForgotten = Array.isArray(currentCard.contextHistory)
+                ? currentCard.contextHistory.filter(h => h && h.status === 'forgotten').length
+                : 0;
+            const contextHtml = articleForgotten > 0
+                ? `<br><span style="font-size:11px; color:#c2410c;">📰 差词阅读曾有 ${articleForgotten} 次未认出</span>`
+                : '';
             const signalHtml = currentClozeAlternative
                 ? '<br><span style="font-size:11px; color:#9a5b00;">你的答案在语境中可能成立，但没有提取到本卡目标词；本题最多按“勉强”评价。</span>'
                 : (currentAnswerCorrect === null ? '' :
                     `<br><span style="font-size:11px; color:${currentAnswerCorrect ? '#15803d' : '#b91c1c'};">本题输入：${currentAnswerCorrect ? '正确' : '未正确'}${currentRecallHintUsed ? ' · 答案揭示前使用过提示' : ''}</span>`);
-            target.innerHTML = stateLabel + predictionHtml + signalHtml;
+            target.innerHTML = stateLabel + predictionHtml + contextHtml + signalHtml;
         }
 
         // --- NEW: REVEAL ANSWER LOGIC ---
@@ -6883,55 +7072,36 @@ ${mnemonic}`;
             }
 
             // --- 2. 自信度拦截 (Confidence Rating) ---
-            // 如果是点击了具体的自信度按钮，记录数值
             if (typeof confidenceVal === 'number') {
                 currentConfidence = confidenceVal;
             }
 
-            // 如果还没有自信度（且没有被拼写逻辑自动填满），则拦截，显示选项
+            // 备考卡或旧入口若未选自信度，则拦截展示选项
             if (!currentConfidence) {
                 document.getElementById('showAnswerBtn').classList.add('hidden');
                 document.getElementById('confidenceSelector').classList.remove('hidden');
-                return; // ⛔️ 阻断，等待用户选择自信度
+                return;
             }
 
             // --- 3. 真正揭示答案 (Actual Reveal) ---
-            // 从这里开始，用户看到的 Logic、Context、词根、例句都属于答案解析。
-            // 本次评分只使用此刻之前的提示状态，之后任何展开操作都不能反向污染评分。
             if (!currentAnswerRevealed) currentRecallHintUsed = !!currentUsedHint;
             currentAnswerRevealed = true;
-            // 隐藏自信度选择器
             document.getElementById('confidenceSelector').classList.add('hidden');
 
-            // 0. 还原单词显示 (如果是挖空状态，这里要显示回单词)
+            // 0. 还原单词显示 + IPA 音标 + 真实词根拆解
             const wordEl = document.getElementById('currentWord');
-            // 【修改】看答案时强制显示大号 Emoji，作为多巴胺奖励
             renderWordWithEmoji(wordEl, currentCard.word, currentCard.emoji, true);
+            const ipaHtml = buildIpaHTML(currentCard);
+            if (ipaHtml) wordEl.insertAdjacentHTML('beforeend', ipaHtml);
             const morphemeHtml = buildMorphemeAnalysisHTML(currentCard);
             if (morphemeHtml) wordEl.insertAdjacentHTML('beforeend', morphemeHtml);
-            wordEl.style.color = "var(--accent)"; // 高亮显示
+            wordEl.style.color = "var(--accent)";
             document.getElementById('editCurrentCardBtn')?.classList.remove('hidden');
-            const shouldAutoSpeakOnReveal = wasAnswerHidden;
-            if (shouldAutoSpeakOnReveal) {
-                speakCurrentCard();
-            }
 
             // 1. Show Definition (Always visible after reveal)
             document.getElementById('definitionArea').classList.remove('hidden');
 
-            // 通用模糊函数
-            const applyBlur = (el, content) => {
-                el.innerHTML = content + '<div class="blur-hint">TAP</div>';
-                el.className = 'cognitive-blur'; // 应用模糊类
-                el.onclick = function () {
-                    this.classList.add('revealed'); // 移除模糊
-                    // 移除 hint
-                    const hint = this.querySelector('.blur-hint');
-                    if (hint) hint.remove();
-                };
-            };
-
-            // 【新增】再次判断是否为备考卡片，防止在 revealAnswer 中显示针对英语的组件
+            // 判断是否为备考卡片
             const isExam = currentCard.sentence && (
                 currentCard.sentence.includes('[考公]') ||
                 currentCard.sentence.includes('[考研]') ||
@@ -6941,15 +7111,21 @@ ${mnemonic}`;
             );
 
             const autoOpenStudyAid = shouldAutoOpenStudyAid(currentCard, isExam);
+            renderConfusableWordsForCurrentCard(isExam);
             renderMemoryHookForCurrentCard(isExam, autoOpenStudyAid);
             renderPostAnswerSocratic(isExam);
             renderPostAnswerStats();
 
-            // 2. Show Context (Context)
+            // 2. Show Context（答案揭示后取消二次模糊，展开即可直接看清搭配与例句）
             const ctxArea = document.getElementById('contextArea');
             const ctxContent = document.getElementById('contextContent');
+            if (ctxContent) {
+                ctxContent.className = 'revealed';
+                ctxContent.onclick = null;
+                const oldHint = ctxContent.querySelector('.blur-hint');
+                if (oldHint) oldHint.remove();
+            }
 
-            // 备考卡片的 Context 区域其实就是原来的 `sentence`，用来存标签了，不应该作为例句弹出来
             if (isExam) {
                 ctxArea.classList.add('hidden');
             } else if (autoOpenStudyAid || currentCard.state === 0) {
@@ -6958,8 +7134,13 @@ ${mnemonic}`;
                 ctxArea.classList.add('hidden');
             }
 
-            // 【新增】初始化控制栏状态 (如果有数据，按钮才可用)
-            // 备考卡片隐藏所有的上下文控制按钮 (Context, RSVP, Noise, Logic)
+            // 修复时序：必须在 ctxArea 可见性确定后再触发自动朗读，确保新词/难词能正常衔接朗读纯例句
+            const shouldAutoSpeakOnReveal = wasAnswerHidden && !isExam;
+            if (shouldAutoSpeakOnReveal) {
+                speakCurrentCard();
+            }
+
+            // 初始化控制栏状态
             const dBar = document.getElementById('disclosureBar');
             if (isExam) {
                 dBar.classList.add('hidden');
@@ -6967,15 +7148,18 @@ ${mnemonic}`;
                 dBar.classList.remove('hidden');
             }
 
-            // 重置所有按钮样式
             ['btnToggleCtx', 'btnToggleMne'].forEach(bid => {
                 const b = document.getElementById(bid);
+                if (!b) return;
                 b.style.background = "#f2f2f7"; b.style.color = "var(--text)"; b.style.opacity = "1";
+                b.style.boxShadow = "none";
             });
 
-            // 如果没有数据，把按钮变淡
             if (!currentCard.sentence && getCardCollocations(currentCard).length === 0) document.getElementById('btnToggleCtx').style.opacity = "0.3";
             if (!currentCard.mnemonic && !currentCard.family) document.getElementById('btnToggleMne').style.opacity = "0.3";
+            const speakSentBtn = document.getElementById('btnSpeakSentence');
+            if (speakSentBtn) speakSentBtn.style.opacity = currentCard.sentence ? "1" : "0.3";
+            syncAutoSpeakFrontButton();
 
             const markOpenButton = (id) => {
                 const btn = document.getElementById(id);
@@ -6987,27 +7171,23 @@ ${mnemonic}`;
             if (!ctxArea.classList.contains('hidden') && (currentCard.sentence || getCardCollocations(currentCard).length)) markOpenButton('btnToggleCtx');
             if (!document.getElementById('mnemonicArea').classList.contains('hidden') && (currentCard.mnemonic || currentCard.family)) markOpenButton('btnToggleMne');
 
-            // 新卡片直接显示，复习卡片默认模糊
-            if (currentCard.state > 0) {
-                const cleanSentence = document.getElementById('currentSentence').innerHTML; // 此时可能已经有文字了
-                // 重新包裹模糊逻辑
-                ctxContent.classList.remove('revealed'); // 重置状态
-                applyBlur(ctxContent, `<div class="context-sentence" id="currentSentence">${cleanSentence}</div>`);
-            } else {
-                // 新词不模糊
-                ctxContent.className = 'revealed';
-                // 确保移除可能残留的 hint
-                const hint = ctxContent.querySelector('.blur-hint');
-                if (hint) hint.remove();
-            }
-
-            // 3. Swap Buttons
+            // 3. Swap Buttons + 翻前“模糊”温和校准提示（不再硬锁为 Hard，避免 FSRS Hard 通胀）
             document.getElementById('showAnswerBtn').classList.add('hidden');
             const recallPromptHint = document.getElementById('recallPromptHint');
             if (recallPromptHint) recallPromptHint.classList.add('hidden');
+            const calibrationHint = document.getElementById('calibrationHint');
+            if (calibrationHint) {
+                if (!isExam && currentConfidence === 2) {
+                    calibrationHint.innerText = '💡 你翻前标记为「模糊」：只有独立想出了核心义才选「正确想起」；若偏离或靠蒙，请选「勉强想起」或「忘了」。';
+                    calibrationHint.classList.remove('hidden');
+                } else {
+                    calibrationHint.classList.add('hidden');
+                    calibrationHint.innerText = '';
+                }
+            }
             document.getElementById('ratingButtons').classList.remove('hidden');
 
-            // 新增：显示深度学习工具栏 / 备考卡片隐藏该工具栏
+            // 显示深度学习工具栏 / 备考卡片隐藏该工具栏
             if (isExam) {
                 document.getElementById('deepLearningTools').classList.add('hidden');
                 document.getElementById('deepContent').innerHTML = "";
@@ -7016,7 +7196,7 @@ ${mnemonic}`;
                 renderContrastPromptForCurrentCard(autoOpenStudyAid);
             }
 
-            // 4. (Smart Feature) If no definition exists (old cards), try to fetch it now
+            // 4. (Smart Feature) If no definition exists (old cards), try to fetch definition + IPA now
             if (!currentCard.definition) {
                 const definitionCard = currentCard;
                 const defEl = document.getElementById('currentDefinition');
@@ -7024,20 +7204,25 @@ ${mnemonic}`;
                 try {
                     const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(definitionCard.word)}`);
                     const data = await res.json();
-                    // Extract first definition
                     let def = "";
                     if (data[0]?.meanings[0]?.definitions[0]?.definition) {
                         def = `(${data[0].meanings[0].partOfSpeech}) ${data[0].meanings[0].definitions[0].definition}`;
                     }
+                    const fetchedIpa = data[0]?.phonetic || (Array.isArray(data[0]?.phonetics) ? (data[0].phonetics.find(ph => ph && ph.text)?.text || '') : '');
 
-                    if (def) {
-                        // 请求返回时用户可能已经评分切卡；只能写回发起请求的那张卡。
-                        if (!definitionCard.definition) definitionCard.definition = def;
+                    if (def || fetchedIpa) {
+                        if (def && !definitionCard.definition) definitionCard.definition = def;
+                        if (fetchedIpa && !definitionCard.ipa) definitionCard.ipa = fetchedIpa;
                         definitionCard.needsSync = true;
                         definitionCard.updated_at = new Date().toISOString();
                         await db.saveCard(definitionCard);
                         await pushToCloud();
-                        if (currentCard && currentCard.id === definitionCard.id && currentAnswerRevealed) defEl.innerText = definitionCard.definition;
+                        if (currentCard && currentCard.id === definitionCard.id && currentAnswerRevealed) {
+                            if (definitionCard.definition) defEl.innerText = definitionCard.definition;
+                            if (fetchedIpa && !wordEl.querySelector('.ipa-line')) {
+                                wordEl.insertAdjacentHTML('beforeend', buildIpaHTML(definitionCard));
+                            }
+                        }
                     } else if (currentCard && currentCard.id === definitionCard.id && currentAnswerRevealed) {
                         defEl.innerText = "No definition found in dictionary.";
                     }
@@ -7331,11 +7516,11 @@ ${mnemonic}`;
             if (!currentCard) return;
             if (!currentAnswerRevealed) return;
             if (currentPromptType === 'meaning' && currentConfidence === 1 && g >= 2) {
-                alert('翻答案前选择了“盲猜”，本次应按“忘了”。评分必须反映看答案前的回忆。');
+                alert('翻答案前选择了“想不起”，本次应按“忘了”。评分必须反映看答案前的真实回忆。');
                 return;
             }
-            if (currentPromptType === 'meaning' && currentConfidence === 2 && g >= 3) {
-                alert('翻答案前只有“有印象”，本次最多按“勉强想起”。');
+            if (currentPromptType === 'meaning' && currentConfidence === 2 && g >= 4) {
+                alert('翻答案前标记了“模糊”，本次不能评为“立即想起”（可根据实际回忆选 忘了 / 勉强 / 正确想起）。');
                 return;
             }
             if (currentPromptType === 'cloze' && currentAnswerCorrect === false && g >= 2) {
@@ -7403,6 +7588,7 @@ ${mnemonic}`;
             currentClozeHintUsed = false;
             currentClozeAlternative = false;
             currentReviewStartedAt = 0;
+            lastAutoSpokenCardId = null;
             render();
         }
 
@@ -7548,7 +7734,8 @@ ${mnemonic}`;
                     fsrs_weights: Array.from(p.w),
                     fsrs_retention: p.requestRetention,
                     fsrs_new_limit: newCardsPerDay,
-                    vocab_goal_plan: vocabGoal
+                    vocab_goal_plan: vocabGoal,
+                    auto_speak_front: !!autoSpeakFront
                 },
                 cards: deck
             };
@@ -7657,10 +7844,12 @@ ${mnemonic}`;
                         const importedRetention = Number(newSettings.fsrs_retention);
                         if (Number.isInteger(importedLimit) && importedLimit >= 0 && importedLimit <= 100) newCardsPerDay = importedLimit;
                         if (Number.isFinite(importedRetention) && importedRetention >= 0.85 && importedRetention <= 0.95) p.requestRetention = importedRetention;
+                        if (typeof newSettings.auto_speak_front === 'boolean') autoSpeakFront = newSettings.auto_speak_front;
                         await Promise.all([
                             db.saveSetting('vocab_goal_plan', vocabGoal),
                             db.saveSetting('fsrs_new_limit', newCardsPerDay),
                             db.saveSetting('fsrs_retention', p.requestRetention),
+                            db.saveSetting('auto_speak_front', autoSpeakFront),
                             db.saveSetting('fsrs_parameters_v6', getFsrsParameters())
                         ]);
                     }
@@ -7894,7 +8083,7 @@ ${mnemonic}`;
                         info.appendChild(subtitleEl);
                     }
                 } else {
-                    const senseMeta = [card.pos, card.senseLabel, card.glossZh].filter(Boolean).join(' · ');
+                    const senseMeta = [card.pos, card.ipa, card.senseLabel, card.glossZh].filter(Boolean).join(' · ');
                     if (senseMeta) {
                         const senseEl = document.createElement('div');
                         senseEl.style.cssText = 'font-size:11px; color:#86868b; margin-top:3px;';
@@ -8005,6 +8194,8 @@ ${mnemonic}`;
             document.getElementById('editGlossInput').value = card.glossZh || "";
             document.getElementById('editSenseLabelInput').value = card.senseLabel || "";
             document.getElementById('editPosInput').value = card.pos || "";
+            const editIpaEl = document.getElementById('editIpaInput');
+            if (editIpaEl) editIpaEl.value = card.ipa || "";
             document.getElementById('editCollocationsInput').value = getCardCollocations(card).join(', ');
             document.getElementById('editClozeSentenceInput').value = card.clozeSentence || "";
             document.getElementById('editClozeEnabled').checked = card.clozeEnabled === true;
@@ -8032,6 +8223,7 @@ ${mnemonic}`;
             const newGloss = document.getElementById('editGlossInput').value.trim();
             const newSenseLabel = document.getElementById('editSenseLabelInput').value.trim();
             const newPos = document.getElementById('editPosInput').value.trim();
+            const newIpa = (document.getElementById('editIpaInput')?.value || '').trim();
             const newCollocations = normalizeCollocations(document.getElementById('editCollocationsInput').value);
             const newFrequencyBand = document.getElementById('editFrequencyBandSelect').value || 'unknown';
             const newSourceType = document.getElementById('editSourceTypeSelect').value || 'legacy';
@@ -8064,6 +8256,7 @@ ${mnemonic}`;
                 deck[cardIndex].glossZh = newGloss;
                 deck[cardIndex].senseLabel = newSenseLabel;
                 deck[cardIndex].pos = newPos;
+                deck[cardIndex].ipa = newIpa;
                 deck[cardIndex].collocations = newCollocations;
                 deck[cardIndex].familyKey = resolvedFamilyKey;
                 deck[cardIndex].frequencyBand = newFrequencyBand;
@@ -8076,9 +8269,12 @@ ${mnemonic}`;
 
                 // 【新增】检查并合并编辑期间 AI 生成的新高级数据
                 if (tempEditData && Object.keys(tempEditData).length > 0) {
+                    if (tempEditData.ipa && !newIpa) deck[cardIndex].ipa = tempEditData.ipa;
                     if (tempEditData.morphemes) deck[cardIndex].morphemes = tempEditData.morphemes;
-                    if (tempEditData.family) deck[cardIndex].family = tempEditData.family;
+                    if (tempEditData.family !== undefined) deck[cardIndex].family = tempEditData.family;
                     if (tempEditData.contrast) deck[cardIndex].contrast = tempEditData.contrast;
+                    if (tempEditData.socratic) deck[cardIndex].socratic = tempEditData.socratic;
+                    if (tempEditData.emoji) deck[cardIndex].emoji = tempEditData.emoji;
                     tempEditData = {}; // 用完即焚，清空数据
                 } else if (wordIdentityChanged) {
                     // 改成另一个词时，旧词根/词族已不可信，不能继续展示。
@@ -8105,180 +8301,119 @@ ${mnemonic}`;
             }
         }
 
-        // --- 8. Speech (Updated with Edge TTS Logic) ---
-        function speakCurrentCard() {
-            if (!currentCard || !currentCard.word) return;
-
-            // 1. 智能语音选择 (兼容 iOS Safari 和 PC Edge)
+        // --- 8. Speech (Updated with Edge TTS Logic & Pure Sentence Playback) ---
+        function getBestEnglishVoice() {
             const voices = speechSynthesis.getVoices();
-            // 优先级：微软在线(PC) > 苹果高清语音(Samantha/Ava) > Google语音 > 任意英语
-            const bestVoice = voices.find(v => v.name.includes("Microsoft") && v.name.includes("Online") && v.name.includes("United States"))
-                || voices.find(v => v.name === "Samantha") // iOS 经典高质量女声
-                || voices.find(v => v.name === "Ava")      // iOS 新版高质量语音
+            return voices.find(v => v.name.includes("Microsoft") && v.name.includes("Online") && v.name.includes("United States"))
+                || voices.find(v => v.name === "Samantha")
+                || voices.find(v => v.name === "Ava")
                 || voices.find(v => v.name.includes("Google US English"))
-                || voices.find(v => v.lang === 'en-US');
+                || voices.find(v => v.lang === 'en-US')
+                || voices.find(v => v.lang && v.lang.startsWith('en'));
+        }
 
-            const speakText = (text, rate = 1.0) => {
-                const u = new SpeechSynthesisUtterance(text);
-                u.lang = 'en-US';
-                u.rate = rate; // 语速
-                if (bestVoice) u.voice = bestVoice;
-                speechSynthesis.speak(u);
-            };
+        function getAdaptiveSentenceRate(card) {
+            if (!card) return 1.05;
+            if (Number(card.reps || 0) < 2 || Number(card.difficulty || 0) > 7) return 0.95;
+            if (Number(card.reps || 0) > 5) return 1.2;
+            return 1.1;
+        }
+
+        function speakTextNow(text, rate = 1.0) {
+            const clean = String(text || '').trim();
+            if (!clean) return;
+            const u = new SpeechSynthesisUtterance(clean);
+            u.lang = 'en-US';
+            u.rate = rate;
+            const bestVoice = getBestEnglishVoice();
+            if (bestVoice) u.voice = bestVoice;
+            speechSynthesis.speak(u);
+        }
+
+        function speakCurrentCard(options = {}) {
+            if (!currentCard || !currentCard.word || typeof speechSynthesis === 'undefined') return;
+            const wordOnly = !!(options && typeof options === 'object' && options.wordOnly === true);
+            const cardIdAtStart = currentCard.id;
 
             speechSynthesis.cancel();
+            speakTextNow(currentCard.word, 1.0);
 
-            // 【新增】鸡尾酒会效应：白噪音干扰 (Web Audio API)
-            if (isNoiseMode) {
-                playWhiteNoise(4.0); // 默认播放4秒噪音，覆盖单词+例句
-            }
+            if (wordOnly) return;
 
-            // 2. 朗读单词
-            speakText(currentCard.word, 1.0);
-
-            // 3. 朗读例句 (双重编码优化：词 -> 0.5s静音 -> 句)
-            // 只有当例句区域可见时才播放例句
-            if (!document.getElementById('contextArea').classList.contains('hidden')) {
-                const cleanSentence = document.getElementById('currentSentence').innerText;
-
-                if (cleanSentence && cleanSentence.length > 0) {
-                    // 【Phase 2 优化】使用 500ms 黄金静音间隔，给予大脑切换处理通道的时间
+            // 3. 朗读纯例句（彻底修复此前把 "Core Phrases" 标题和搭配芯片一并念出的问题）
+            const ctxArea = document.getElementById('contextArea');
+            if (ctxArea && !ctxArea.classList.contains('hidden') && currentCard.sentence) {
+                const cleanSentence = getPlainText(currentCard.sentence);
+                if (cleanSentence) {
+                    const rate = getAdaptiveSentenceRate(currentCard);
                     setTimeout(() => {
-                        // 再次检查页面状态，防止用户已经切走了
-                        if (!document.getElementById('contextArea').classList.contains('hidden')) {
-                            // 【最高效率优化】自适应语速算法
-                            // 1. 生词/难词 (0.95x): 确保听清连读细节
-                            // 2. 熟词 (1.25x): 超过内心翻译速度，强迫听音会意
-                            let rate = 1.15; // 默认：巩固期 (略快)
-                            if (currentCard.reps < 2 || currentCard.difficulty > 7) {
-                                rate = 0.95; // 编码期：清晰优先
-                            } else if (currentCard.reps > 5) {
-                                rate = 1.25; // 精通期：母语级极速
-                            }
-
-                            speakText(cleanSentence, rate);
+                        if (currentCard && currentCard.id === cardIdAtStart && !ctxArea.classList.contains('hidden')) {
+                            speakTextNow(cleanSentence, rate);
                         }
                     }, 500);
                 }
             }
         }
 
+        function speakSentenceOnly() {
+            if (!currentCard || !currentCard.sentence) return;
+            const cleanSentence = getPlainText(currentCard.sentence);
+            if (!cleanSentence) return;
+            speechSynthesis.cancel();
+            speakTextNow(cleanSentence, getAdaptiveSentenceRate(currentCard));
+        }
+
+        function syncAutoSpeakFrontButton() {
+            const btn = document.getElementById('btnAutoSpeakFront');
+            if (!btn) return;
+            btn.innerText = autoSpeakFront ? '🔊 正面读: 开' : '🔈 正面读: 关';
+            btn.style.background = autoSpeakFront ? '#007aff' : '#f2f2f7';
+            btn.style.color = autoSpeakFront ? 'white' : 'var(--text)';
+            btn.style.boxShadow = autoSpeakFront ? '0 2px 8px rgba(0,122,255,0.3)' : 'none';
+        }
+
+        function toggleAutoSpeakFront() {
+            autoSpeakFront = !autoSpeakFront;
+            db.saveSetting('auto_speak_front', autoSpeakFront);
+            syncAutoSpeakFrontButton();
+        }
+
+        // 键盘快捷键（仅在非输入态且无弹窗打开时生效）：正面 1/2/3 自判翻面，背面 1/2/3/4 评分，R 重播发音
+        document.addEventListener('keydown', (e) => {
+            const tag = (e.target && e.target.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.metaKey || e.ctrlKey || e.altKey) return;
+            const anyModalOpen = Array.from(document.querySelectorAll('.modal-overlay')).some(m => !m.classList.contains('hidden'));
+            if (anyModalOpen || !currentCard) return;
+            const revContainer = document.getElementById('reviewContainer');
+            if (!revContainer || revContainer.classList.contains('hidden')) return;
+
+            if (!currentAnswerRevealed) {
+                const confVisible = !document.getElementById('confidenceSelector').classList.contains('hidden');
+                if (confVisible && ['1', '2', '3'].includes(e.key)) {
+                    e.preventDefault();
+                    revealAnswer(Number(e.key));
+                } else if (e.key === 'r' || e.key === 'R') {
+                    e.preventDefault();
+                    speakCurrentCard({ wordOnly: true });
+                }
+            } else {
+                if (['1', '2', '3', '4'].includes(e.key)) {
+                    e.preventDefault();
+                    rate(Number(e.key));
+                } else if (e.key === 'r' || e.key === 'R') {
+                    e.preventDefault();
+                    speakCurrentCard();
+                }
+            }
+        });
+
         // 初始化语音列表 (Chrome/Edge 需要)
         speechSynthesis.onvoiceschanged = () => { };
 
-        // 【新增】功能1：RSVP 极速阅读模式 (优化版：requestAnimationFrame防卡顿)
-        function startRSVP() {
-            if (!currentAnswerRevealed) return;
-            if (!currentCard || !currentCard.sentence) return alert("No context sentence to RSVP!");
-
-            const displayEl = document.getElementById('currentSentence');
-
-            // 1. 切换逻辑：如果已经在运行，再次点击则停止并恢复
-            if (rsvpTimer) {
-                cancelAnimationFrame(rsvpTimer);
-                rsvpTimer = null;
-                if (displayEl.dataset.original) displayEl.innerHTML = displayEl.dataset.original;
-                return;
-            }
-
-            // 2. 保存原始内容 (仅当还没开始时)
-            if (!displayEl.querySelector('.rsvp-active-word')) {
-                displayEl.dataset.original = displayEl.innerHTML;
-            }
-
-            const ctxArea = document.getElementById('contextArea');
-            // 确保区域可见
-            ctxArea.classList.remove('hidden');
-            document.getElementById('contextContent').classList.remove('cognitive-blur');
-
-            // 提取纯文本并分词
-            const div = document.createElement('div');
-            div.innerHTML = currentCard.sentence;
-            const text = div.textContent || div.innerText || "";
-            const words = text.trim().split(/\s+/);
-
-            if (words.length === 0) return;
-
-            let i = 0;
-            displayEl.innerHTML = `<div class="rsvp-active-word" style="color:#007aff">READY...</div>`;
-
-            // 使用 requestAnimationFrame 控制的高精度计时器
-            let nextFrameTime = performance.now() + 800; // 首词延迟 800ms
-
-            const loop = (timestamp) => {
-                if (!rsvpTimer) return; // 已被取消
-                
-                if (timestamp < nextFrameTime) {
-                    rsvpTimer = requestAnimationFrame(loop);
-                    return;
-                }
-
-                if (i >= words.length) {
-                    displayEl.innerHTML = displayEl.dataset.original; // 恢复
-                    rsvpTimer = null;
-                    return;
-                }
-
-                const word = words[i];
-                displayEl.innerHTML = `<div class="rsvp-active-word">${word}</div>`;
-
-                // 🧠 动态语速算法
-                let delay = 350; // 基础速度
-                if (word.length > 7) delay += (word.length - 7) * 30; // 长词减速
-                if (word.includes('.') || word.includes('?') || word.includes('!')) delay += 400; // 句末停顿
-                else if (word.includes(',') || word.includes(';')) delay += 200; // 逗号停顿
-
-                nextFrameTime = timestamp + delay;
-                i++;
-                
-                rsvpTimer = requestAnimationFrame(loop);
-            };
-
-            // 启动高精度循环
-            rsvpTimer = requestAnimationFrame((timestamp) => {
-                nextFrameTime = timestamp + 800;
-                rsvpTimer = requestAnimationFrame(loop);
-            });
-        }
-
-        // 【新增】功能2：白噪音/听力干扰模式控制
-        function toggleNoiseMode(btn) {
-            isNoiseMode = !isNoiseMode;
-            if (isNoiseMode) {
-                btn.innerHTML = "🔊 Noise: ON";
-                btn.classList.add('noise-active');
-                // 初始化 AudioContext (必须由用户交互触发)
-                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                if (audioContext.state === 'suspended') audioContext.resume();
-            } else {
-                btn.innerHTML = "🔊 Noise: OFF";
-                btn.classList.remove('noise-active');
-            }
-        }
-
-        // 生成并播放白噪音
-        function playWhiteNoise(duration) {
-            if (!audioContext) return;
-            const bufferSize = audioContext.sampleRate * duration;
-            const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
-            const data = buffer.getChannelData(0);
-
-            // 生成随机白噪音
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() * 2 - 1;
-            }
-
-            const noiseSource = audioContext.createBufferSource();
-            noiseSource.buffer = buffer;
-
-            // 增益节点控制音量 (0.1 - 0.2 比较合适，不至于完全盖过TTS)
-            const gainNode = audioContext.createGain();
-            gainNode.gain.value = 0.15;
-
-            noiseSource.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            noiseSource.start();
-        }
+        // 保留空壳以防旧脚本引用
+        function startRSVP() { }
+        function toggleNoiseMode() { }
+        function playWhiteNoise() { }
 
         async function openGoalSettings() {
             const baselineInput = prompt('当前已知词汇量基线', String(vocabGoal.baselineVocabulary));
@@ -8356,23 +8491,51 @@ ${mnemonic}`;
             render();
         }
 
-        // 【新增】造句挑战逻辑
-        async function startSentenceChallenge() {
+        // 【升级】内联造句挑战逻辑：可对照搭配输入 + 支持把润色后的个人例句一键存为本卡例句
+        function startSentenceChallenge() {
+            if (!currentCard || !currentAnswerRevealed) return;
+            const contentDiv = document.getElementById('deepContent');
+            if (!contentDiv) return;
+            const collocations = getCardCollocations(currentCard);
+            const collHint = collocations.length
+                ? `<div style="font-size:12px; color:#475467; margin-bottom:6px;">参考搭配：${collocations.map(c => `<strong>${escapeHTML(c)}</strong>`).join(' · ')}</div>`
+                : '';
+            contentDiv.innerHTML = `
+                <div class="sentence-challenge-panel">
+                    <div style="font-size:12px; font-weight:800; color:#1d4ed8; margin-bottom:6px;">⚔️ 用 "${escapeHTML(currentCard.word)}" 造一个属于你的英文句子</div>
+                    ${collHint}
+                    <textarea id="inlineSentenceInput" rows="2" placeholder="输入你的英文造句..." style="width:100%; padding:10px; font-size:15px; background:#fff; border:1px solid #bfdbfe; border-radius:8px; box-sizing:border-box;"></textarea>
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <button type="button" class="action-btn" style="flex:2; padding:9px; font-size:12px; background:#007aff;" onclick="submitInlineSentenceChallenge()">提交 AI 批改</button>
+                        <button type="button" class="action-btn" style="flex:1; padding:9px; font-size:12px; background:#e5e5ea; color:#333;" onclick="renderContrastPromptForCurrentCard(false)">取消</button>
+                    </div>
+                    <div id="inlineSentenceFeedback" style="margin-top:8px;"></div>
+                </div>`;
+            setTimeout(() => document.getElementById('inlineSentenceInput')?.focus(), 50);
+        }
+
+        async function submitInlineSentenceChallenge() {
             if (!currentCard || !currentAnswerRevealed) return;
             const targetCard = currentCard;
-            const userSentence = prompt(`请用单词 "${targetCard.word}" 造一个句子（英文）：`);
-            if (!userSentence) return;
+            const inputEl = document.getElementById('inlineSentenceInput');
+            const fbEl = document.getElementById('inlineSentenceFeedback');
+            const userSentence = (inputEl ? inputEl.value : '').trim();
+            if (!userSentence) return alert('请先输入一个英文句子。');
+            if (!AI_CONFIG.apiKey || AI_CONFIG.apiKey.includes("这里填入")) {
+                return alert("请先在代码的 AI_CONFIG 中填入正确的 DeepSeek API Key！");
+            }
 
-            const contentDiv = document.getElementById('deepContent');
-            contentDiv.innerHTML = '<div class="spinner"></div> 正在分析你的语法和地道程度...';
+            if (fbEl) fbEl.innerHTML = '<div style="display:flex; align-items:center; gap:8px; color:#555;"><div class="spinner"></div>正在评估语法、搭配与地道程度...</div>';
 
-            const promptCheck = `用户正在尝试用单词 "${targetCard.word}" 造句。
-        用户的句子是: "${userSentence}"
-        请你作为母语英语老师进行评估：
-        1. 语法是否正确？如果不正确，请修正。
-        2. 表达是否地道？是否符合 "Pushed Output" 的要求？
-        3. 给出一个更高级、更地道的改写版本。
-        请用中文简要反馈。`;
+            const senseDesc = [targetCard.pos, targetCard.glossZh, targetCard.definition].filter(Boolean).join(' / ');
+            const promptCheck = `学习者正在用英语单词/短语 "${targetCard.word}"（目标义项：${senseDesc || '常规高频义'}）进行造句练习。
+学习者的句子："${userSentence}"
+请作为母语英语教练，输出严格 JSON（不要 markdown 代码块）：
+{
+  "is_correct": true,
+  "feedback_zh": "用简洁中文评估：1) 语法与该义项用法是否准确；2) 搭配是否地道自然。",
+  "improved_sentence": "保留学习者原意、更地道自然的完整英文润色句，并用 <b>...</b> 高亮目标词及其搭配。"
+}`;
 
             try {
                 const response = await fetch(AI_CONFIG.baseUrl, {
@@ -8381,14 +8544,63 @@ ${mnemonic}`;
                     body: JSON.stringify({
                         model: AI_CONFIG.model,
                         messages: [{ role: "user", content: promptCheck }],
-                        temperature: 0.7
+                        temperature: 0.4,
+                        response_format: { type: 'json_object' }
                     })
                 });
                 const data = await response.json();
-                if (currentCard && currentCard.id === targetCard.id && currentAnswerRevealed) {
-                    renderTextCard(contentDiv, { label: '🕵️ AI Feedback:', text: data.choices[0].message.content, background: '#e3f2fd', borderColor: '#2196f3' });
+                let raw = data.choices?.[0]?.message?.content || '';
+                const m = raw.match(/\{[\s\S]*\}/);
+                if (m) raw = m[0];
+                let parsed = null;
+                try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+
+                if (!currentCard || currentCard.id !== targetCard.id || !currentAnswerRevealed || !fbEl) return;
+
+                if (parsed && parsed.improved_sentence) {
+                    const badge = parsed.is_correct
+                        ? '<span style="color:#15803d; font-weight:700;">✅ 表达基本正确</span>'
+                        : '<span style="color:#b45309; font-weight:700;">🛠️ 有可修正之处</span>';
+                    fbEl.innerHTML = `
+                        <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:10px; padding:10px; font-size:13px; line-height:1.55;">
+                            <div style="margin-bottom:6px;">${badge}</div>
+                            <div style="color:#334155; margin-bottom:8px;">${textToHtmlLines(parsed.feedback_zh || '')}</div>
+                            <div style="background:#f8fafc; border-left:3px solid #2563eb; padding:8px 10px; border-radius:6px; margin-bottom:8px;">
+                                <div style="font-size:11px; font-weight:700; color:#2563eb; margin-bottom:3px;">地道润色版</div>
+                                <div id="improvedSentencePreview" style="font-family:'Charter','Sitka Text','Cambria',serif; font-size:15px;">${sanitizeHTML(parsed.improved_sentence)}</div>
+                            </div>
+                            <button type="button" id="saveImprovedSentenceBtn" class="action-btn" style="width:100%; padding:9px; font-size:12px; background:#34c759;" onclick="saveImprovedSentenceToCard()">💾 存为本卡个人例句（强化记忆）</button>
+                        </div>`;
+                    fbEl.dataset.improved = parsed.improved_sentence;
+                } else {
+                    renderTextCard(fbEl, { label: '🕵️ AI Feedback:', text: raw || '评估完成', background: '#e3f2fd', borderColor: '#2196f3' });
                 }
-            } catch (e) { alert("AI Error"); }
+            } catch (e) {
+                if (fbEl) fbEl.innerHTML = `<span style="color:#ff3b30;">AI 批改失败：${escapeHTML(e.message)}</span>`;
+            }
+        }
+
+        async function saveImprovedSentenceToCard() {
+            const fbEl = document.getElementById('inlineSentenceFeedback');
+            const improved = fbEl?.dataset?.improved || '';
+            if (!currentCard || !improved) return;
+            if (!currentCard.originalContext && currentCard.sentence) {
+                currentCard.originalContext = currentCard.sentence;
+            }
+            currentCard.sentence = improved;
+            currentCard.needsSync = true;
+            currentCard.updated_at = new Date().toISOString();
+            await db.saveCard(currentCard);
+            renderContextForCurrentCard(currentCard);
+            const ctxArea = document.getElementById('contextArea');
+            if (ctxArea) ctxArea.classList.remove('hidden');
+            const btn = document.getElementById('saveImprovedSentenceBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = '✅ 已存为本卡例句';
+                btn.style.opacity = '0.7';
+            }
+            pushToCloud();
         }
 
         function renderContrastForCurrentCard() {
@@ -8512,6 +8724,12 @@ ${mnemonic}`;
             }
             render();
         });
+        db.getSetting('auto_speak_front').then(saved => {
+            if (typeof saved === 'boolean') {
+                autoSpeakFront = saved;
+                syncAutoSpeakFrontButton();
+            }
+        });
 
         loadDeck();
 
@@ -8536,6 +8754,7 @@ ${mnemonic}`;
 
         async function startBatchProcess() {
             const text = document.getElementById('batchWordInput').value;
+            const batchLevel = document.getElementById('batchLevelSelect')?.value || 'simple';
             const batchFrequencyBand = document.getElementById('batchFrequencyBandSelect').value || 'unknown';
             const batchSourceType = document.getElementById('batchSourceTypeSelect').value || 'batch_ai';
             const batchSourceLabel = document.getElementById('batchSourceLabelInput').value.trim();
@@ -8590,36 +8809,6 @@ ${mnemonic}`;
                 logArea.scrollTop = logArea.scrollHeight; // 自动滚动到底部
             };
 
-            // 【认知科学修正】System Prompt：注入灵魂（自解释谜题、严禁谐音）
-            const batchSystemPrompt = `你是一位精通"i+1"理论的认知语言学专家。请严格遵循以下认知原则生成数据：
-1. 先生成 2-4 个高频核心搭配(collocations)，再生成例句。搭配必须短、地道、适合快速复习。
-2. 例句必须是"自解释谜题"：必须含明确逻辑路标(because, despite等)，让学生仅凭基础词汇就能推理出目标词意。严禁废话语境。除目标词外限制在CET-4难度。
-3. 助记法(mnemonic)：严禁谐音！必须是"词根词缀物理动作 -> 抽象隐喻"的推导，必须用中文写，禁止英文解释句和英文模板词，除目标英文词、词根/前后缀字母本身外不要出现英文。
-4. 思维差异(contrast)：指出最致命的中式英语误区。
-5. 语境挖空(cloze)：只有词义具体、句中含典型搭配、常见替代答案很少时 cloze_suitable 才能为 true。宽泛词、多义词、短语或替代词很多时必须为 false，不能硬生成。
-只输出JSON格式，不要任何多余解释。`;
-
-            // User Prompt：只负责结构约束，保持轻量
-            const batchPromptTemplate = (word) => `请为单词/词组 "${word}" 生成深度编码数据。
-【JSON 返回结构强制要求】
-{
-  "sentence": "包含逻辑连接词和 <b>词块</b> 的例句（严格遵守i+1和自解释推理）",
-  "collocations": ["mitigate risk", "mitigate damage", "mitigate the impact"],
-  "morphemes": { "prefix": "", "root": "${word}", "suffix": "" },
-  "sense_label": "当前生成义项的简短标签",
-  "gloss_zh": "不超过12个字的准确中文核心义",
-  "definition": "Simple English definition (CEFR B1).",
-  "pos": "词性（中文标注），如 n. 名词 / v. 动词 / adj. 形容词 / adv. 副词 / prep. 介词 / phrase 短语",
-  "mnemonic": "必须用中文写的物理图景(词根释义) -> 抽象演化推导；除目标词和词根字母外不要出现英文",
-  "socratic": "引导底层逻辑思考的提问",
-  "emoji": "最精准的表情符号",
-  "contrast": "🇨🇳🇺🇸中英思维差异(中文)",
-  "family": "同根词(仅列举单词)",
-  "cloze_suitable": true,
-  "cloze_sentence": "只在答案接近唯一时生成；必须原样包含 ${word} 和上述一个典型搭配，否则为空",
-  "cloze_reason": "不适合时说明词义过宽、多义或替代答案过多"
-}`;
-
             const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
             const isWordInDeck = (word) => hasCardWord(word);
             const pendingWords = new Set(words);
@@ -8669,6 +8858,8 @@ ${mnemonic}`;
                     return;
                 }
 
+                const { systemPrompt: batchSysPrompt, userPrompt: batchUsrPrompt } = buildVocabGenerationPrompts(word, batchLevel, '');
+
                 for (let attempts = 1; attempts <= MAX_BATCH_ATTEMPTS; attempts++) {
                     await waitForForeground();
                     updateProgress(`${word}, try ${attempts}/${MAX_BATCH_ATTEMPTS}, worker ${workerNo}`);
@@ -8683,14 +8874,13 @@ ${mnemonic}`;
                             body: JSON.stringify({
                                 model: AI_CONFIG.model,
                                 messages: [
-                                    // 【关键修改】使用强化版的 System Prompt，防止 AI 偷懒
-                                    { role: "system", content: batchSystemPrompt },
-                                    { role: "user", content: batchPromptTemplate(word) }
+                                    { role: "system", content: batchSysPrompt },
+                                    { role: "user", content: batchUsrPrompt }
                                 ],
-                                temperature: 0.5,
-                                response_format: { type: 'json_object' } // 强制 JSON
+                                temperature: 0.45,
+                                response_format: { type: 'json_object' }
                             }),
-                            signal: controller.signal // 绑定超时信号
+                            signal: controller.signal
                         });
 
                         if (!response.ok) {
@@ -8707,31 +8897,31 @@ ${mnemonic}`;
 
                         const result = JSON.parse(rawContent);
                         const batchCollocations = normalizeCollocations(result.collocations || []);
-                        const batchCloze = validateClozeCandidate(
-                            word,
-                            result.cloze_suitable === true,
-                            result.cloze_sentence || '',
-                            result.cloze_reason || '',
-                            batchCollocations
-                        );
+                        const batchIpa = String(result.ipa || '').trim();
+                        const batchFamilyKey = cleanFamilyHeadword(result.family_headword, word);
+                        const batchMorphemes = (result.morphemes && typeof result.morphemes === 'object')
+                            ? result.morphemes
+                            : { prefix: "", root: "", suffix: "" };
+                        const batchMnemonic = await ensureMixedChineseMnemonic(word, result.mnemonic || "", batchMorphemes);
 
                         const newCard = createCardObject(
-                            word, result.sentence || "", result.definition || "", result.mnemonic || "",
+                            word, result.sentence || "", result.definition || "", batchMnemonic,
                             result.socratic || "", result.emoji || "", result.pos || "", "",
-                            "", result.contrast || "", result.morphemes || null,
+                            "", result.contrast || "", batchMorphemes,
                             Array.isArray(result.family) ? result.family.join(', ') : (result.family || ""),
                             "",
                             batchCollocations,
                             result.gloss_zh || "",
                             result.sense_label || "",
-                            word,
+                            batchFamilyKey,
                             batchFrequencyBand,
                             batchSourceType,
                             batchSourceLabel,
                             !/\s/.test(word.trim()),
-                            batchCloze.sentence,
-                            batchCloze.enabled,
-                            batchCloze.reason
+                            "",
+                            false,
+                            "retired",
+                            batchIpa
                         );
 
                         await saveCardDirect(newCard);
@@ -9285,7 +9475,7 @@ ${mnemonic}`;
                 alert('今天还没有可组卷的素材，请先记录内容或粘贴一段总结。');
                 return;
             }
-            if (!AI_CONFIG.apiKey || AI_CONFIG.apiKey.includes('濉叆')) {
+            if (!AI_CONFIG.apiKey || AI_CONFIG.apiKey.includes('这里填入') || AI_CONFIG.apiKey.includes('濉叆')) {
                 alert('请先配置 DeepSeek API Key。');
                 return;
             }
@@ -9301,7 +9491,21 @@ ${mnemonic}`;
             document.getElementById('dailyQuizLoadingView').classList.remove('hidden');
 
             const sourcePayload = buildDailyQuizSourcePayload(bundle, manualSummary);
-            const systemPrompt = [
+            const allSources = [...(bundle.todayNotes || []), ...(bundle.todayWrongs || [])];
+            const isEnglishQuiz = bundle.subject === ENGLISH_SUBJECT || (bundle.subject === 'all' && allSources.length > 0 && allSources.every(c => !isExamCardData(c)));
+            const systemPrompt = isEnglishQuiz ? [
+                '你是一位面向中国进阶英语学习者（4,000→8,000 词汇）的高诊断价值英语词汇测评师。',
+                '请基于用户今天新学和复习出错的英语词卡，生成一轮可自动判分的英语语用测验。',
+                '严格要求：',
+                '1. 严禁照搬原卡例句！必须为目标词编写全新的自然英文微语境（1-2句），检验真实迁移能力。',
+                '2. 题型组合：优先出“全新语境辨义（single_choice）”、“地道搭配/语用正误辨析（single_choice / true_false）”和“根据英文语境或精准中文提示拼写/回忆目标词（short_answer）”。',
+                '3. 干扰项必须有真实迷惑性（同词性、相近语义边界或常见中式误解），不要凑一眼假的废选项。',
+                '4. 如果是 objective 题型（single_choice / multi_select / true_false），必须给出 options、correct_indices、explanation（中文精讲搭配与语境辨析）。',
+                '5. 如果是 short_answer，必须给出 accepted_answers（包含目标词及常见合理变体）和 explanation。',
+                '6. 每题给出 1 个高价值 follow_up（例如追问搭配边界、褒贬色彩或换个语境判正误）。',
+                '7. 输出严格 JSON，不要 markdown：',
+                '{"title":"今日英语词汇检验","intro":"...","questions":[{"id":"q1","focus":"目标词","source_key":"wrong_1","source_note":"原词及释义","type":"single_choice","question":"In which sentence is \\"mitigate\\" used most naturally?","options":["...","...","...","..."],"correct_indices":[0],"explanation":"...","follow_ups":[{"type":"short_answer","question":"...","accepted_answers":["mitigate"],"explanation":"..."}]}]}'
+            ].join('\n') : [
                 '你是一个高诊断价值的学习测验生成器。你的任务不是安抚用户，也不是自由发挥教学总结。',
                 '请基于用户今天的笔记、今天做错或表现不佳的内容，以及手动补充总结，生成一轮可自动判分的小测。',
                 '严格要求：',
@@ -9948,10 +10152,15 @@ ${mnemonic}`;
         //   2) 处于回忆甜区 R≈0.55 (40%): 高斯钟形打分, 自动避开"太易/全忘"两端
         //   3) 失败次数 Again/Hard 多 (15%): 兜底标记总啃不下的词
 
-        // 失败次数 = history 里 rating<=2(Again/Hard) 的次数
+        // 失败次数 = history 里 rating<=2(Again/Hard) 的次数 + 差词阅读未认出次数(权重1.5)
         function countFailures(card) {
-            if (!Array.isArray(card.history)) return 0;
-            return card.history.filter(h => Number(h.rating) <= 2).length;
+            const reviewFails = Array.isArray(card.history)
+                ? card.history.filter(h => Number(h.rating) <= 2).length
+                : 0;
+            const contextFails = Array.isArray(card.contextHistory)
+                ? card.contextHistory.filter(h => h && h.status === 'forgotten').length * 1.5
+                : 0;
+            return reviewFails + contextFails;
         }
 
         // FSRS 可提取度 R: 此刻能想起的概率。与主调度器共用 FSRS-6 遗忘曲线。
@@ -10082,15 +10291,63 @@ ${mnemonic}`;
         }
 
         // --- 3. 弹窗开关与初始化 ---
+        function stopSpeakArticle() {
+            articleSpeaking = false;
+            if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+            const btn = document.getElementById('articleSpeakBtn');
+            if (btn) btn.innerText = '🔊 朗读全文';
+        }
+
+        function toggleSpeakArticle() {
+            if (articleSpeaking) {
+                stopSpeakArticle();
+                return;
+            }
+            const article = articleReaderState.article;
+            if (!article || !article.body) return;
+            const cleanBody = String(article.body || '').replace(/\[\[([^\]]+)\]\]/g, '$1').trim();
+            const fullText = [article.title || '', cleanBody].filter(Boolean).join('. ');
+            if (!fullText) return;
+
+            // 按句切分朗读，避免 Chrome/Edge Web Speech 长文本 15 秒中断问题
+            const chunks = fullText.match(/[^.!?;\n]+[.!?;\n]*/g) || [fullText];
+            const cleanChunks = chunks.map(s => s.trim()).filter(Boolean);
+            if (!cleanChunks.length) return;
+
+            speechSynthesis.cancel();
+            articleSpeaking = true;
+            const btn = document.getElementById('articleSpeakBtn');
+            if (btn) btn.innerText = '⏹ 停止朗读';
+            const bestVoice = getBestEnglishVoice();
+
+            let idx = 0;
+            const speakNext = () => {
+                if (!articleSpeaking || idx >= cleanChunks.length) {
+                    stopSpeakArticle();
+                    return;
+                }
+                const u = new SpeechSynthesisUtterance(cleanChunks[idx++]);
+                u.lang = 'en-US';
+                u.rate = 1.0;
+                if (bestVoice) u.voice = bestVoice;
+                u.onend = () => { if (articleSpeaking) speakNext(); };
+                u.onerror = () => stopSpeakArticle();
+                speechSynthesis.speak(u);
+            };
+            speakNext();
+        }
+
         function openArticleReaderModal() {
             document.getElementById('articleReaderModal').classList.remove('hidden');
             showArticleSetupView();
         }
         function closeArticleReaderModal() {
+            stopSpeakArticle();
             document.getElementById('articleReaderModal').classList.add('hidden');
         }
 
         function showArticleSetupView() {
+            stopSpeakArticle();
             document.getElementById('articleSetupView').classList.remove('hidden');
             document.getElementById('articleLoadingView').classList.add('hidden');
             document.getElementById('articleReadingView').classList.add('hidden');
@@ -10212,22 +10469,22 @@ ${mnemonic}`;
                 definition: (c.definition || '').trim()
             }));
 
-            const prompt = `你是一位面向中国大学英语学习者的英语六级词汇复习短文编辑。首要目标是帮助学习者在自然语境中复习候选词；文章应短而易读，不要为了显得难而堆词。
+            const prompt = `你是一位面向中国进阶英语学习者（词汇量 4,000→8,000，CEFR B2–C1 过渡）的英语词汇复习短文编辑。首要目标是帮助学习者在自然连贯的语境中巩固候选词；文章应自然易读，不要为了显得难而堆砌生僻词。
 
-请从下面 ${wordList.length} 个候选单词/词组中，挑选最适合自然共处的 ${ARTICLE_TARGET_MIN}-${ARTICLE_TARGET_MAX} 个，写一篇约 160-210 个英文词的短文，帮助读者通过语境理解并记住这些目标词。
+请从下面 ${wordList.length} 个候选单词/词组中，挑选最适合自然共处的 ${ARTICLE_TARGET_MIN}-${ARTICLE_TARGET_MAX} 个，写一篇约 190-250 个英文词的短文，帮助读者通过语境理解并记住这些目标词。
 
 【难度与选词】
-1. 词汇和句式整体接近 CET-6 阅读材料（约 CEFR B2），有适度挑战但清楚易读；非目标词不必全部高级，避免罕见词。
-2. 只选候选词中最自然的一组，共 ${ARTICLE_TARGET_MIN}-${ARTICLE_TARGET_MAX} 个。目标词须符合所给释义和词性，放进自然搭配和语境；不硬塞，也不必使用全部候选词。
-3. 每个选中的目标词至少自然出现一次。用上下文提供理解线索，不要直接给中文释义或词典式解释。目标词可按语法需要变形，正文用 [[...]] 标出实际词形；used_words 只列正文实际使用的候选词原形。
-4. 围绕一个明确主题或情境，用 1-2 个自然段即可，不必写成完整议论文。可用例子、原因结果或对比帮助理解；不要编造具体数据、研究、机构或引语。
+1. 词汇和句式整体处于 CET-6 到 B2+ / 外刊精读水平，有适度挑战但清楚易读；非目标词尽量使用常见词，避免堆砌罕见干扰词。
+2. 只选候选词中最自然的一组，共 ${ARTICLE_TARGET_MIN}-${ARTICLE_TARGET_MAX} 个。目标词须严格符合所给释义和词性，放进地道搭配；不硬塞，也不必使用全部候选词。
+3. 每个选中的目标词至少自然出现一次；在语境顺畅的前提下，尽量让其中最关键的 2-3 个目标词在不同句式中自然复现 2 次，以强化印象。不要直接给中文释义或词典式解释。目标词可按语法需要变形，正文用 [[...]] 标出实际词形；used_words 只列正文实际使用的候选词原形。
+4. 围绕一个明确主题或情境，用 2 个自然段即可。可用例子、原因结果或对比帮助理解；不要编造具体数据、研究、机构或引语。
 5. 标题和正文均用英文；除目标词标记外，正文不加 HTML、Markdown 或中文释义。
-6. 输出前检查正文约 160-210 个英文词、目标词释义准确、标记和 used_words 一致、语篇自然；严格输出 JSON，不要输出 JSON 以外的文字或代码块：
+6. 输出前检查正文约 190-250 个英文词、目标词释义准确、标记和 used_words 一致、语篇自然；严格输出 JSON，不要输出 JSON 以外的文字或代码块：
 {
   "title": "Article title",
   "style": "Topic or genre",
   "used_words": ["word1", "word2"],
-  "body": "A 160-210-word English passage; mark each used target word as [[word]]."
+  "body": "A 190-250-word English passage; mark each used target word as [[word]]."
 }
 
 【候选目标词及其释义（仅用于判断词义和自然选词；正文用英文，不要抄写或翻译释义）】
@@ -10292,8 +10549,60 @@ ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).
             renderArticleReadingView(article, true);
         }
 
+        // 根据是否已保存反馈来渲染文章正文：首遍无高亮防扫视，核对反馈后按绿/蓝/橙分色高亮便于二遍精读回溯
+        function renderArticleBody(article, showHighlights = false) {
+            const bodyEl = document.getElementById('articleBody');
+            if (!bodyEl || !article) return;
+            const rawBody = String(article.body || '');
+            let html = '';
+            if (!showHighlights) {
+                html = escapeHTML(rawBody.replace(/\[\[([^\]]+)\]\]/g, '$1'));
+            } else {
+                const words = articleReaderState.words || [];
+                const statusClass = (st) => st === 'recalled' ? 'article-hl-recalled'
+                    : st === 'inferred' ? 'article-hl-inferred'
+                    : st === 'forgotten' ? 'article-hl-forgotten'
+                    : 'article-hl-default';
+                const getTermStatus = (termText) => {
+                    const normTerm = normalizeArticleWordText(termText);
+                    for (let i = 0; i < words.length; i++) {
+                        const key = normalizeArticleWordText(words[i].word);
+                        if (!key) continue;
+                        if (normTerm === key || (key.length >= 4 && (normTerm.startsWith(key) || key.startsWith(normTerm)))) {
+                            return articleReaderState.feedback[i] || 'default';
+                        }
+                    }
+                    return 'default';
+                };
+                if (/\[\[[^\]]+\]\]/.test(rawBody)) {
+                    html = rawBody.split(/(\[\[[^\]]+\]\])/g).map(part => {
+                        const match = part.match(/^\[\[([^\]]+)\]\]$/);
+                        if (!match) return escapeHTML(part);
+                        const innerRaw = match[1];
+                        const cls = statusClass(getTermStatus(innerRaw));
+                        return `<span class="${cls}">${escapeHTML(innerRaw)}</span>`;
+                    }).join('');
+                } else {
+                    // 兜底：若模型偶发忘记输出 [[...]] 标记，仍按目标词正则分色高亮
+                    let highlighted = escapeHTML(rawBody);
+                    words.forEach((w, idx) => {
+                        const rawWord = String(w.word || '').trim();
+                        if (!rawWord) return;
+                        const cls = statusClass(articleReaderState.feedback[idx] || 'default');
+                        const pattern = rawWord.includes(' ')
+                            ? rawWord.split(/\s+/).map(escapeArticleRegExp).join('\\s+')
+                            : '\\b' + escapeArticleRegExp(rawWord) + '(?:s|es|ed|ing)?\\b';
+                        highlighted = highlighted.replace(new RegExp(pattern, 'gi'), m => `<span class="${cls}">${m}</span>`);
+                    });
+                    html = highlighted;
+                }
+            }
+            bodyEl.innerHTML = '<div style="font-size:18px; font-weight:700; color:#222; margin-bottom:10px;">' + escapeHTML(article.title || '') + '</div>' + html;
+        }
+
         // --- 5. 渲染阅读视图 (高亮 + 对照表) ---
         function renderArticleReadingView(article, isHistory = false) {
+            stopSpeakArticle();
             document.getElementById('articleSetupView').classList.add('hidden');
             document.getElementById('articleLoadingView').classList.add('hidden');
             document.getElementById('articleReadingView').classList.remove('hidden');
@@ -10305,10 +10614,7 @@ ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).
             articleReaderState.article = article;
 
             // 首遍阅读不高亮目标词，也不提前展示词义，避免把阅读变成扫视答案。
-            const bodyEl = document.getElementById('articleBody');
-            const safeBody = escapeHTML(article.body);
-            const html = safeBody.replace(/\[\[([^\]]+)\]\]/g, '$1');
-            bodyEl.innerHTML = '<div style="font-size:18px; font-weight:700; color:#222; margin-bottom:10px;">' + escapeHTML(article.title || '') + '</div>' + html;
+            renderArticleBody(article, false);
 
             document.getElementById('articleWordReviewPanel').classList.add('hidden');
             const revealBtn = document.getElementById('articleRevealBtn');
@@ -10447,8 +10753,9 @@ ${wordList.map(w => `- ${w.word}：${[w.gloss_zh, w.definition].filter(Boolean).
                 render();
                 if (fbEl) {
                     fbEl.style.color = counts.forgotten ? '#ff9500' : '#15803d';
-                    fbEl.innerText = `已记录：读到时就懂 ${counts.recalled}，靠语境猜到 ${counts.inferred}，读到时没懂 ${counts.forgotten}。${counts.forgotten ? '阅读时没懂的词已进入待复习。' : ''}`;
+                    fbEl.innerText = `已记录：读到时就懂 ${counts.recalled}，靠语境猜到 ${counts.inferred}，读到时没懂 ${counts.forgotten}。上方正文已按状态分色高亮，便于回看语境。${counts.forgotten ? '阅读时没懂的词已进入待复习。' : ''}`;
                 }
+                renderArticleBody(articleReaderState.article, true);
                 renderArticleFeedbackList();
             }).catch(error => {
                 articleReaderState.saved = false;
